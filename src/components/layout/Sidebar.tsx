@@ -168,9 +168,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   );
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
+    <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-border flex flex-col">
       {/* Logo */}
-      <div className="h-12 flex items-center px-3 border-b border-sidebar-border">
+      <div className="h-12 flex items-center px-3 border-b border-border">
         <Link to="/" onClick={onNavigate} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
             <span className="text-white font-bold text-xs">LP</span>
@@ -180,7 +180,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </div>
 
       {/* Team Switcher */}
-      <div className="px-3 py-2 border-b border-sidebar-border">
+      <div className="px-3 py-2 border-b border-border">
         <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 px-2">
           {t('nav.team', 'Team')}
         </div>
@@ -363,7 +363,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </nav>
 
       {/* Bottom Section */}
-      <div className="border-t border-sidebar-border p-3 space-y-2">
+      <div className="border-t border-border p-3 space-y-2">
         <NavItem
           icon={HelpCircle}
           label={t('common.help')}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -6,21 +6,37 @@ import {
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
-  eachWeekOfInterval,
   addMonths,
   subMonths,
-  isWithinInterval,
+  addWeeks,
+  subWeeks,
   differenceInDays,
   isSameMonth,
+  isSameDay,
+  isToday,
   startOfWeek,
   endOfWeek,
-  isToday,
+  parseISO,
+  isValid,
+  addDays,
 } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Layers, User, Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { StatusIcon, PriorityIcon } from './IssueIcons';
+import { IssueTypeIcon } from './IssueTypeIcon';
 import type { Issue } from '@/types';
 
 interface GanttChartProps {
@@ -28,85 +44,230 @@ interface GanttChartProps {
   onIssueClick?: (issue: Issue) => void;
 }
 
+type ViewMode = 'day' | 'week' | 'month' | 'quarter';
+type GroupBy = 'none' | 'project' | 'assignee' | 'status';
+
+interface GroupedIssues {
+  key: string;
+  label: string;
+  issues: Issue[];
+  isCollapsed: boolean;
+}
+
 export function GanttChart({ issues, onIssueClick }: GanttChartProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   
+  // Calculate the cell width based on view mode
+  const cellWidth = useMemo(() => {
+    switch (viewMode) {
+      case 'day': return 60;
+      case 'week': return 40;
+      case 'month': return 32;
+      case 'quarter': return 20;
+      default: return 32;
+    }
+  }, [viewMode]);
+
   // Calculate date range based on view mode
   const dateRange = useMemo(() => {
-    if (viewMode === 'month') {
-      const start = startOfMonth(currentDate);
-      const end = endOfMonth(currentDate);
-      return { start, end, days: eachDayOfInterval({ start, end }) };
-    } else {
-      const start = startOfWeek(currentDate, { locale: dateLocale });
-      const end = endOfWeek(addMonths(currentDate, 1), { locale: dateLocale });
-      return { 
-        start, 
-        end, 
-        days: eachDayOfInterval({ start, end }),
-        weeks: eachWeekOfInterval({ start, end }, { locale: dateLocale })
-      };
+    let start: Date, end: Date;
+    
+    switch (viewMode) {
+      case 'day':
+        start = startOfWeek(currentDate, { locale: dateLocale });
+        end = endOfWeek(addWeeks(currentDate, 1), { locale: dateLocale });
+        break;
+      case 'week':
+        start = startOfWeek(subWeeks(currentDate, 1), { locale: dateLocale });
+        end = endOfWeek(addWeeks(currentDate, 5), { locale: dateLocale });
+        break;
+      case 'month':
+        start = startOfMonth(subMonths(currentDate, 1));
+        end = endOfMonth(addMonths(currentDate, 2));
+        break;
+      case 'quarter':
+        start = startOfMonth(subMonths(currentDate, 2));
+        end = endOfMonth(addMonths(currentDate, 4));
+        break;
+      default:
+        start = startOfMonth(currentDate);
+        end = endOfMonth(currentDate);
     }
+    
+    return { 
+      start, 
+      end, 
+      days: eachDayOfInterval({ start, end })
+    };
   }, [currentDate, viewMode, dateLocale]);
 
-  // Filter issues that have due dates
-  const issuesWithDates = useMemo(() => {
-    return issues
-      .filter(issue => issue.dueDate)
-      .sort((a, b) => {
-        const dateA = new Date(a.dueDate!);
-        const dateB = new Date(b.dueDate!);
+  // Group issues based on groupBy setting
+  const groupedIssues = useMemo((): GroupedIssues[] => {
+    // Filter issues that have at least a due date
+    const issuesWithDates = issues.filter(issue => issue.dueDate || issue.createdAt);
+
+    if (groupBy === 'none') {
+      return [{
+        key: 'all',
+        label: t('gantt.allIssues', 'All Issues'),
+        issues: issuesWithDates.sort((a, b) => {
+          const dateA = new Date(a.dueDate || a.createdAt);
+          const dateB = new Date(b.dueDate || b.createdAt);
+          return dateA.getTime() - dateB.getTime();
+        }),
+        isCollapsed: false,
+      }];
+    }
+
+    const groups = new Map<string, Issue[]>();
+    
+    issuesWithDates.forEach(issue => {
+      let key: string;
+      let label: string;
+      
+      switch (groupBy) {
+        case 'project':
+          key = issue.projectId || 'no-project';
+          label = key === 'no-project' ? t('gantt.noProject', 'No Project') : `Project ${key.slice(0, 8)}`;
+          break;
+        case 'assignee':
+          key = issue.assigneeId || 'unassigned';
+          label = key === 'unassigned' ? t('gantt.unassigned', 'Unassigned') : `User ${key.slice(0, 8)}`;
+          break;
+        case 'status':
+          key = issue.status;
+          label = t(`status.${issue.status}`);
+          break;
+        default:
+          key = 'all';
+          label = 'All';
+      }
+      
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(issue);
+    });
+
+    return Array.from(groups.entries()).map(([key, groupIssues]) => ({
+      key,
+      label: groupBy === 'status' ? t(`status.${key}`) : 
+             groupBy === 'project' && key === 'no-project' ? t('gantt.noProject', 'No Project') :
+             groupBy === 'assignee' && key === 'unassigned' ? t('gantt.unassigned', 'Unassigned') :
+             key.slice(0, 12),
+      issues: groupIssues.sort((a, b) => {
+        const dateA = new Date(a.dueDate || a.createdAt);
+        const dateB = new Date(b.dueDate || b.createdAt);
         return dateA.getTime() - dateB.getTime();
-      });
-  }, [issues]);
+      }),
+      isCollapsed: collapsedGroups.has(key),
+    }));
+  }, [issues, groupBy, collapsedGroups, t]);
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   const handlePrevious = () => {
-    setCurrentDate(prev => subMonths(prev, 1));
+    switch (viewMode) {
+      case 'day':
+        setCurrentDate(prev => subWeeks(prev, 1));
+        break;
+      case 'week':
+        setCurrentDate(prev => subWeeks(prev, 2));
+        break;
+      case 'month':
+      case 'quarter':
+        setCurrentDate(prev => subMonths(prev, 1));
+        break;
+    }
   };
 
   const handleNext = () => {
-    setCurrentDate(prev => addMonths(prev, 1));
+    switch (viewMode) {
+      case 'day':
+        setCurrentDate(prev => addWeeks(prev, 1));
+        break;
+      case 'week':
+        setCurrentDate(prev => addWeeks(prev, 2));
+        break;
+      case 'month':
+      case 'quarter':
+        setCurrentDate(prev => addMonths(prev, 1));
+        break;
+    }
   };
 
   const handleToday = () => {
     setCurrentDate(new Date());
+    // Scroll to today
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        const todayIndex = dateRange.days.findIndex(d => isToday(d));
+        if (todayIndex > -1) {
+          scrollContainerRef.current.scrollLeft = Math.max(0, todayIndex * cellWidth - 200);
+        }
+      }
+    }, 100);
   };
 
-  const getBarPosition = (dueDate: string) => {
-    const date = new Date(dueDate);
-    const dayIndex = differenceInDays(date, dateRange.start);
+  const getBarPosition = useCallback((issue: Issue) => {
+    const dueDate = issue.dueDate ? parseISO(issue.dueDate) : null;
+    const createdDate = parseISO(issue.createdAt);
+    
+    // Use created date as start if no explicit start date
+    const startDate = createdDate;
+    // Use due date as end, or created date + 3 days if no due date
+    const endDate = dueDate && isValid(dueDate) ? dueDate : addDays(createdDate, 3);
+    
+    const startIndex = differenceInDays(startDate, dateRange.start);
+    const endIndex = differenceInDays(endDate, dateRange.start);
     const totalDays = dateRange.days.length;
     
-    // Calculate position and width
-    const left = Math.max(0, (dayIndex / totalDays) * 100);
-    const width = (1 / totalDays) * 100;
+    // Calculate position
+    const left = Math.max(0, startIndex * cellWidth);
+    const width = Math.max(cellWidth, (endIndex - startIndex + 1) * cellWidth);
+    
+    const isVisible = endIndex >= 0 && startIndex < totalDays;
     
     return {
-      left: `${left}%`,
-      width: `${Math.min(width * 3, 100 - left)}%`, // Bar spans 3 days or to end
-      isVisible: dayIndex >= 0 && dayIndex < totalDays,
+      left: `${left}px`,
+      width: `${Math.min(width, (totalDays - Math.max(0, startIndex)) * cellWidth)}px`,
+      isVisible,
+      hasDueDate: !!dueDate && isValid(dueDate),
     };
-  };
+  }, [dateRange, cellWidth]);
 
   const getStatusColor = (status: Issue['status']) => {
     switch (status) {
       case 'done':
-        return 'bg-green-500';
+        return 'bg-emerald-500 hover:bg-emerald-600';
       case 'in_progress':
-        return 'bg-blue-500';
+        return 'bg-blue-500 hover:bg-blue-600';
       case 'in_review':
-        return 'bg-yellow-500';
+        return 'bg-amber-500 hover:bg-amber-600';
       case 'todo':
-        return 'bg-slate-400';
+        return 'bg-slate-500 hover:bg-slate-600';
       case 'cancelled':
-        return 'bg-red-500';
+        return 'bg-red-500/70 hover:bg-red-600/70';
       default:
-        return 'bg-slate-300';
+        return 'bg-slate-400 hover:bg-slate-500';
     }
   };
 
@@ -118,178 +279,378 @@ export function GanttChart({ issues, onIssueClick }: GanttChartProps) {
     }
   };
 
+  const totalWidth = dateRange.days.length * cellWidth;
+
+  // Get week/month markers for header
+  const getHeaderMarkers = () => {
+    const markers: { date: Date; label: string; span: number }[] = [];
+    let currentMonth = '';
+    let currentSpan = 0;
+    let startIndex = 0;
+
+    dateRange.days.forEach((day, index) => {
+      const monthKey = format(day, 'yyyy-MM');
+      if (monthKey !== currentMonth) {
+        if (currentMonth) {
+          markers.push({
+            date: dateRange.days[startIndex],
+            label: format(dateRange.days[startIndex], 'MMMM yyyy', { locale: dateLocale }),
+            span: currentSpan,
+          });
+        }
+        currentMonth = monthKey;
+        currentSpan = 1;
+        startIndex = index;
+      } else {
+        currentSpan++;
+      }
+    });
+    
+    // Push last month
+    if (currentSpan > 0) {
+      markers.push({
+        date: dateRange.days[startIndex],
+        label: format(dateRange.days[startIndex], 'MMMM yyyy', { locale: dateLocale }),
+        span: currentSpan,
+      });
+    }
+
+    return markers;
+  };
+
+  const totalIssuesWithDates = groupedIssues.reduce((sum, g) => sum + g.issues.length, 0);
+
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      {/* Header Toolbar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrevious}>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevious}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleToday}>
+          <Button variant="outline" size="sm" className="h-8" onClick={handleToday}>
             {t('gantt.today', 'Today')}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleNext}>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <span className="ml-2 text-lg font-semibold">
+          <span className="ml-3 text-base font-semibold">
             {format(currentDate, 'MMMM yyyy', { locale: dateLocale })}
           </span>
         </div>
+        
         <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === 'month' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('month')}
-          >
-            {t('gantt.month', 'Month')}
-          </Button>
-          <Button
-            variant={viewMode === 'week' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('week')}
-          >
-            {t('gantt.week', 'Week')}
-          </Button>
+          {/* Group By */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-2">
+                <Layers className="h-3.5 w-3.5" />
+                {t('gantt.groupBy', 'Group')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setGroupBy('none')}>
+                {groupBy === 'none' && '✓ '}{t('gantt.noGrouping', 'No Grouping')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setGroupBy('project')}>
+                <Folder className="h-4 w-4 mr-2" />
+                {groupBy === 'project' && '✓ '}{t('gantt.byProject', 'By Project')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setGroupBy('assignee')}>
+                <User className="h-4 w-4 mr-2" />
+                {groupBy === 'assignee' && '✓ '}{t('gantt.byAssignee', 'By Assignee')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setGroupBy('status')}>
+                {groupBy === 'status' && '✓ '}{t('gantt.byStatus', 'By Status')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Zoom Level */}
+          <div className="flex items-center border border-border rounded-md">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 rounded-r-none"
+              onClick={() => {
+                const modes: ViewMode[] = ['day', 'week', 'month', 'quarter'];
+                const currentIndex = modes.indexOf(viewMode);
+                if (currentIndex > 0) setViewMode(modes[currentIndex - 1]);
+              }}
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+            <span className="px-2 text-xs font-medium min-w-[60px] text-center border-x border-border">
+              {t(`gantt.${viewMode}`, viewMode)}
+            </span>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 rounded-l-none"
+              onClick={() => {
+                const modes: ViewMode[] = ['day', 'week', 'month', 'quarter'];
+                const currentIndex = modes.indexOf(viewMode);
+                if (currentIndex < modes.length - 1) setViewMode(modes[currentIndex + 1]);
+              }}
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Gantt Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="min-w-[800px]">
-          {/* Timeline Header */}
-          <div className="sticky top-0 z-10 bg-muted/50 backdrop-blur border-b border-border">
-            <div className="flex">
-              {/* Issue column header */}
-              <div className="w-64 flex-shrink-0 px-4 py-2 border-r border-border font-medium text-sm">
-                {t('gantt.issue', 'Issue')}
-              </div>
-              {/* Days header */}
-              <div className="flex-1 flex">
-                {dateRange.days.map((day, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      "flex-1 min-w-[30px] text-center py-2 text-xs border-r border-border/50",
-                      isToday(day) && "bg-primary/10",
-                      !isSameMonth(day, currentDate) && "text-muted-foreground"
-                    )}
-                  >
-                    <div className="font-medium">{format(day, 'd')}</div>
-                    <div className="text-muted-foreground">{format(day, 'EEE', { locale: dateLocale })}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden flex">
+        {/* Fixed Issue Column */}
+        <div className="w-72 flex-shrink-0 border-r border-border flex flex-col bg-background z-10">
+          {/* Column Header */}
+          <div className="h-16 border-b border-border px-3 flex items-end pb-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              {t('gantt.issues', 'Issues')} ({totalIssuesWithDates})
+            </span>
           </div>
-
-          {/* Issue Rows */}
-          <div className="divide-y divide-border/50">
-            {issuesWithDates.length === 0 ? (
+          
+          {/* Issue List */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            {totalIssuesWithDates === 0 ? (
               <div className="flex items-center justify-center py-16 text-muted-foreground">
-                <div className="text-center">
-                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">{t('gantt.noIssues', 'No issues with due dates')}</p>
-                  <p className="text-sm mt-1">
-                    {t('gantt.addDueDates', 'Add due dates to your issues to see them in the Gantt chart')}
+                <div className="text-center px-4">
+                  <Calendar className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm font-medium">{t('gantt.noIssues', 'No issues with dates')}</p>
+                  <p className="text-xs mt-1 text-muted-foreground">
+                    {t('gantt.addDueDates', 'Add due dates to see issues here')}
                   </p>
                 </div>
               </div>
             ) : (
-              issuesWithDates.map((issue) => {
-                const barPos = getBarPosition(issue.dueDate!);
-                
-                return (
-                  <div key={issue.id} className="flex hover:bg-muted/30 transition-colors">
-                    {/* Issue Info */}
+              groupedIssues.map((group) => (
+                <div key={group.key}>
+                  {/* Group Header */}
+                  {groupBy !== 'none' && (
+                    <div 
+                      className="h-8 px-3 flex items-center gap-2 bg-muted/50 border-b border-border cursor-pointer hover:bg-muted/70"
+                      onClick={() => toggleGroup(group.key)}
+                    >
+                      <ChevronRight className={cn(
+                        "h-3.5 w-3.5 transition-transform",
+                        !group.isCollapsed && "rotate-90"
+                      )} />
+                      <span className="text-xs font-medium truncate">{group.label}</span>
+                      <span className="text-xs text-muted-foreground">({group.issues.length})</span>
+                    </div>
+                  )}
+                  
+                  {/* Group Issues */}
+                  {!group.isCollapsed && group.issues.map((issue) => (
                     <div
-                      className="w-64 flex-shrink-0 px-4 py-3 border-r border-border cursor-pointer"
+                      key={issue.id}
+                      className="h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-pointer hover:bg-muted/30 transition-colors"
                       onClick={() => handleIssueClick(issue)}
                     >
-                      <div className="flex items-center gap-2">
-                        <StatusIcon status={issue.status} />
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {issue.identifier}
-                        </span>
+                      <IssueTypeIcon type={(issue as any).type || 'task'} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate" title={issue.title}>
+                          {issue.title}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium truncate mt-1" title={issue.title}>
-                        {issue.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <PriorityIcon priority={issue.priority} />
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(issue.dueDate!), 'MMM d', { locale: dateLocale })}
-                        </span>
-                      </div>
+                      <span className="text-[10px] text-muted-foreground font-mono flex-shrink-0">
+                        {issue.identifier}
+                      </span>
                     </div>
-                    
-                    {/* Timeline Bar */}
-                    <div className="flex-1 relative py-3">
-                      {/* Grid lines */}
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable Timeline */}
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-auto"
+        >
+          <div style={{ width: `${totalWidth}px`, minWidth: '100%' }}>
+            {/* Timeline Header */}
+            <div className="sticky top-0 z-10 bg-background border-b border-border">
+              {/* Month Row */}
+              <div className="h-8 flex border-b border-border/50">
+                {getHeaderMarkers().map((marker, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-center text-xs font-medium border-r border-border/30"
+                    style={{ width: `${marker.span * cellWidth}px` }}
+                  >
+                    {marker.label}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Days Row */}
+              <div className="h-8 flex">
+                {dateRange.days.map((day, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "flex flex-col items-center justify-center border-r border-border/30",
+                      isToday(day) && "bg-primary/10",
+                      !isSameMonth(day, currentDate) && "text-muted-foreground/50"
+                    )}
+                    style={{ width: `${cellWidth}px`, minWidth: `${cellWidth}px` }}
+                  >
+                    <span className={cn(
+                      "text-[10px] font-medium",
+                      isToday(day) && "text-primary font-bold"
+                    )}>
+                      {format(day, 'd')}
+                    </span>
+                    {viewMode !== 'quarter' && (
+                      <span className="text-[9px] text-muted-foreground">
+                        {format(day, 'EEE', { locale: dateLocale })}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Timeline Rows */}
+            <div>
+              {groupedIssues.map((group) => (
+                <div key={group.key}>
+                  {/* Group Header Row */}
+                  {groupBy !== 'none' && (
+                    <div className="h-8 bg-muted/50 border-b border-border relative">
                       <div className="absolute inset-0 flex">
                         {dateRange.days.map((day, index) => (
                           <div
                             key={index}
                             className={cn(
-                              "flex-1 min-w-[30px] border-r border-border/30",
+                              "border-r border-border/20",
                               isToday(day) && "bg-primary/5"
                             )}
+                            style={{ width: `${cellWidth}px`, minWidth: `${cellWidth}px` }}
                           />
                         ))}
                       </div>
-                      
-                      {/* Issue Bar */}
-                      {barPos.isVisible && (
-                        <div
-                          className={cn(
-                            "absolute top-1/2 -translate-y-1/2 h-6 rounded-md cursor-pointer transition-all hover:opacity-80",
-                            getStatusColor(issue.status)
-                          )}
-                          style={{ left: barPos.left, width: barPos.width, minWidth: '60px' }}
-                          onClick={() => handleIssueClick(issue)}
-                          title={`${issue.title} - Due: ${format(new Date(issue.dueDate!), 'PPP', { locale: dateLocale })}`}
-                        >
-                          <span className="px-2 text-xs text-white font-medium truncate block leading-6">
-                            {issue.identifier}
-                          </span>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                );
-              })
+                  )}
+                  
+                  {/* Issue Rows */}
+                  {!group.isCollapsed && group.issues.map((issue) => {
+                    const barPos = getBarPosition(issue);
+                    
+                    return (
+                      <div key={issue.id} className="h-10 relative border-b border-border/30">
+                        {/* Grid Background */}
+                        <div className="absolute inset-0 flex">
+                          {dateRange.days.map((day, index) => (
+                            <div
+                              key={index}
+                              className={cn(
+                                "border-r border-border/20",
+                                isToday(day) && "bg-primary/5"
+                              )}
+                              style={{ width: `${cellWidth}px`, minWidth: `${cellWidth}px` }}
+                            />
+                          ))}
+                        </div>
+                        
+                        {/* Issue Bar */}
+                        {barPos.isVisible && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div
+                                className={cn(
+                                  "absolute top-1/2 -translate-y-1/2 h-6 rounded cursor-pointer transition-all shadow-sm",
+                                  getStatusColor(issue.status),
+                                  !barPos.hasDueDate && "opacity-60 border-2 border-dashed border-white/30"
+                                )}
+                                style={{ 
+                                  left: barPos.left, 
+                                  width: barPos.width,
+                                  minWidth: '40px',
+                                }}
+                                onClick={() => handleIssueClick(issue)}
+                              >
+                                <div className="h-full flex items-center px-2 overflow-hidden">
+                                  <StatusIcon status={issue.status} className="h-3 w-3 mr-1.5 flex-shrink-0 text-white" />
+                                  <span className="text-[10px] text-white font-medium truncate">
+                                    {issue.identifier}
+                                  </span>
+                                </div>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-1">
+                                <p className="font-medium text-sm">{issue.title}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{issue.identifier}</span>
+                                  <span>•</span>
+                                  <span>{t(`status.${issue.status}`)}</span>
+                                </div>
+                                {issue.dueDate && (
+                                  <p className="text-xs">
+                                    {t('issues.dueDate')}: {format(parseISO(issue.dueDate), 'PPP', { locale: dateLocale })}
+                                  </p>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Today Line */}
+            {dateRange.days.some(d => isToday(d)) && (
+              <div 
+                className="absolute top-16 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
+                style={{ 
+                  left: `${(dateRange.days.findIndex(d => isToday(d)) * cellWidth) + cellWidth / 2}px` 
+                }}
+              >
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500" />
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Footer Legend */}
       <div className="border-t border-border px-4 py-2 bg-muted/30">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="font-medium">{t('gantt.legend', 'Legend')}:</span>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-slate-300" />
-            <span>{t('status.backlog')}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="font-medium">{t('gantt.legend', 'Legend')}:</span>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-slate-400" />
+              <span>{t('status.backlog')}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-slate-500" />
+              <span>{t('status.todo')}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-blue-500" />
+              <span>{t('status.in_progress')}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-amber-500" />
+              <span>{t('status.in_review')}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-emerald-500" />
+              <span>{t('status.done')}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-slate-400" />
-            <span>{t('status.todo')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-blue-500" />
-            <span>{t('status.in_progress')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-yellow-500" />
-            <span>{t('status.in_review')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-green-500" />
-            <span>{t('status.done')}</span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-8 h-3 rounded bg-slate-400/60 border-2 border-dashed border-white/30" />
+            <span>{t('gantt.noDueDate', 'No due date')}</span>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

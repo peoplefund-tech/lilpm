@@ -17,6 +17,7 @@ import {
   Plus,
   Clock,
   BarChart3,
+  Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -66,6 +67,7 @@ export function LilyChat() {
     conversations,
     currentConversationId,
     sendMessage, 
+    stopGeneration,
     generatePRD,
     generateTickets,
     acceptSuggestedIssue,
@@ -477,18 +479,26 @@ export function LilyChat() {
               className="min-h-[44px] max-h-[200px] resize-none text-sm"
               rows={1}
             />
-            <Button 
-              onClick={handleSend} 
-              disabled={!input.trim() || isLoading}
-              size="icon"
-              className="h-11 w-11 flex-shrink-0"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
+            {isLoading ? (
+              <Button 
+                onClick={stopGeneration}
+                variant="destructive"
+                size="icon"
+                className="h-11 w-11 flex-shrink-0"
+                title={t('lily.stop', 'Stop')}
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleSend} 
+                disabled={!input.trim()}
+                size="icon"
+                className="h-11 w-11 flex-shrink-0"
+              >
                 <Send className="h-4 w-4" />
-              )}
-            </Button>
+              </Button>
+            )}
           </div>
           <p className="text-center text-xs text-muted-foreground mt-2 hidden sm:block">
             {AI_PROVIDER_LABELS[selectedProvider].icon} {t('lily.usingModel', 'Using')} {AI_PROVIDER_LABELS[selectedProvider].name}

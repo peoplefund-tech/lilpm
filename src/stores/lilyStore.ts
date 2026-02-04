@@ -17,9 +17,11 @@ interface LilyStore {
   suggestedIssues: Partial<Issue>[];
   dataSources: { id: string; name: string; type: string }[];
   selectedProvider: AIProvider;
+  abortController: AbortController | null;
   
   // Actions
   sendMessage: (message: string, context?: { teamId?: string; projectId?: string }) => Promise<void>;
+  stopGeneration: () => void;
   loadConversations: (teamId?: string) => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
   createConversation: (teamId?: string, projectId?: string) => Promise<string>;
@@ -100,12 +102,14 @@ async function streamChat({
   onDelta,
   onDone,
   onError,
+  signal,
 }: {
   messages: { role: 'user' | 'assistant'; content: string }[];
   provider: AIProvider;
   onDelta: (text: string) => void;
   onDone: (fullContent: string) => void;
   onError: (error: string) => void;
+  signal?: AbortSignal;
 }) {
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -116,6 +120,7 @@ async function streamChat({
       ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
     body: JSON.stringify({ messages, provider, stream: true }),
+    signal,
   });
 
   // Handle error responses
@@ -230,6 +235,15 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
   suggestedIssues: [],
   dataSources: [],
   selectedProvider: 'auto',
+  abortController: null,
+
+  stopGeneration: () => {
+    const controller = get().abortController;
+    if (controller) {
+      controller.abort();
+      set({ isLoading: false, abortController: null });
+    }
+  },
 
   loadConversations: async (teamId?: string) => {
     try {
@@ -316,9 +330,13 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
       timestamp: new Date().toISOString(),
     };
 
+    // Create AbortController for this request
+    const abortController = new AbortController();
+
     set((state) => ({
       messages: [...state.messages, userMessage],
       isLoading: true,
+      abortController,
     }));
 
     // Prepare messages for API
@@ -359,11 +377,13 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
       await streamChat({
         messages: apiMessages,
         provider: get().selectedProvider,
+        signal: abortController.signal,
         onDelta: (chunk) => updateAssistantMessage(chunk),
         onDone: (fullContent) => {
           const issues = parseIssueSuggestions(fullContent);
           set((state) => ({
             isLoading: false,
+            abortController: null,
             suggestedIssues: issues.length > 0 ? [...state.suggestedIssues, ...issues] : state.suggestedIssues,
           }));
         },
@@ -376,10 +396,16 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
               timestamp: new Date().toISOString(),
             }],
             isLoading: false,
+            abortController: null,
           }));
         },
       });
     } catch (error) {
+      // Check if it was aborted
+      if (error instanceof Error && error.name === 'AbortError') {
+        set({ isLoading: false, abortController: null });
+        return;
+      }
       set((state) => ({
         messages: [...state.messages, {
           id: Date.now().toString(),
@@ -388,6 +414,7 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
           timestamp: new Date().toISOString(),
         }],
         isLoading: false,
+        abortController: null,
       }));
     }
   },

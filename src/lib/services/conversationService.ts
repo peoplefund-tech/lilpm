@@ -16,21 +16,46 @@ export interface ConversationWithMessages extends Conversation {
 // ============================================
 
 export const conversationService = {
-  async getConversations(teamId?: string): Promise<Conversation[]> {
+  /**
+   * Get conversations - either personal or shared within a team
+   * @param teamId - If provided, gets all team conversations (shared)
+   * @param personalOnly - If true, only get user's own conversations
+   */
+  async getConversations(teamId?: string, personalOnly = false): Promise<Conversation[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
     let query = supabase
       .from('conversations')
       .select('*')
-      .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
     if (teamId) {
       query = query.eq('team_id', teamId);
+      // If not personal only, show all team conversations (shared)
+      if (personalOnly) {
+        query = query.eq('user_id', user.id);
+      }
+    } else {
+      // No team = personal conversations only
+      query = query.eq('user_id', user.id);
     }
 
     const { data, error } = await query;
+    
+    if (error) throw error;
+    return (data || []) as Conversation[];
+  },
+
+  /**
+   * Get all team conversations for collaboration
+   */
+  async getTeamConversations(teamId: string): Promise<Conversation[]> {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('updated_at', { ascending: false });
     
     if (error) throw error;
     return (data || []) as Conversation[];
