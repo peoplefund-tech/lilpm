@@ -572,6 +572,16 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
       abortController,
     }));
 
+    // Save user message to database if we have a conversation
+    const conversationId = get().currentConversationId;
+    if (conversationId) {
+      try {
+        await messageService.createMessage(conversationId, 'user', message);
+      } catch (err) {
+        console.error('Failed to save user message:', err);
+      }
+    }
+
     // Prepare messages for API
     const apiMessages = get().messages.map(m => ({
       role: m.role as 'user' | 'assistant',
@@ -652,6 +662,31 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
             }
           }
           
+          // Save assistant message to database if we have a conversation
+          const convId = get().currentConversationId;
+          if (convId && fullContent) {
+            try {
+              await messageService.createMessage(convId, 'assistant', fullContent);
+              // Update conversation title if this is the first response
+              const conversation = get().conversations.find(c => c.id === convId);
+              if (conversation && !conversation.title) {
+                // Generate a title from the first user message
+                const firstUserMsg = get().messages.find(m => m.role === 'user');
+                if (firstUserMsg) {
+                  const title = firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '');
+                  await conversationService.updateConversation(convId, { title });
+                  set(state => ({
+                    conversations: state.conversations.map(c => 
+                      c.id === convId ? { ...c, title } : c
+                    ),
+                  }));
+                }
+              }
+            } catch (err) {
+              console.error('Failed to save assistant message:', err);
+            }
+          }
+
           set((state) => ({
             isLoading: false,
             abortController: null,

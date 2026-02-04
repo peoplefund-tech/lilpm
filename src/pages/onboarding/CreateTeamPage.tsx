@@ -90,12 +90,17 @@ export function CreateTeamPage() {
       navigate('/onboarding/create-project');
     } catch (error: any) {
       console.error('Failed to create team:', error);
-      const message = error?.message || 'Failed to create team. Please try again.';
+      const message = error?.message || '';
+      const errorCode = error?.code || '';
       
       if (message.includes('verify your email')) {
         toast.error('Please check your email and verify your account first.');
+      } else if (message.includes('unique constraint') || message.includes('duplicate') || errorCode === '23505') {
+        toast.error('A team with this name or URL already exists. Please choose a different team name.');
+      } else if (message.includes('slug')) {
+        toast.error('This team URL is already taken. Please choose a different URL.');
       } else {
-        toast.error(message);
+        toast.error(message || 'Failed to create team. Please try again.');
       }
     } finally {
       setIsLoading(false);

@@ -70,37 +70,37 @@ function TimelineThinkingBlock({ content, t, isStreaming = false }: { content: s
   if (!content.trim()) return null;
   
   return (
-    <div className="flex gap-3 py-2">
+    <div className="flex gap-2 py-1.5">
       {/* Timeline icon with connector */}
       <div className="flex flex-col items-center">
         <div className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors",
+          "w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors",
           isStreaming 
             ? "border-violet-500 bg-violet-500/20" 
             : "border-violet-500/50 bg-violet-500/10"
         )}>
           <Brain className={cn(
-            "h-4 w-4 text-violet-500",
+            "h-3 w-3 text-violet-500",
             isStreaming && "animate-pulse"
           )} />
         </div>
         {/* Connector line */}
-        <div className="w-0.5 flex-1 bg-gradient-to-b from-violet-500/30 to-transparent min-h-[12px]" />
+        <div className="w-0.5 flex-1 bg-gradient-to-b from-violet-500/30 to-transparent min-h-[8px]" />
       </div>
       
       {/* Content */}
-      <div className="flex-1 min-w-0 pb-2">
+      <div className="flex-1 min-w-0 pb-1.5">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity group"
+          className="flex items-center gap-1.5 text-xs hover:opacity-80 transition-opacity group"
         >
           <span className="font-medium text-violet-600 dark:text-violet-400">
             {isStreaming ? t('lily.thinking', 'Thinking...') : t('lily.thoughtProcess', 'Thought process')}
           </span>
           {isStreaming ? (
-            <Loader2 className="h-3 w-3 animate-spin text-violet-500" />
+            <Loader2 className="h-2.5 w-2.5 animate-spin text-violet-500" />
           ) : (
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+            <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">
               {isExpanded ? '▼' : '▶'}
             </span>
           )}
@@ -108,9 +108,9 @@ function TimelineThinkingBlock({ content, t, isStreaming = false }: { content: s
         
         <div className={cn(
           "overflow-hidden transition-all duration-300 ease-out",
-          isExpanded ? "max-h-[400px] opacity-100 mt-2" : "max-h-0 opacity-0"
+          isExpanded ? "max-h-[300px] opacity-100 mt-1.5" : "max-h-0 opacity-0"
         )}>
-          <div className="text-sm text-muted-foreground/80 whitespace-pre-wrap leading-relaxed pl-3 border-l-2 border-violet-500/20 bg-violet-500/5 rounded-r-md py-2 pr-3">
+          <div className="text-xs text-muted-foreground/80 whitespace-pre-wrap leading-relaxed pl-2 border-l-2 border-violet-500/20 bg-violet-500/5 rounded-r-md py-1.5 pr-2">
             {content}
           </div>
         </div>
@@ -765,38 +765,39 @@ export function LilyChat() {
                     <TimelineThinkingBlock content={thinkingContent} t={t} />
                   )}
                   
-                  {/* Message bubble */}
+                  {/* Message bubble - Gemini-style compact design */}
                   <div className={cn(
-                    "flex gap-3",
+                    "flex gap-2",
                     message.role === 'user' && "flex-row-reverse"
                   )}>
-                    <Avatar className="h-8 w-8 flex-shrink-0">
+                    <Avatar className="h-6 w-6 flex-shrink-0">
                       <AvatarFallback className={cn(
+                        "text-xs",
                         message.role === 'assistant' && "bg-primary text-primary-foreground"
                       )}>
                         {message.role === 'assistant' ? (
-                          <Bot className="h-4 w-4" />
+                          <Bot className="h-3 w-3" />
                         ) : (
-                          <User className="h-4 w-4" />
+                          <User className="h-3 w-3" />
                         )}
                       </AvatarFallback>
                     </Avatar>
                     <div
                       className={cn(
-                        "rounded-lg px-4 py-2 max-w-[80%]",
+                        "rounded-lg px-3 py-1.5 max-w-[85%]",
                         message.role === 'user' 
-                          ? "bg-primary text-primary-foreground" 
+                          ? "bg-primary text-primary-foreground text-[13px]" 
                           : "bg-muted"
                       )}
                     >
                       {message.role === 'assistant' ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-[13px] leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_code]:text-xs">
                           <ReactMarkdown>{cleanContent || t('lily.generating', 'Generating...')}</ReactMarkdown>
                         </div>
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap">{cleanContent}</p>
+                        <p className="text-[13px] whitespace-pre-wrap leading-relaxed">{cleanContent}</p>
                       )}
-                      <span className="text-[10px] opacity-70 mt-1 block">
+                      <span className="text-[9px] opacity-60 mt-0.5 block">
                         {new Date(message.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
@@ -806,16 +807,16 @@ export function LilyChat() {
             })}
 
             {isLoading && (
-              <div className="flex gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
+              <div className="flex gap-2">
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    <Bot className="h-3 w-3" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="bg-muted rounded-lg px-4 py-2">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">{t('lily.thinking')}</span>
+                <div className="bg-muted rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="text-xs text-muted-foreground">{t('lily.thinking')}</span>
                   </div>
                 </div>
               </div>
