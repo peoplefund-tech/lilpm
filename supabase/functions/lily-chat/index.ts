@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Bump this string to verify which deployment is actually running.
-const FUNCTION_VERSION = "2026-02-04.3";
+const FUNCTION_VERSION = "2026-02-04.4";
 const DEPLOYED_AT = new Date().toISOString();
 
 // AI Provider configurations
@@ -354,15 +354,54 @@ interface ChatMessage {
   content: string;
 }
 
+interface MCPToolInfo {
+  name: string;
+  description: string;
+  category: string;
+  hasApiEndpoint: boolean;
+  hasMcpConfig: boolean;
+}
+
 interface RequestBody {
   messages: ChatMessage[];
   provider?: "anthropic" | "openai" | "gemini" | "auto" | "lovable";
   stream?: boolean;
   conversationId?: string;
   teamId?: string;
+  mcpTools?: MCPToolInfo[];
 }
 
-async function callAnthropic(messages: ChatMessage[], apiKey: string, stream: boolean) {
+// Generate dynamic system prompt with MCP tools
+function generateSystemPrompt(mcpTools?: MCPToolInfo[]): string {
+  let prompt = SYSTEM_PROMPT;
+  
+  if (mcpTools && mcpTools.length > 0) {
+    prompt += `\n\n---\n\n## 🔌 연결된 MCP 도구 (Connected MCP Tools)\n\n`;
+    prompt += `현재 사용자가 다음 외부 도구들을 연결해 두었습니다. 필요한 경우 이 도구들을 활용하여 더 정확하고 실시간 정보를 제공할 수 있습니다:\n\n`;
+    
+    mcpTools.forEach((tool, index) => {
+      prompt += `### ${index + 1}. ${tool.name}\n`;
+      prompt += `- **설명**: ${tool.description}\n`;
+      prompt += `- **카테고리**: ${tool.category}\n`;
+      prompt += `- **상태**: ✅ 연결됨\n\n`;
+    });
+    
+    prompt += `### MCP 도구 활용 가이드\n`;
+    prompt += `사용자가 연결된 도구와 관련된 요청을 하면:\n`;
+    prompt += `1. 해당 도구를 사용할 수 있음을 알려주세요\n`;
+    prompt += `2. 도구를 통해 얻을 수 있는 정보를 설명하세요\n`;
+    prompt += `3. 실제 도구 호출이 필요한 경우, 다음 형식으로 응답하세요:\n\n`;
+    prompt += `\`\`\`\n[MCP_TOOL_CALL]\n- tool: {도구 이름}\n- action: {수행할 작업}\n- params: {필요한 파라미터}\n[/MCP_TOOL_CALL]\n\`\`\`\n\n`;
+    prompt += `예시:\n`;
+    prompt += `- "GitHub에서 최근 커밋을 확인해줘" → GitHub 도구 활용\n`;
+    prompt += `- "Figma 디자인을 분석해줘" → Figma 도구 활용\n`;
+    prompt += `- "Notion에서 문서를 가져와줘" → Notion 도구 활용\n`;
+  }
+  
+  return prompt;
+}
+
+async function callAnthropic(messages: ChatMessage[], apiKey: string, stream: boolean, systemPrompt: string) {
   return await fetch(AI_PROVIDERS.anthropic.url, {
     method: "POST",
     headers: {
@@ -373,7 +412,7 @@ async function callAnthropic(messages: ChatMessage[], apiKey: string, stream: bo
     body: JSON.stringify({
       model: AI_PROVIDERS.anthropic.model,
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: messages
         .filter((m) => m.role !== "system")
         .map((m) => ({ role: m.role, content: m.content })),
@@ -382,7 +421,7 @@ async function callAnthropic(messages: ChatMessage[], apiKey: string, stream: bo
   });
 }
 
-async function callOpenAI(messages: ChatMessage[], apiKey: string, stream: boolean) {
+async function callOpenAI(messages: ChatMessage[], apiKey: string, stream: boolean, systemPrompt: string) {
   return await fetch(AI_PROVIDERS.openai.url, {
     method: "POST",
     headers: {
@@ -391,13 +430,13 @@ async function callOpenAI(messages: ChatMessage[], apiKey: string, stream: boole
     },
     body: JSON.stringify({
       model: AI_PROVIDERS.openai.model,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
       stream,
     }),
   });
 }
 
-async function callGemini(messages: ChatMessage[], apiKey: string) {
+async function callGemini(messages: ChatMessage[], apiKey: string, systemPrompt: string) {
   const contents = messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
@@ -406,7 +445,7 @@ async function callGemini(messages: ChatMessage[], apiKey: string) {
   if (messages[0]?.role !== "system") {
     contents.unshift({
       role: "user",
-      parts: [{ text: `System: ${SYSTEM_PROMPT}` }],
+      parts: [{ text: `System: ${systemPrompt}` }],
     });
   }
 
@@ -420,7 +459,7 @@ async function callGemini(messages: ChatMessage[], apiKey: string) {
   });
 }
 
-async function callLovable(messages: ChatMessage[], apiKey: string, stream: boolean) {
+async function callLovable(messages: ChatMessage[], apiKey: string, stream: boolean, systemPrompt: string) {
   return await fetch(AI_PROVIDERS.lovable.url, {
     method: "POST",
     headers: {
@@ -429,7 +468,7 @@ async function callLovable(messages: ChatMessage[], apiKey: string, stream: bool
     },
     body: JSON.stringify({
       model: AI_PROVIDERS.lovable.model,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
       stream,
     }),
   });
@@ -532,9 +571,13 @@ serve(async (req) => {
       );
     }
 
-    const { messages, provider = "auto", stream = true, conversationId, teamId } = parsedBody;
+    const { messages, provider = "auto", stream = true, conversationId, teamId, mcpTools } = parsedBody;
     void conversationId;
     void teamId;
+
+    // Generate dynamic system prompt with MCP tools
+    const dynamicSystemPrompt = generateSystemPrompt(mcpTools);
+    console.log(`[lily-chat ${FUNCTION_VERSION}] MCP tools: ${mcpTools?.length || 0}`);
 
     if (!messages || messages.length === 0) {
       return new Response(JSON.stringify({ error: "Messages are required", version: FUNCTION_VERSION }), {
@@ -638,17 +681,17 @@ serve(async (req) => {
 
     switch (selectedProvider) {
       case "anthropic":
-        response = await callAnthropic(messages, apiKey, stream);
+        response = await callAnthropic(messages, apiKey, stream, dynamicSystemPrompt);
         break;
       case "openai":
-        response = await callOpenAI(messages, apiKey, stream);
+        response = await callOpenAI(messages, apiKey, stream, dynamicSystemPrompt);
         break;
       case "gemini":
-        response = await callGemini(messages, apiKey);
+        response = await callGemini(messages, apiKey, dynamicSystemPrompt);
         break;
       case "lovable":
       default:
-        response = await callLovable(messages, apiKey, stream);
+        response = await callLovable(messages, apiKey, stream, dynamicSystemPrompt);
         break;
     }
 
@@ -683,7 +726,7 @@ serve(async (req) => {
           version: FUNCTION_VERSION,
         });
 
-        const fallbackResp = await callLovable(messages, envLovable, stream);
+        const fallbackResp = await callLovable(messages, envLovable, stream, dynamicSystemPrompt);
         if (fallbackResp.ok) {
           response = fallbackResp;
           finalProvider = "lovable";

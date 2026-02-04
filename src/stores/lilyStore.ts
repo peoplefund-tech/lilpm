@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 import { conversationService, messageService } from '@/lib/services/conversationService';
 import type { LilyMessage, PRDDocument, Issue, AIProvider } from '@/types';
+import type { MCPConnector } from '@/types/mcp';
 
 // Fallback to hardcoded URL if env var is undefined
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
@@ -20,7 +21,7 @@ interface LilyStore {
   abortController: AbortController | null;
   
   // Actions
-  sendMessage: (message: string, context?: { teamId?: string; projectId?: string }) => Promise<void>;
+  sendMessage: (message: string, context?: { teamId?: string; projectId?: string; mcpConnectors?: MCPConnector[] }) => Promise<void>;
   stopGeneration: () => void;
   loadConversations: (teamId?: string) => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
@@ -99,6 +100,7 @@ function parseIssueSuggestions(content: string): Partial<Issue>[] {
 async function streamChat({
   messages,
   provider,
+  mcpConnectors,
   onDelta,
   onDone,
   onError,
@@ -106,6 +108,7 @@ async function streamChat({
 }: {
   messages: { role: 'user' | 'assistant'; content: string }[];
   provider: AIProvider;
+  mcpConnectors?: MCPConnector[];
   onDelta: (text: string) => void;
   onDone: (fullContent: string) => void;
   onError: (error: string) => void;
@@ -113,13 +116,27 @@ async function streamChat({
 }) {
   const { data: { session } } = await supabase.auth.getSession();
 
+  // Prepare active MCP tools info for the AI
+  const activeMcpTools = mcpConnectors?.filter(c => c.enabled).map(c => ({
+    name: c.name,
+    description: c.description,
+    category: c.category,
+    hasApiEndpoint: !!c.apiEndpoint,
+    hasMcpConfig: !!c.mcpConfig,
+  }));
+
   const resp = await fetch(CHAT_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
-    body: JSON.stringify({ messages, provider, stream: true }),
+    body: JSON.stringify({ 
+      messages, 
+      provider, 
+      stream: true,
+      mcpTools: activeMcpTools,
+    }),
     signal,
   });
 
@@ -322,7 +339,7 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
     }
   },
 
-  sendMessage: async (message: string, context?: { teamId?: string; projectId?: string }) => {
+  sendMessage: async (message: string, context?: { teamId?: string; projectId?: string; mcpConnectors?: MCPConnector[] }) => {
     const userMessage: LilyMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -377,6 +394,7 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
       await streamChat({
         messages: apiMessages,
         provider: get().selectedProvider,
+        mcpConnectors: context?.mcpConnectors,
         signal: abortController.signal,
         onDelta: (chunk) => updateAssistantMessage(chunk),
         onDone: (fullContent) => {

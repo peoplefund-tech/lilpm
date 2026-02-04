@@ -155,7 +155,10 @@ export function LilyChat() {
     
     const message = input.trim();
     setInput('');
-    await sendMessage(message, { teamId: currentTeam?.id });
+    await sendMessage(message, { 
+      teamId: currentTeam?.id,
+      mcpConnectors: connectors,
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
