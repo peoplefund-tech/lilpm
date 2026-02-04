@@ -19,9 +19,6 @@
         }
       ]
     }
-  ],
-  "env": {
-    "VITE_SITE_URL": "@vite_site_url"
-  }
+  ]
 }
 
