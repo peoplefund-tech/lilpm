@@ -65,7 +65,9 @@ export const issueService = {
       query = query.in('project_id', filters.project_id);
     }
     if (filters?.search) {
-      query = query.or(`title.ilike.%${filters.search}%,identifier.ilike.%${filters.search}%`);
+      // Escape special characters for ilike pattern
+      const escapedSearch = filters.search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`title.ilike.%${escapedSearch}%,identifier.ilike.%${escapedSearch}%,description.ilike.%${escapedSearch}%`);
     }
 
     const { data, error } = await query;

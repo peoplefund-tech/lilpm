@@ -22,7 +22,7 @@ import {
   subDays,
 } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Layers, User, Folder, GripVertical, Link2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Layers, User, Folder, GripVertical, Link2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -40,11 +40,21 @@ import { StatusIcon, PriorityIcon } from './IssueIcons';
 import { IssueTypeIcon } from './IssueTypeIcon';
 import type { Issue } from '@/types';
 
+interface GanttCycle {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: 'upcoming' | 'active' | 'completed';
+}
+
 interface GanttChartProps {
   issues: Issue[];
+  cycles?: GanttCycle[];
   onIssueClick?: (issue: Issue) => void;
   onIssueUpdate?: (issueId: string, updates: { dueDate?: string; startDate?: string; sortOrder?: number }) => void;
   onDependencyCreate?: (fromIssueId: string, toIssueId: string) => void;
+  onCycleCreate?: (startDate: string, endDate: string, name: string) => void;
 }
 
 interface DragState {
@@ -70,7 +80,7 @@ interface GroupedIssues {
   isCollapsed: boolean;
 }
 
-export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCreate }: GanttChartProps) {
+export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, onDependencyCreate, onCycleCreate }: GanttChartProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
@@ -97,6 +107,11 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
   const [hoverTarget, setHoverTarget] = useState<{ issueId: string; side: 'left' | 'right' } | null>(null); // For snapping dependency lines
+  
+  // Row reordering state
+  const [rowDragIssueId, setRowDragIssueId] = useState<string | null>(null);
+  const [rowDropTargetIndex, setRowDropTargetIndex] = useState<number | null>(null);
+  const [rowDropPosition, setRowDropPosition] = useState<'above' | 'below' | null>(null);
   
   // Calculate the cell width based on view mode
   const cellWidth = useMemo(() => {
@@ -503,6 +518,25 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Create Cycle Button */}
+          {onCycleCreate && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 gap-2"
+              onClick={() => {
+                // Create a cycle for the current month view
+                const startDate = format(dateRange.start, 'yyyy-MM-dd');
+                const endDate = format(addDays(dateRange.start, 13), 'yyyy-MM-dd');
+                const cycleName = t('gantt.newCycle', 'New Cycle');
+                onCycleCreate(startDate, endDate, cycleName);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t('gantt.createCycle', 'New Cycle')}
+            </Button>
+          )}
+          
           {/* Group By */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -604,94 +638,85 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                   )}
                   
                   {/* Group Issues - Draggable for reordering */}
-                  {!group.isCollapsed && group.issues.map((issue, issueIndex) => (
-                    <div
-                      key={issue.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', JSON.stringify({ 
-                          issueId: issue.id, 
-                          groupKey: group.key,
-                          originalIndex: issueIndex 
-                        }));
-                        e.dataTransfer.effectAllowed = 'move';
-                        (e.currentTarget as HTMLElement).classList.add('opacity-50', 'scale-95');
-                      }}
-                      onDragEnd={(e) => {
-                        (e.currentTarget as HTMLElement).classList.remove('opacity-50', 'scale-95');
-                        // Remove any drop indicators
-                        document.querySelectorAll('.gantt-drop-indicator').forEach(el => {
-                          el.classList.remove('gantt-drop-indicator', 'border-t-2', 'border-b-2', 'border-primary');
-                        });
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        // Determine drop position based on mouse Y position
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        const midY = rect.top + rect.height / 2;
-                        const isAbove = e.clientY < midY;
-                        
-                        // Remove previous indicators
-                        document.querySelectorAll('.gantt-drop-indicator').forEach(el => {
-                          el.classList.remove('gantt-drop-indicator', 'border-t-2', 'border-b-2', 'border-primary');
-                        });
-                        
-                        // Add indicator
-                        (e.currentTarget as HTMLElement).classList.add('gantt-drop-indicator');
-                        if (isAbove) {
-                          (e.currentTarget as HTMLElement).classList.add('border-t-2', 'border-primary');
-                          (e.currentTarget as HTMLElement).classList.remove('border-b-2');
-                        } else {
-                          (e.currentTarget as HTMLElement).classList.add('border-b-2', 'border-primary');
-                          (e.currentTarget as HTMLElement).classList.remove('border-t-2');
-                        }
-                      }}
-                      onDragLeave={(e) => {
-                        (e.currentTarget as HTMLElement).classList.remove('gantt-drop-indicator', 'border-t-2', 'border-b-2', 'border-primary');
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const element = e.currentTarget as HTMLElement;
-                        element.classList.remove('gantt-drop-indicator', 'border-t-2', 'border-b-2', 'border-primary');
-                        
-                        try {
-                          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                          if (data.issueId && data.issueId !== issue.id && onIssueUpdate) {
-                            // Determine if dropping above or below
-                            const rect = element.getBoundingClientRect();
-                            const midY = rect.top + rect.height / 2;
-                            const isAbove = e.clientY < midY;
-                            
-                            // Calculate new sort order
-                            // Use timestamp-based sort order for unique values
-                            const baseSortOrder = issue.sortOrder !== undefined ? issue.sortOrder : issueIndex * 1000;
-                            const newSortOrder = isAbove 
-                              ? baseSortOrder - 1 // Insert above
-                              : baseSortOrder + 1; // Insert below
-                            
-                            console.log(`Moving issue ${data.issueId} to position ${newSortOrder} (${isAbove ? 'above' : 'below'} ${issue.identifier})`);
-                            onIssueUpdate(data.issueId, { sortOrder: newSortOrder });
-                          }
-                        } catch (err) {
-                          console.error('Drop error:', err);
-                        }
-                      }}
-                      className="h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 transition-all active:cursor-grabbing select-none"
-                      onClick={() => handleIssueClick(issue)}
-                    >
-                      <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab active:cursor-grabbing" />
-                      <IssueTypeIcon type={(issue as any).type || 'task'} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate" title={issue.title}>
-                          {issue.title}
-                        </p>
+                  {!group.isCollapsed && group.issues.map((issue, issueIndex) => {
+                    const isSidebarDragging = rowDragIssueId === issue.id;
+                    const isSidebarDropTarget = rowDropTargetIndex === issueIndex;
+                    
+                    return (
+                      <div
+                        key={issue.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                            issueId: issue.id, 
+                            groupKey: group.key,
+                            originalIndex: issueIndex 
+                          }));
+                          e.dataTransfer.effectAllowed = 'move';
+                          setRowDragIssueId(issue.id);
+                        }}
+                        onDragEnd={() => {
+                          setRowDragIssueId(null);
+                          setRowDropTargetIndex(null);
+                          setRowDropPosition(null);
+                        }}
+                        onDragOver={(e) => {
+                          if (!rowDragIssueId || rowDragIssueId === issue.id) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const midY = rect.top + rect.height / 2;
+                          const isAbove = e.clientY < midY;
+                          
+                          setRowDropTargetIndex(issueIndex);
+                          setRowDropPosition(isAbove ? 'above' : 'below');
+                        }}
+                        onDragLeave={() => {
+                          setRowDropTargetIndex(null);
+                          setRowDropPosition(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!rowDragIssueId || rowDragIssueId === issue.id || !onIssueUpdate) return;
+                          
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const midY = rect.top + rect.height / 2;
+                          const isAbove = e.clientY < midY;
+                          
+                          // Calculate new sort order
+                          const baseSortOrder = issue.sortOrder !== undefined ? issue.sortOrder : issueIndex * 1000;
+                          const newSortOrder = isAbove ? baseSortOrder - 1 : baseSortOrder + 1;
+                          
+                          console.log(`Moving issue ${rowDragIssueId} to ${isAbove ? 'above' : 'below'} ${issue.identifier} (sort: ${newSortOrder})`);
+                          onIssueUpdate(rowDragIssueId, { sortOrder: newSortOrder });
+                          
+                          setRowDragIssueId(null);
+                          setRowDropTargetIndex(null);
+                          setRowDropPosition(null);
+                        }}
+                        className={cn(
+                          "h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 active:cursor-grabbing select-none",
+                          "transition-all duration-200",
+                          isSidebarDragging && "opacity-50 scale-95",
+                          isSidebarDropTarget && rowDropPosition === 'above' && "border-t-2 border-t-primary translate-x-2",
+                          isSidebarDropTarget && rowDropPosition === 'below' && "border-b-2 border-b-primary translate-x-2"
+                        )}
+                        onClick={() => handleIssueClick(issue)}
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab active:cursor-grabbing" />
+                        <IssueTypeIcon type={(issue as any).type || 'task'} size="sm" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate" title={issue.title}>
+                            {issue.title}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-mono flex-shrink-0">
+                          {issue.identifier}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground font-mono flex-shrink-0">
-                        {issue.identifier}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))
             )}
@@ -745,6 +770,58 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                   </div>
                 ))}
               </div>
+              
+              {/* Cycles Row - Jira-style sprint/cycle markers */}
+              {cycles.length > 0 && (
+                <div className="h-6 flex relative bg-muted/20 border-t border-border/30">
+                  {dateRange.days.map((day, index) => (
+                    <div
+                      key={index}
+                      className="border-r border-border/10"
+                      style={{ width: `${cellWidth}px`, minWidth: `${cellWidth}px` }}
+                    />
+                  ))}
+                  {/* Cycle Bars */}
+                  {cycles.map((cycle) => {
+                    const cycleStart = parseISO(cycle.startDate);
+                    const cycleEnd = parseISO(cycle.endDate);
+                    
+                    if (!isValid(cycleStart) || !isValid(cycleEnd)) return null;
+                    
+                    const startDayIndex = dateRange.days.findIndex(d => isSameDay(d, cycleStart));
+                    const endDayIndex = dateRange.days.findIndex(d => isSameDay(d, cycleEnd));
+                    
+                    // Calculate visible portion
+                    const visibleStart = Math.max(0, startDayIndex);
+                    const visibleEnd = endDayIndex >= 0 ? endDayIndex : dateRange.days.length - 1;
+                    
+                    if (visibleStart > dateRange.days.length - 1 || visibleEnd < 0) return null;
+                    
+                    const left = visibleStart * cellWidth;
+                    const width = (visibleEnd - visibleStart + 1) * cellWidth;
+                    
+                    const statusColors = {
+                      upcoming: 'bg-blue-500/30 border-blue-500/50 text-blue-400',
+                      active: 'bg-green-500/30 border-green-500/50 text-green-400',
+                      completed: 'bg-gray-500/30 border-gray-500/50 text-gray-400',
+                    };
+                    
+                    return (
+                      <div
+                        key={cycle.id}
+                        className={cn(
+                          "absolute top-1 bottom-1 rounded-full border flex items-center px-2 overflow-hidden",
+                          statusColors[cycle.status]
+                        )}
+                        style={{ left: `${left}px`, width: `${width}px`, minWidth: '60px' }}
+                        title={`${cycle.name}: ${format(cycleStart, 'PP', { locale: dateLocale })} - ${format(cycleEnd, 'PP', { locale: dateLocale })}`}
+                      >
+                        <span className="text-[10px] font-medium truncate">{cycle.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Timeline Rows */}
@@ -770,11 +847,69 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                   )}
                   
                   {/* Issue Rows */}
-                  {!group.isCollapsed && group.issues.map((issue) => {
+                  {!group.isCollapsed && group.issues.map((issue, issueIndex) => {
                     const barPos = getBarPosition(issue);
+                    const isRowDragging = rowDragIssueId === issue.id;
+                    const isDropTarget = rowDropTargetIndex === issueIndex;
+                    
+                    // Calculate global index for this issue (across all groups)
+                    let globalIndex = 0;
+                    for (const g of groupedIssues) {
+                      if (g.key === group.key) {
+                        globalIndex += issueIndex;
+                        break;
+                      }
+                      globalIndex += g.issues.length;
+                    }
                     
                     return (
-                      <div key={issue.id} className="h-10 relative border-b border-border/30">
+                      <div 
+                        key={issue.id} 
+                        className={cn(
+                          "h-10 relative border-b border-border/30 transition-all duration-200",
+                          isRowDragging && "opacity-50",
+                          isDropTarget && rowDropPosition === 'above' && "border-t-2 border-t-primary translate-x-2",
+                          isDropTarget && rowDropPosition === 'below' && "border-b-2 border-b-primary translate-x-2"
+                        )}
+                        data-issue-id={issue.id}
+                        data-issue-index={globalIndex}
+                        data-group-key={group.key}
+                        onDragOver={(e) => {
+                          if (!rowDragIssueId || rowDragIssueId === issue.id) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const midY = rect.top + rect.height / 2;
+                          const isAbove = e.clientY < midY;
+                          
+                          setRowDropTargetIndex(issueIndex);
+                          setRowDropPosition(isAbove ? 'above' : 'below');
+                        }}
+                        onDragLeave={() => {
+                          setRowDropTargetIndex(null);
+                          setRowDropPosition(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!rowDragIssueId || rowDragIssueId === issue.id || !onIssueUpdate) return;
+                          
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const midY = rect.top + rect.height / 2;
+                          const isAbove = e.clientY < midY;
+                          
+                          // Calculate new sort order
+                          const baseSortOrder = issue.sortOrder !== undefined ? issue.sortOrder : issueIndex * 1000;
+                          const newSortOrder = isAbove ? baseSortOrder - 1 : baseSortOrder + 1;
+                          
+                          console.log(`Moving issue ${rowDragIssueId} to ${isAbove ? 'above' : 'below'} ${issue.identifier} (sort: ${newSortOrder})`);
+                          onIssueUpdate(rowDragIssueId, { sortOrder: newSortOrder });
+                          
+                          setRowDragIssueId(null);
+                          setRowDropTargetIndex(null);
+                          setRowDropPosition(null);
+                        }}
+                      >
                         {/* Grid Background */}
                         <div className="absolute inset-0 flex">
                           {dateRange.days.map((day, index) => (
@@ -833,6 +968,21 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                                      issueId: issue.id, 
+                                      groupKey: group.key,
+                                      originalIndex: issueIndex 
+                                    }));
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    setRowDragIssueId(issue.id);
+                                  }}
+                                  onDragEnd={() => {
+                                    setRowDragIssueId(null);
+                                    setRowDropTargetIndex(null);
+                                    setRowDropPosition(null);
+                                  }}
                                   className={cn(
                                     "absolute top-1/2 -translate-y-1/2 h-6 rounded shadow-sm group/bar select-none",
                                     getStatusColor(issue.status),
@@ -840,15 +990,19 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                                     isDragging && "z-30 cursor-grabbing shadow-lg",
                                     !isDragging && "transition-all cursor-grab",
                                     isLinkingFromThis && "ring-2 ring-yellow-400 z-30",
-                                    isLinkTarget && "ring-2 ring-green-400 z-30 scale-105"
+                                    isLinkTarget && "ring-2 ring-green-400 z-30 scale-105",
+                                    rowDragIssueId === issue.id && "opacity-50 scale-95"
                                   )}
                                   style={{ 
                                     left: `${visualLeft}px`, 
                                     width: `${visualWidth}px`,
                                     minWidth: '60px',
-                                    opacity: isDragging ? 0.7 : (barPos.hasDueDate ? 1 : 0.6),
+                                    opacity: isDragging ? 0.7 : (rowDragIssueId === issue.id ? 0.5 : (barPos.hasDueDate ? 1 : 0.6)),
                                   }}
-                                  onMouseDown={(e) => handleBarMouseDown(e, issue, 'move')}
+                                  onMouseDown={(e) => {
+                                    // Allow date drag with mousedown on the bar
+                                    handleBarMouseDown(e, issue, 'move');
+                                  }}
                                   onMouseEnter={() => handleBarMouseEnter(issue.id)}
                                   onDoubleClick={() => handleIssueClick(issue)}
                                 >
@@ -876,37 +1030,33 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                                     <GripVertical className="h-3 w-3 text-white/80" />
                                   </div>
                                   
-                                  {/* Link points - show when hovering or when actively linking */}
+                                  {/* Link points - show when hovering or when actively linking (smaller size) */}
                                   <div 
                                     className={cn(
-                                      "absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white cursor-crosshair flex items-center justify-center z-20 transition-all",
+                                      "absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border border-white/80 cursor-crosshair z-20 transition-all",
                                       linkingFrom 
                                         ? (isLinkTarget && hoverTarget?.side === 'left' 
-                                            ? "opacity-100 bg-green-500 scale-125" 
-                                            : "opacity-70 bg-yellow-400")
-                                        : "opacity-0 group-hover/bar:opacity-100 bg-yellow-400 hover:scale-110"
+                                            ? "opacity-100 bg-green-500 scale-150 w-3 h-3" 
+                                            : "opacity-80 bg-amber-500")
+                                        : "opacity-0 group-hover/bar:opacity-100 bg-amber-500 hover:scale-125"
                                     )}
-                                    onMouseDown={(e) => { e.stopPropagation(); handleStartLinking(e, issue.id, 'left'); }}
+                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleStartLinking(e, issue.id, 'left'); }}
                                     onMouseEnter={() => handleLinkPointEnter(issue.id, 'left')}
                                     onMouseLeave={handleLinkPointLeave}
-                                  >
-                                    <Link2 className="h-2.5 w-2.5 text-yellow-900" />
-                                  </div>
+                                  />
                                   <div 
                                     className={cn(
-                                      "absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white cursor-crosshair flex items-center justify-center z-20 transition-all",
+                                      "absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border border-white/80 cursor-crosshair z-20 transition-all",
                                       linkingFrom 
                                         ? (isLinkTarget && hoverTarget?.side === 'right' 
-                                            ? "opacity-100 bg-green-500 scale-125" 
-                                            : "opacity-70 bg-yellow-400")
-                                        : "opacity-0 group-hover/bar:opacity-100 bg-yellow-400 hover:scale-110"
+                                            ? "opacity-100 bg-green-500 scale-150 w-3 h-3" 
+                                            : "opacity-80 bg-amber-500")
+                                        : "opacity-0 group-hover/bar:opacity-100 bg-amber-500 hover:scale-125"
                                     )}
-                                    onMouseDown={(e) => { e.stopPropagation(); handleStartLinking(e, issue.id, 'right'); }}
+                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleStartLinking(e, issue.id, 'right'); }}
                                     onMouseEnter={() => handleLinkPointEnter(issue.id, 'right')}
                                     onMouseLeave={handleLinkPointLeave}
-                                  >
-                                    <Link2 className="h-2.5 w-2.5 text-yellow-900" />
-                                  </div>
+                                  />
                                 </div>
                               </TooltipTrigger>
                             <TooltipContent side="top" className="max-w-xs">
@@ -961,25 +1111,36 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
         <defs>
           <marker
             id="arrowhead"
-            markerWidth="10"
-            markerHeight="7"
-            refX="9"
-            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            refX="7"
+            refY="3"
             orient="auto"
             markerUnits="strokeWidth"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b" />
+            <polygon points="0 0, 8 3, 0 6" fill="#f59e0b" />
           </marker>
           <marker
             id="arrowhead-hover"
-            markerWidth="10"
-            markerHeight="7"
-            refX="9"
-            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            refX="7"
+            refY="3"
             orient="auto"
             markerUnits="strokeWidth"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
+            <polygon points="0 0, 8 3, 0 6" fill="#ef4444" />
+          </marker>
+          <marker
+            id="arrowhead-snap"
+            markerWidth="10"
+            markerHeight="8"
+            refX="9"
+            refY="4"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <polygon points="0 0, 10 4, 0 8" fill="#22c55e" />
           </marker>
         </defs>
         
@@ -1015,32 +1176,42 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
           const toX = sidebarWidth + parseFloat(toPos.left);
           const toY = headerHeight + (toRowIndex * rowHeight) + (rowHeight / 2);
           
-          // Notion-style bezier curve: horizontal exit, then curve to target
-          const horizontalOffset = Math.min(Math.abs(toX - fromX) / 3, 40);
-          const verticalDistance = Math.abs(toY - fromY);
+          // Advanced Notion/Figma-style bezier curve calculation
+          const horizontalDist = Math.abs(toX - fromX);
+          const verticalDist = Math.abs(toY - fromY);
+          const distance = Math.sqrt(horizontalDist * horizontalDist + verticalDist * verticalDist);
           
-          // Control points for smooth S-curve like Notion
+          // Dynamic control point offset based on distance for smooth curves
+          const baseOffset = Math.min(distance / 3, 80);
+          const curveStrength = Math.min(verticalDist / 2, 60);
+          
           let pathD: string;
           
-          if (toX > fromX) {
-            // Target is to the right (normal case)
-            const cp1x = fromX + horizontalOffset;
+          if (toX > fromX + 20) {
+            // Target is clearly to the right - simple smooth curve
+            const cp1x = fromX + baseOffset;
             const cp1y = fromY;
-            const cp2x = toX - horizontalOffset;
+            const cp2x = toX - baseOffset;
             const cp2y = toY;
             pathD = `M ${fromX} ${fromY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${toX} ${toY}`;
-          } else {
-            // Target is to the left - need to go around
-            const loopOffset = Math.max(40, verticalDistance / 2);
+          } else if (toX < fromX - 20) {
+            // Target is to the left - need to loop around elegantly
+            const loopOffset = Math.max(60, baseOffset);
+            const vertDirection = toY > fromY ? 1 : -1;
             const midY = (fromY + toY) / 2;
             
+            // Create a smooth S-curve that goes out, around, and back
             pathD = `M ${fromX} ${fromY} 
                      C ${fromX + loopOffset} ${fromY}, 
-                       ${fromX + loopOffset} ${midY}, 
-                       ${(fromX + toX) / 2} ${midY}
-                     C ${toX - loopOffset} ${midY}, 
-                       ${toX - loopOffset} ${toY}, 
+                       ${fromX + loopOffset} ${fromY + (vertDirection * curveStrength)}, 
+                       ${(fromX + toX) / 2 + loopOffset / 2} ${midY}
+                     S ${toX - loopOffset} ${toY},
                        ${toX} ${toY}`;
+          } else {
+            // Target is roughly at the same X position - vertical curve
+            const cp1x = fromX + 40;
+            const cp2x = toX - 40;
+            pathD = `M ${fromX} ${fromY} C ${cp1x} ${fromY}, ${cp2x} ${toY}, ${toX} ${toY}`;
           }
           
           return (
@@ -1113,21 +1284,74 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
               }
             }
             
+            // Calculate adaptive bezier curve that follows mouse smoothly
             const horizontalDist = Math.abs(toX - fromX);
-            const cpOffset = Math.min(horizontalDist / 2, 60);
+            const verticalDist = Math.abs(toY - fromY);
+            const distance = Math.sqrt(horizontalDist * horizontalDist + verticalDist * verticalDist);
             
-            const pathD = `M ${fromX} ${fromY} C ${fromX + cpOffset} ${fromY}, ${toX - cpOffset} ${toY}, ${toX} ${toY}`;
+            // Dynamic offset based on distance for natural-feeling curve
+            const cpOffset = Math.min(Math.max(distance / 3, 30), 100);
+            
+            let pathD: string;
+            const startSide = linkingFromSide;
+            const direction = startSide === 'right' ? 1 : -1;
+            
+            if ((toX - fromX) * direction > 20) {
+              // Natural direction - smooth curve
+              const cp1x = fromX + (direction * cpOffset);
+              const cp1y = fromY;
+              const cp2x = toX - (direction * cpOffset);
+              const cp2y = toY;
+              pathD = `M ${fromX} ${fromY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${toX} ${toY}`;
+            } else {
+              // Going backwards - need to loop
+              const loopOffset = Math.max(cpOffset, 60);
+              const midY = (fromY + toY) / 2;
+              const vertDirection = toY > fromY ? 1 : -1;
+              
+              pathD = `M ${fromX} ${fromY} 
+                       C ${fromX + (direction * loopOffset)} ${fromY}, 
+                         ${fromX + (direction * loopOffset)} ${midY}, 
+                         ${(fromX + toX) / 2} ${midY}
+                       S ${toX - (direction * loopOffset)} ${toY},
+                         ${toX} ${toY}`;
+            }
             
             return (
-              <path
-                d={pathD}
-                fill="none"
-                stroke={isSnapped ? "#22c55e" : "#f59e0b"}
-                strokeWidth={isSnapped ? 3 : 2}
-                opacity={isSnapped ? 0.9 : 0.6}
-                strokeDasharray="6,4"
-                markerEnd="url(#arrowhead)"
-              />
+              <g>
+                {/* Shadow/glow effect for better visibility */}
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={isSnapped ? "rgba(34, 197, 94, 0.3)" : "rgba(245, 158, 11, 0.3)"}
+                  strokeWidth={isSnapped ? 8 : 6}
+                  strokeLinecap="round"
+                />
+                {/* Main line */}
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={isSnapped ? "#22c55e" : "#f59e0b"}
+                  strokeWidth={isSnapped ? 2.5 : 2}
+                  opacity={isSnapped ? 1 : 0.8}
+                  strokeDasharray={isSnapped ? "none" : "8,4"}
+                  strokeLinecap="round"
+                  markerEnd={isSnapped ? "url(#arrowhead-snap)" : "url(#arrowhead)"}
+                />
+                {/* Animated dot at the end while dragging */}
+                {!isSnapped && (
+                  <circle
+                    cx={toX}
+                    cy={toY}
+                    r="4"
+                    fill="#f59e0b"
+                    opacity="0.8"
+                  >
+                    <animate attributeName="r" values="3;5;3" dur="0.8s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.8;0.4;0.8" dur="0.8s" repeatCount="indefinite" />
+                  </circle>
+                )}
+              </g>
             );
           })()
         )}

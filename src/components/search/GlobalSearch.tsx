@@ -97,11 +97,11 @@ export function GlobalSearch() {
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
+      const searchResults: SearchResult[] = [];
+      const searchQuery = query.toLowerCase();
+      
+      // Search issues - run independently
       try {
-        const searchResults: SearchResult[] = [];
-        const searchQuery = query.toLowerCase();
-        
-        // Search issues
         const issues = await issueService.getIssues(currentTeam.id, { search: query });
         issues.slice(0, 5).forEach((issue: IssueWithRelations) => {
           searchResults.push({
@@ -113,8 +113,12 @@ export function GlobalSearch() {
             priority: issue.priority,
           });
         });
+      } catch (error) {
+        console.error('Issue search error:', error);
+      }
 
-        // Search projects
+      // Search projects - run independently
+      try {
         const projects = await projectService.getProjects(currentTeam.id);
         projects
           .filter((p: Project) => 
@@ -130,36 +134,35 @@ export function GlobalSearch() {
               subtitle: project.description || undefined,
             });
           });
-
-        // Search PRDs
-        try {
-          const { data: prds } = await import('@/lib/supabase').then(m => 
-            m.supabase
-              .from('prd_documents')
-              .select('*')
-              .eq('team_id', currentTeam.id)
-              .or(`title.ilike.%${query}%,overview.ilike.%${query}%`)
-              .limit(3)
-          );
-          
-          (prds || []).forEach((prd: any) => {
-            searchResults.push({
-              id: prd.id,
-              type: 'project', // Use project type for PRD
-              title: `📄 ${prd.title}`,
-              subtitle: prd.overview?.slice(0, 50) || 'PRD Document',
-            });
-          });
-        } catch (e) {
-          // PRD search failed silently
-        }
-
-        setResults(searchResults);
       } catch (error) {
-        console.error('Search error:', error);
-      } finally {
-        setIsSearching(false);
+        console.error('Project search error:', error);
       }
+
+      // Search PRDs - run independently
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const escapedQuery = query.replace(/[%_\\]/g, '\\$&');
+        const { data: prds } = await supabase
+          .from('prd_documents')
+          .select('*')
+          .eq('team_id', currentTeam.id)
+          .or(`title.ilike.%${escapedQuery}%,overview.ilike.%${escapedQuery}%`)
+          .limit(3);
+        
+        (prds || []).forEach((prd: any) => {
+          searchResults.push({
+            id: prd.id,
+            type: 'project', // Use project type for PRD
+            title: `📄 ${prd.title}`,
+            subtitle: prd.overview?.slice(0, 50) || 'PRD Document',
+          });
+        });
+      } catch (error) {
+        console.error('PRD search error:', error);
+      }
+
+      setResults(searchResults);
+      setIsSearching(false);
     }, 300);
 
     return () => clearTimeout(timer);

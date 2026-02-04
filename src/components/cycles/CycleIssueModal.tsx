@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +9,7 @@ import { issueService } from '@/lib/services/issueService';
 import { cycleService } from '@/lib/services/cycleService';
 import { useTeamStore } from '@/stores/teamStore';
 import { StatusIcon, PriorityIcon } from '@/components/issues';
-import { Search, Loader2, Plus, Minus } from 'lucide-react';
+import { Search, Loader2, Plus, Minus, X, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Issue, Cycle } from '@/types/database';
 
@@ -167,106 +160,28 @@ export function CycleIssueModal({
     </div>
   );
 
+  // Full-screen overlay (not a dialog)
+  if (!open) return null;
+  
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {t('cycles.manageIssues')}
-            <Badge variant="outline">{cycle.name}</Badge>
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t('issues.searchPlaceholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+    <div className="fixed inset-0 z-50 bg-background">
+      {/* Header */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => onOpenChange(false)}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold">{t('cycles.manageIssues')}</h1>
+            <Badge variant="outline" className="text-sm">{cycle.name}</Badge>
+          </div>
         </div>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4">
-            {/* Current Cycle Issues */}
-            <div className="flex flex-col min-h-0">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Minus className="h-4 w-4 text-red-500" />
-                  {t('cycles.currentIssues')}
-                  <Badge variant="secondary">{cycleIssues.length}</Badge>
-                </h3>
-              </div>
-              <ScrollArea className="flex-1 border border-border rounded-lg">
-                <div className="p-2 space-y-1">
-                  {filteredCycleIssues.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      {t('cycles.noIssuesInCycle')}
-                    </div>
-                  ) : (
-                    filteredCycleIssues.map(issue => (
-                      <IssueRow
-                        key={issue.id}
-                        issue={issue}
-                        isSelected={selectedToRemove.has(issue.id)}
-                        onToggle={() => toggleRemoveIssue(issue.id)}
-                        mode="remove"
-                      />
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-              {selectedToRemove.size > 0 && (
-                <div className="mt-2 text-xs text-red-500">
-                  {t('cycles.willRemove', { count: selectedToRemove.size })}
-                </div>
-              )}
-            </div>
-
-            {/* Available Issues */}
-            <div className="flex flex-col min-h-0">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Plus className="h-4 w-4 text-green-500" />
-                  {t('cycles.availableIssues')}
-                  <Badge variant="secondary">{availableIssues.length}</Badge>
-                </h3>
-              </div>
-              <ScrollArea className="flex-1 border border-border rounded-lg">
-                <div className="p-2 space-y-1">
-                  {filteredAvailable.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      {t('cycles.noAvailableIssues')}
-                    </div>
-                  ) : (
-                    filteredAvailable.map(issue => (
-                      <IssueRow
-                        key={issue.id}
-                        issue={issue}
-                        isSelected={selectedToAdd.has(issue.id)}
-                        onToggle={() => toggleAddIssue(issue.id)}
-                        mode="add"
-                      />
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-              {selectedToAdd.size > 0 && (
-                <div className="mt-2 text-xs text-green-500">
-                  {t('cycles.willAdd', { count: selectedToAdd.size })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <DialogFooter>
+        <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
@@ -284,8 +199,100 @@ export function CycleIssueModal({
               </span>
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex flex-col h-[calc(100vh-73px)] p-6">
+        {/* Search */}
+        <div className="relative max-w-xl mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={t('issues.searchPlaceholder')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center flex-1">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-hidden grid grid-cols-2 gap-6">
+            {/* Current Cycle Issues */}
+            <div className="flex flex-col min-h-0 bg-card rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                  <Minus className="h-5 w-5 text-red-500" />
+                  {t('cycles.currentIssues')}
+                  <Badge variant="secondary">{cycleIssues.length}</Badge>
+                </h3>
+                {selectedToRemove.size > 0 && (
+                  <div className="text-sm text-red-500 font-medium">
+                    {t('cycles.willRemove', { count: selectedToRemove.size })}
+                  </div>
+                )}
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="space-y-2">
+                  {filteredCycleIssues.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      {t('cycles.noIssuesInCycle')}
+                    </div>
+                  ) : (
+                    filteredCycleIssues.map(issue => (
+                      <IssueRow
+                        key={issue.id}
+                        issue={issue}
+                        isSelected={selectedToRemove.has(issue.id)}
+                        onToggle={() => toggleRemoveIssue(issue.id)}
+                        mode="remove"
+                      />
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {/* Available Issues */}
+            <div className="flex flex-col min-h-0 bg-card rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-green-500" />
+                  {t('cycles.availableIssues')}
+                  <Badge variant="secondary">{availableIssues.length}</Badge>
+                </h3>
+                {selectedToAdd.size > 0 && (
+                  <div className="text-sm text-green-500 font-medium">
+                    {t('cycles.willAdd', { count: selectedToAdd.size })}
+                  </div>
+                )}
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="space-y-2">
+                  {filteredAvailable.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      {t('cycles.noAvailableIssues')}
+                    </div>
+                  ) : (
+                    filteredAvailable.map(issue => (
+                      <IssueRow
+                        key={issue.id}
+                        issue={issue}
+                        isSelected={selectedToAdd.has(issue.id)}
+                        onToggle={() => toggleAddIssue(issue.id)}
+                        mode="add"
+                      />
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

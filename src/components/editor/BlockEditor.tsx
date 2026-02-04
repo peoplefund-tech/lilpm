@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef, DragEvent } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -38,6 +38,8 @@ import {
   AlignCenter,
   AlignRight,
   CodeSquare,
+  Upload,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -207,6 +209,9 @@ export function BlockEditor({
 }: BlockEditorProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkPopover, setShowLinkPopover] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -293,19 +298,106 @@ export function BlockEditor({
     setShowLinkPopover(false);
   }, [editor, linkUrl]);
 
-  const addImage = useCallback(() => {
+  // Handle file to base64 conversion and insert image
+  const handleImageFiles = useCallback(async (files: FileList | File[]) => {
+    if (!editor) return;
+    
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+    
+    for (const file of imageFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        editor.chain().focus().setImage({ src: base64 }).run();
+      };
+      reader.readAsDataURL(file);
+    }
+  }, [editor]);
+
+  // Handle file input change
+  const handleFileInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleImageFiles(files);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [handleImageFiles]);
+
+  // Handle drag events
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleImageFiles(files);
+    }
+  }, [handleImageFiles]);
+
+  const addImageFromUrl = useCallback(() => {
     const url = window.prompt('Enter image URL');
     if (url && editor) {
       editor.chain().focus().setImage({ src: url }).run();
     }
   }, [editor]);
 
+  const triggerFileUpload = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
   if (!editor) {
     return null;
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div 
+      ref={editorContainerRef}
+      className={cn(
+        "relative",
+        isDragging && "ring-2 ring-primary ring-offset-2 rounded-lg",
+        className
+      )}
+      onDragOver={editable ? handleDragOver : undefined}
+      onDragLeave={editable ? handleDragLeave : undefined}
+      onDrop={editable ? handleDrop : undefined}
+    >
+      {/* Hidden file input for image upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileInputChange}
+        accept="image/*"
+        multiple
+        className="hidden"
+      />
+      
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg z-50 flex items-center justify-center">
+          <div className="text-center">
+            <Upload className="h-10 w-10 mx-auto text-primary mb-2" />
+            <p className="text-sm font-medium text-primary">Drop images here</p>
+          </div>
+        </div>
+      )}
       {/* Toolbar */}
       {editable && (
         <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border mb-4 sticky top-0 bg-background z-10">
@@ -432,9 +524,28 @@ export function BlockEditor({
           </ToolbarButton>
 
           {/* Image */}
-          <ToolbarButton onClick={addImage} title="Insert Image">
-            <ImageIcon className="h-4 w-4" />
-          </ToolbarButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                title="Insert Image"
+              >
+                <ImageIcon className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={triggerFileUpload}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Image
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={addImageFromUrl}>
+                <Link2 className="h-4 w-4 mr-2" />
+                Image from URL
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Link */}
           <Popover open={showLinkPopover} onOpenChange={setShowLinkPopover}>
