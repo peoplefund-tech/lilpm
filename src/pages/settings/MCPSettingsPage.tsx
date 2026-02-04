@@ -105,6 +105,10 @@ export function MCPSettingsPage() {
     apiEndpoint: '',
     apiKey: '',
   });
+  
+  // JSON config state
+  const [jsonConfig, setJsonConfig] = useState('');
+  const [addMode, setAddMode] = useState<'manual' | 'json'>('manual');
 
   const filteredConnectors = connectors.filter((connector) => {
     const matchesSearch = connector.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -119,17 +123,54 @@ export function MCPSettingsPage() {
   };
 
   const handleAddConnector = () => {
-    if (!newConnector.name.trim()) {
-      toast.error('Please enter a connector name');
-      return;
+    if (addMode === 'json') {
+      // Parse JSON config
+      try {
+        const config = JSON.parse(jsonConfig);
+        if (config.mcpServers) {
+          // Parse MCP server config format
+          Object.entries(config.mcpServers).forEach(([name, serverConfig]: [string, any]) => {
+            const endpoint = serverConfig.args?.find((arg: string) => arg.startsWith('http'));
+            const authHeader = serverConfig.args?.find((arg: string, i: number, arr: string[]) => 
+              arr[i - 1] === '--header' && arg.startsWith('Authorization')
+            );
+            const apiKey = authHeader?.replace('Authorization: Bearer ', '') || '';
+            
+            addConnector({
+              name,
+              description: `Custom MCP: ${serverConfig.command} ${(serverConfig.args || []).slice(0, 2).join(' ')}`,
+              icon: '🔌',
+              category: 'development',
+              configType: 'manual',
+              apiEndpoint: endpoint || '',
+              apiKey,
+              mcpConfig: serverConfig,
+              enabled: false,
+            });
+          });
+          toast.success('MCP servers added from JSON config');
+        } else {
+          toast.error('Invalid JSON format. Expected mcpServers object.');
+          return;
+        }
+      } catch (e) {
+        toast.error('Invalid JSON format');
+        return;
+      }
+      setJsonConfig('');
+    } else {
+      if (!newConnector.name.trim()) {
+        toast.error('Please enter a connector name');
+        return;
+      }
+      
+      addConnector({
+        ...newConnector,
+        enabled: false,
+      });
+      toast.success('New connector added');
     }
     
-    addConnector({
-      ...newConnector,
-      enabled: false,
-    });
-    
-    toast.success('New connector added');
     setIsAddDialogOpen(false);
     setNewConnector({
       name: '',
@@ -140,6 +181,7 @@ export function MCPSettingsPage() {
       apiEndpoint: '',
       apiKey: '',
     });
+    setAddMode('manual');
   };
 
   const handleSaveEdit = () => {
@@ -159,7 +201,7 @@ export function MCPSettingsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+      <div className="w-full p-4 md:p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -213,73 +255,110 @@ export function MCPSettingsPage() {
                 Add Connector
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Add New MCP Connector</DialogTitle>
                 <DialogDescription>
-                  Manually add a new MCP connector
+                  Add a new MCP connector manually or paste JSON configuration
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    placeholder="Connector name"
-                    value={newConnector.name}
-                    onChange={(e) => setNewConnector({ ...newConnector, name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Input
-                    placeholder="Connector description"
-                    value={newConnector.description}
-                    onChange={(e) => setNewConnector({ ...newConnector, description: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Icon (emoji)</Label>
-                  <Input
-                    placeholder="🔌"
-                    value={newConnector.icon}
-                    onChange={(e) => setNewConnector({ ...newConnector, icon: e.target.value })}
-                    className="w-20"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Select
-                    value={newConnector.category}
-                    onValueChange={(v) => setNewConnector({ ...newConnector, category: v as MCPCategory })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>API Endpoint (optional)</Label>
-                  <Input
-                    placeholder="https://api.example.com/mcp"
-                    value={newConnector.apiEndpoint}
-                    onChange={(e) => setNewConnector({ ...newConnector, apiEndpoint: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>API Key (optional)</Label>
-                  <Input
-                    type="password"
-                    placeholder="sk-..."
-                    value={newConnector.apiKey}
-                    onChange={(e) => setNewConnector({ ...newConnector, apiKey: e.target.value })}
-                  />
-                </div>
-              </div>
+              
+              <Tabs value={addMode} onValueChange={(v) => setAddMode(v as 'manual' | 'json')} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="manual">Manual</TabsTrigger>
+                  <TabsTrigger value="json">JSON Config</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="manual" className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input
+                      placeholder="Connector name"
+                      value={newConnector.name}
+                      onChange={(e) => setNewConnector({ ...newConnector, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Input
+                      placeholder="Connector description"
+                      value={newConnector.description}
+                      onChange={(e) => setNewConnector({ ...newConnector, description: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Icon (emoji)</Label>
+                    <Input
+                      placeholder="🔌"
+                      value={newConnector.icon}
+                      onChange={(e) => setNewConnector({ ...newConnector, icon: e.target.value })}
+                      className="w-20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select
+                      value={newConnector.category}
+                      onValueChange={(v) => setNewConnector({ ...newConnector, category: v as MCPCategory })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>API Endpoint (optional)</Label>
+                    <Input
+                      placeholder="https://api.example.com/mcp"
+                      value={newConnector.apiEndpoint}
+                      onChange={(e) => setNewConnector({ ...newConnector, apiEndpoint: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>API Key (optional)</Label>
+                    <Input
+                      type="password"
+                      placeholder="sk-..."
+                      value={newConnector.apiKey}
+                      onChange={(e) => setNewConnector({ ...newConnector, apiKey: e.target.value })}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="json" className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>MCP Configuration (JSON)</Label>
+                    <textarea
+                      className="w-full h-48 p-3 font-mono text-xs bg-muted rounded-md border resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder={`{
+  "mcpServers": {
+    "lily-workspace": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://example.com/mcp/sse",
+        "--header",
+        "Authorization: Bearer YOUR_TOKEN"
+      ]
+    }
+  }
+}`}
+                      value={jsonConfig}
+                      onChange={(e) => setJsonConfig(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste your MCP server configuration in JSON format. 
+                      The mcpServers object will be parsed to create connectors.
+                    </p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+              
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel

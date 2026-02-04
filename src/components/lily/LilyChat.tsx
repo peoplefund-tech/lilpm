@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -18,6 +18,8 @@ import {
   Clock,
   BarChart3,
   Square,
+  Settings,
+  Link,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,22 +37,56 @@ import {
 import { useLilyStore } from '@/stores/lilyStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useIssueStore } from '@/stores/issueStore';
+import { useMCPStore } from '@/stores/mcpStore';
 import { SuggestedIssuesList } from './SuggestedIssueCard';
 import { cn } from '@/lib/utils';
 import type { AIProvider, Issue } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { Plug, ExternalLink } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+
+const MIN_HISTORY_WIDTH = 200;
+const MAX_HISTORY_WIDTH = 400;
+const DEFAULT_HISTORY_WIDTH = 256; // 16rem = 256px
 
 export function LilyChat() {
   const { t, i18n } = useTranslation();
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [isComposing, setIsComposing] = useState(false); // For Korean IME
+  const [historyWidth, setHistoryWidth] = useState(DEFAULT_HISTORY_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
+
+  // Handle history panel resize
+  const handleHistoryResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    
+    const startX = e.clientX;
+    const startWidth = historyWidth;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startX;
+      const newWidth = Math.min(MAX_HISTORY_WIDTH, Math.max(MIN_HISTORY_WIDTH, startWidth + deltaX));
+      setHistoryWidth(newWidth);
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [historyWidth]);
 
   const AI_PROVIDER_LABELS: Record<AIProvider, { name: string; description: string; icon: string }> = {
     auto: { name: t('lily.auto'), description: t('lily.autoDesc', 'Best available model'), icon: '✨' },
@@ -83,6 +119,19 @@ export function LilyChat() {
   
   const { currentTeam } = useTeamStore();
   const { createIssue } = useIssueStore();
+  const { connectors, toggleConnector, getActiveConnectors, initializePresetConnectors } = useMCPStore();
+  const navigate = useNavigate();
+
+  // Initialize MCP connectors
+  useEffect(() => {
+    initializePresetConnectors();
+  }, [initializePresetConnectors]);
+
+  // Get recently connected MCPs (enabled ones first, sorted by most recent)
+  const sortedConnectors = [...connectors].sort((a, b) => {
+    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+    return 0;
+  });
 
   // Load conversations on mount
   useEffect(() => {
@@ -156,12 +205,15 @@ export function LilyChat() {
 
   return (
     <div className="flex h-full bg-background">
-      {/* Sidebar - Conversation History */}
-      <div className={cn(
-        "w-64 border-r border-border flex flex-col transition-all duration-200 fixed md:relative inset-y-0 left-0 z-40 bg-background",
-        showHistory ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
-        <div className="p-3 border-b border-border">
+      {/* Sidebar - Conversation History with Resize Handle */}
+      <div 
+        className={cn(
+          "relative border-r border-border flex flex-col transition-all duration-200 fixed md:relative inset-y-0 left-0 z-40 bg-background",
+          showHistory ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
+        style={{ width: historyWidth }}
+      >
+        <div className="h-12 flex items-center px-3 border-b border-border">
           <Button 
             onClick={handleNewConversation} 
             className="w-full gap-2"
@@ -214,6 +266,16 @@ export function LilyChat() {
             )}
           </div>
         </ScrollArea>
+
+        {/* Resize Handle */}
+        <div
+          className={cn(
+            "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-20 hidden md:block",
+            "hover:bg-primary/50 transition-colors",
+            isResizing && "bg-primary/50"
+          )}
+          onMouseDown={handleHistoryResize}
+        />
       </div>
 
       {/* Mobile Overlay */}
@@ -226,8 +288,8 @@ export function LilyChat() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-border">
+        {/* Header - matches sidebar h-12 */}
+        <div className="h-12 flex items-center justify-between px-3 sm:px-4 border-b border-border">
           <div className="flex items-center gap-2 sm:gap-3">
             <Button
               variant="ghost"
@@ -279,6 +341,74 @@ export function LilyChat() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* MCP Connect */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Plug className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t('lily.connect', 'Connect')}</span>
+                  {getActiveConnectors().length > 0 && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                      {getActiveConnectors().length}
+                    </Badge>
+                  )}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="flex items-center gap-2">
+                  <Plug className="h-4 w-4" />
+                  {t('lily.mcpConnections', 'MCPs')}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="max-h-60 overflow-y-auto">
+                  {sortedConnectors.slice(0, 8).map((connector) => (
+                    <div
+                      key={connector.id}
+                      className="flex items-center justify-between px-2 py-1.5 hover:bg-accent rounded-sm cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleConnector(connector.id);
+                        toast.success(connector.enabled 
+                          ? `${connector.name} disconnected` 
+                          : `${connector.name} connected`
+                        );
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{connector.icon}</span>
+                        <div>
+                          <p className="text-sm font-medium">{connector.name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
+                            {connector.description}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch 
+                        checked={connector.enabled} 
+                        onCheckedChange={() => {
+                          toggleConnector(connector.id);
+                          toast.success(connector.enabled 
+                            ? `${connector.name} disconnected` 
+                            : `${connector.name} connected`
+                          );
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => navigate('/settings/mcp')}
+                  className="flex items-center gap-2"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>{t('lily.viewAllMcp', 'View all MCPs')}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Quick Actions */}
             <Button 
               variant="outline" 
@@ -327,7 +457,7 @@ export function LilyChat() {
 
         {/* Messages */}
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-          <div className="space-y-4 max-w-3xl mx-auto">
+          <div className="space-y-4">
             {messages.length === 0 && (
               <div className="text-center py-12">
                 <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">

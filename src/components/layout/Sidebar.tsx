@@ -17,6 +17,7 @@ import {
   Sparkles,
   Target,
   FileText,
+  GanttChartSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore } from '@/stores/teamStore';
@@ -91,9 +92,10 @@ const PROJECT_ICONS: Record<string, string> = {
 
 interface SidebarProps {
   onNavigate?: () => void;
+  style?: React.CSSProperties;
 }
 
-export function Sidebar({ onNavigate }: SidebarProps) {
+export function Sidebar({ onNavigate, style }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -157,6 +159,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   const workspaceNav = [
     { icon: Layers, label: t('nav.allIssues'), href: '/issues', shortcut: 'G I' },
+    { icon: GanttChartSquare, label: t('nav.gantt', 'Gantt'), href: '/issues?view=gantt' },
     { icon: Target, label: t('nav.cycles'), href: '/cycles' },
     { icon: FileText, label: t('nav.prd', 'PRD'), href: '/prd' },
     { icon: Folder, label: t('nav.projects'), href: '/projects' },
@@ -168,7 +171,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   );
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-border flex flex-col">
+    <aside className="flex-1 bg-sidebar border-r border-border flex flex-col" style={style}>
       {/* Logo */}
       <div className="h-12 flex items-center px-3 border-b border-border">
         <Link to="/" onClick={onNavigate} className="flex items-center gap-2 hover:opacity-80 transition-opacity">

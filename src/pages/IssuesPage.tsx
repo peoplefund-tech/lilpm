@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AppLayout } from '@/components/layout';
 import { IssueList, IssueBoard, GanttChart, CreateIssueModal } from '@/components/issues';
@@ -26,6 +27,7 @@ import type { Issue, IssueStatus } from '@/types';
 
 export function IssuesPage() {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const { currentTeam } = useTeamStore();
   const { 
     issues, 
@@ -47,6 +49,14 @@ export function IssuesPage() {
     projectId: [],
     search: '',
   });
+
+  // Handle URL parameter for view mode
+  useEffect(() => {
+    const viewParam = searchParams.get('view');
+    if (viewParam === 'gantt') {
+      setViewPreferences({ layout: 'gantt' });
+    }
+  }, [searchParams, setViewPreferences]);
 
   useEffect(() => {
     if (currentTeam) {

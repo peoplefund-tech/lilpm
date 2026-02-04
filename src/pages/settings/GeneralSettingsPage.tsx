@@ -60,7 +60,7 @@ export function GeneralSettingsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <div className="w-full p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -209,8 +209,8 @@ export function GeneralSettingsPage() {
             <div className="flex items-center gap-3">
               <Plug className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <p className="font-medium">MCP 연결</p>
-                <p className="text-sm text-muted-foreground">외부 서비스 연결 관리</p>
+                <p className="font-medium">{t('settings.mcp', 'MCP Connections')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.mcpShortDesc', 'Manage external service connections')}</p>
               </div>
             </div>
             <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -223,8 +223,8 @@ export function GeneralSettingsPage() {
             <div className="flex items-center gap-3">
               <Brain className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <p className="font-medium">LLM 모델</p>
-                <p className="text-sm text-muted-foreground">AI 모델 등록 및 자동 혼합</p>
+                <p className="font-medium">{t('settings.llm', 'LLM Models')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.llmShortDesc', 'Register AI models and auto-mixing')}</p>
               </div>
             </div>
             <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -237,8 +237,8 @@ export function GeneralSettingsPage() {
             <div className="flex items-center gap-3">
               <Github className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <p className="font-medium">GitHub 연동</p>
-                <p className="text-sm text-muted-foreground">커밋/PR과 이슈 자동 연결</p>
+                <p className="font-medium">{t('settings.github', 'GitHub Integration')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.githubShortDesc', 'Auto-link commits/PRs with issues')}</p>
               </div>
             </div>
             <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -251,8 +251,8 @@ export function GeneralSettingsPage() {
             <div className="flex items-center gap-3">
               <MessageSquare className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <p className="font-medium">Slack 연동</p>
-                <p className="text-sm text-muted-foreground">알림 및 MCP 연결</p>
+                <p className="font-medium">{t('settings.slack', 'Slack Integration')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.slackShortDesc', 'Notifications and MCP connection')}</p>
               </div>
             </div>
             <ArrowLeft className="h-4 w-4 rotate-180" />

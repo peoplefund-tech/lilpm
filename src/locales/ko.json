@@ -75,6 +75,7 @@
     "inbox": "받은 편지함",
     "myIssues": "내 이슈",
     "allIssues": "전체 이슈",
+    "gantt": "간트",
     "activeCycle": "활성 스프린트",
     "projects": "프로젝트",
     "insights": "인사이트",
@@ -382,6 +383,14 @@
     "profile": "프로필",
     "security": "보안",
     "securityShortDesc": "비밀번호 및 인증",
+    "mcp": "MCP 연결",
+    "mcpShortDesc": "외부 서비스 연결 관리",
+    "llm": "LLM 모델",
+    "llmShortDesc": "AI 모델 등록 및 자동 혼합",
+    "github": "GitHub 연동",
+    "githubShortDesc": "커밋/PR과 이슈 자동 연결",
+    "slack": "Slack 연동",
+    "slackShortDesc": "알림 및 MCP 연결",
     "saved": "설정이 저장되었습니다"
   },
   "security": {
@@ -458,7 +467,10 @@
     "analyzeProject": "분석",
     "generatePRD": "PRD",
     "generateTickets": "티켓",
-    "suggestedIssues": "제안된 이슈"
+    "suggestedIssues": "제안된 이슈",
+    "connect": "연결",
+    "mcpConnections": "MCPs",
+    "viewAllMcp": "모든 MCP 보기"
   },
   "onboarding": {
     "createTeam": "팀 만들기",

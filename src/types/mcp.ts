@@ -1,5 +1,11 @@
 // MCP (Model Context Protocol) Types
 
+export interface MCPServerConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
 export interface MCPConnector {
   id: string;
   name: string;
@@ -11,6 +17,7 @@ export interface MCPConnector {
   apiEndpoint?: string;
   apiKey?: string;
   settings?: Record<string, unknown>;
+  mcpConfig?: MCPServerConfig;
 }
 
 export type MCPCategory = 

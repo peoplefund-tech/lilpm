@@ -75,6 +75,7 @@
     "inbox": "Inbox",
     "myIssues": "My Issues",
     "allIssues": "All Issues",
+    "gantt": "Gantt",
     "activeCycle": "Active Cycle",
     "projects": "Projects",
     "insights": "Insights",
@@ -401,6 +402,14 @@
     "profile": "Profile",
     "security": "Security",
     "securityShortDesc": "Password and authentication",
+    "mcp": "MCP Connections",
+    "mcpShortDesc": "Manage external service connections",
+    "llm": "LLM Models",
+    "llmShortDesc": "Register AI models and auto-mixing",
+    "github": "GitHub Integration",
+    "githubShortDesc": "Auto-link commits/PRs with issues",
+    "slack": "Slack Integration",
+    "slackShortDesc": "Notifications and MCP connection",
     "saved": "Settings saved"
   },
   "security": {
@@ -477,7 +486,10 @@
     "analyzeProject": "Analyze",
     "generatePRD": "PRD",
     "generateTickets": "Tickets",
-    "suggestedIssues": "Suggested Issues"
+    "suggestedIssues": "Suggested Issues",
+    "connect": "Connect",
+    "mcpConnections": "MCPs",
+    "viewAllMcp": "View all MCPs"
   },
   "prd": {
     "title": "PRD Documents",
