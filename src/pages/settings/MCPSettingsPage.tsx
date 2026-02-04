@@ -268,12 +268,32 @@ export function MCPSettingsPage() {
       const MCP_PROXY_URL = `${SUPABASE_URL}/functions/v1/mcp-proxy`;
       
       console.log('[MCP Test] Proxy URL:', MCP_PROXY_URL);
+      console.log('[MCP Test] Request body:', { endpoint, apiKey: apiKey ? '***' : 'none', action: 'list' });
       
-      // Set timeout
+      // First, check if Edge Function is reachable
+      try {
+        const healthCheck = await fetch(MCP_PROXY_URL, { method: 'GET' });
+        const healthData = await healthCheck.json();
+        console.log('[MCP Test] Health check:', healthData);
+        if (healthData.status !== 'ok') {
+          setTestResult({ success: false, message: `Edge Function health check failed: ${JSON.stringify(healthData)}` });
+          return;
+        }
+      } catch (healthError) {
+        console.error('[MCP Test] Health check failed:', healthError);
+        setTestResult({ 
+          success: false, 
+          message: `❌ Cannot reach MCP Proxy Edge Function.\n\nURL: ${MCP_PROXY_URL}\nError: ${healthError instanceof Error ? healthError.message : 'Unknown'}\n\nPlease check:\n1. Edge Function is deployed\n2. No network/firewall issues` 
+        });
+        return;
+      }
+      
+      // Set timeout (60 seconds for actual MCP call)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       
       // Test with tools/list action
+      console.log('[MCP Test] Sending MCP request...');
       const response = await fetch(MCP_PROXY_URL, {
         method: 'POST',
         headers: {
@@ -289,6 +309,7 @@ export function MCPSettingsPage() {
       });
       
       clearTimeout(timeoutId);
+      console.log('[MCP Test] Response status:', response.status);
       
       const result = await response.json();
       console.log('[MCP Test] Proxy response:', result);
