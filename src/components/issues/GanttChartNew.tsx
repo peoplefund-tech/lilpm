@@ -481,9 +481,9 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   };
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full bg-background border border-border rounded-lg overflow-hidden">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+    <div ref={containerRef} className="flex flex-col h-full bg-white dark:bg-background border border-border/50 rounded-lg overflow-hidden shadow-sm">
+      {/* Toolbar - Notion-style */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-white dark:bg-muted/20">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
