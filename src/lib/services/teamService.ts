@@ -189,7 +189,7 @@ export const teamInviteService = {
     return (data || []) as TeamInvite[];
   },
 
-  async createInvite(teamId: string, email: string, role: TeamRole = 'member'): Promise<TeamInvite> {
+  async createInvite(teamId: string, email: string, role: TeamRole = 'member'): Promise<TeamInvite & { isExistingUser?: boolean }> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
@@ -206,6 +206,15 @@ export const teamInviteService = {
       .select('name')
       .eq('id', teamId)
       .single();
+
+    // Check if the email belongs to an existing user
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id, name, email')
+      .eq('email', email)
+      .single();
+
+    const isExistingUser = !!existingProfile;
 
     // Generate a unique token
     const token = crypto.randomUUID();
@@ -228,11 +237,38 @@ export const teamInviteService = {
       throw error;
     }
 
+    const inviterName = profile?.name || user.email?.split('@')[0] || 'A team member';
+    const teamName = team?.name || 'Team';
+
+    // If existing user, create inbox notification
+    if (isExistingUser && existingProfile) {
+      try {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: existingProfile.id,
+            type: 'team_invite',
+            title: `You've been invited to join ${teamName}`,
+            message: `${inviterName} invited you to join ${teamName} as a ${role}`,
+            data: {
+              inviteId: data.id,
+              teamId: teamId,
+              teamName: teamName,
+              inviterName: inviterName,
+              role: role,
+              token: token,
+            },
+          } as any);
+        
+        console.log('Inbox notification created for existing user');
+      } catch (notifError) {
+        console.error('Failed to create inbox notification:', notifError);
+      }
+    }
+
     // Call Edge Function to send email
     try {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
-      const inviterName = profile?.name || user.email?.split('@')[0] || 'A team member';
-      const teamName = team?.name || 'Team';
       
       const response = await fetch(`${SUPABASE_URL}/functions/v1/send-team-invite`, {
         method: 'POST',
@@ -246,6 +282,7 @@ export const teamInviteService = {
           inviterName: inviterName,
           role: role,
           token: token,
+          isExistingUser: isExistingUser,
         }),
       });
       
@@ -259,7 +296,7 @@ export const teamInviteService = {
       // Don't fail the invite creation if email fails
     }
     
-    return data as TeamInvite;
+    return { ...data, isExistingUser } as TeamInvite & { isExistingUser?: boolean };
   },
 
   async cancelInvite(inviteId: string): Promise<void> {
@@ -315,6 +352,80 @@ export const teamInviteService = {
       .update({ status: 'accepted' } as any)
       .eq('id', typedInvite.id);
 
+    // Create notification for inviter
+    try {
+      const { data: accepterProfile } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', user.id)
+        .single();
+
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: typedInvite.invited_by,
+          type: 'invite_accepted',
+          title: `${accepterProfile?.name || accepterProfile?.email || 'A user'} accepted your invitation`,
+          message: `${accepterProfile?.name || accepterProfile?.email} has joined ${typedInvite.team.name}`,
+          data: {
+            teamId: typedInvite.team_id,
+            teamName: typedInvite.team.name,
+            acceptedBy: user.id,
+          },
+        } as any);
+    } catch (notifError) {
+      console.error('Failed to create acceptance notification:', notifError);
+    }
+
     return typedInvite.team as Team;
+  },
+
+  async rejectInvite(token: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Get invite
+    const { data: invite, error: inviteError } = await supabase
+      .from('team_invites')
+      .select('*, team:teams(*)')
+      .eq('token', token)
+      .eq('status', 'pending')
+      .single();
+    
+    if (inviteError) throw inviteError;
+    if (!invite) throw new Error('Invite not found or expired');
+
+    const typedInvite = invite as any;
+
+    // Mark invite as rejected
+    await supabase
+      .from('team_invites')
+      .update({ status: 'rejected' } as any)
+      .eq('id', typedInvite.id);
+
+    // Create notification for inviter
+    try {
+      const { data: rejecterProfile } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', user.id)
+        .single();
+
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: typedInvite.invited_by,
+          type: 'invite_rejected',
+          title: `${rejecterProfile?.name || rejecterProfile?.email || 'A user'} declined your invitation`,
+          message: `${rejecterProfile?.name || rejecterProfile?.email} declined to join ${typedInvite.team.name}`,
+          data: {
+            teamId: typedInvite.team_id,
+            teamName: typedInvite.team.name,
+            rejectedBy: user.id,
+          },
+        } as any);
+    } catch (notifError) {
+      console.error('Failed to create rejection notification:', notifError);
+    }
   },
 };

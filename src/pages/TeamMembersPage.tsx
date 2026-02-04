@@ -169,11 +169,23 @@ export function TeamMembersPage() {
     
     setIsSending(true);
     try {
-      await teamInviteService.createInvite(currentTeam.id, inviteEmail, inviteRole);
-      toast.success(t('team.inviteSent'));
+      const newInvite = await teamInviteService.createInvite(currentTeam.id, inviteEmail, inviteRole);
+      
+      // Show different message based on whether user exists
+      if ((newInvite as any).isExistingUser) {
+        toast.success(t('team.inviteSentExistingUser', 'Invitation sent! The user will be notified via email and in-app notification.'));
+      } else {
+        toast.success(t('team.inviteSent'));
+      }
+      
+      // Immediately add the invite to the local state for instant UI update
+      setInvites(prev => [...prev, newInvite]);
+      
       setInviteEmail('');
       setInviteOpen(false);
-      loadData();
+      
+      // Also reload data to ensure consistency
+      await loadData();
     } catch (error: any) {
       toast.error(error.message || t('common.error'));
     } finally {

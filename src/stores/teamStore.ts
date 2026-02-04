@@ -80,9 +80,20 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       
       set({ teams, isLoading: false, error: null });
       
-      // Auto-select first team if none selected
+      // Try to restore last selected team from localStorage
       if (!get().currentTeam && teams.length > 0) {
-        await get().selectTeam(teams[0].id);
+        let teamToSelect = teams[0].id;
+        
+        try {
+          const savedTeamId = localStorage.getItem('lily-current-team-id');
+          if (savedTeamId && teams.find(t => t.id === savedTeamId)) {
+            teamToSelect = savedTeamId;
+          }
+        } catch (e) {
+          console.error('Failed to read team selection from localStorage:', e);
+        }
+        
+        await get().selectTeam(teamToSelect);
       }
     } catch (error) {
       console.error('Failed to load teams:', error);
@@ -106,6 +117,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       }
       
       set({ currentTeam: team });
+      
+      // Save selected team to localStorage for persistence across refreshes
+      try {
+        localStorage.setItem('lily-current-team-id', teamId);
+      } catch (e) {
+        console.error('Failed to save team selection to localStorage:', e);
+      }
       
       // Load members and projects in parallel, but don't block on errors
       try {

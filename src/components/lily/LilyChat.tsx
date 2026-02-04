@@ -928,7 +928,7 @@ export function LilyChat() {
                       : "bg-muted"
                   )}
                 >
-                      {message.role === 'assistant' ? (
+                  {message.role === 'assistant' ? (
                         <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed overflow-hidden
                           [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
                           [&_p]:my-3 [&_p]:leading-7
@@ -1171,17 +1171,17 @@ export function LilyChat() {
                 </div>
               )}
               
-              <Textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
+            <Textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
                 onCompositionStart={() => setIsComposing(true)}
                 onCompositionEnd={() => setIsComposing(false)}
                 placeholder={uploadedFiles.length > 0 ? t('lily.describeFiles', 'Describe what you want to do with the files...') : t('lily.placeholder')}
-                className="min-h-[44px] max-h-[200px] resize-none text-sm"
-                rows={1}
-              />
+              className="min-h-[44px] max-h-[200px] resize-none text-sm"
+              rows={1}
+            />
             </div>
             {isLoading ? (
             <Button 
