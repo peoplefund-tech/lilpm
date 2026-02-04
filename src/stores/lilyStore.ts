@@ -10,6 +10,14 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfw
 const CHAT_URL = `${SUPABASE_URL}/functions/v1/lily-chat`;
 const MCP_PROXY_URL = `${SUPABASE_URL}/functions/v1/mcp-proxy`;
 
+// Artifact types for real-time preview
+interface Artifact {
+  type: 'prd' | 'issue' | 'code' | 'document';
+  title: string;
+  content: string;
+  isGenerating: boolean;
+}
+
 interface LilyStore {
   messages: LilyMessage[];
   isLoading: boolean;
@@ -20,6 +28,10 @@ interface LilyStore {
   dataSources: { id: string; name: string; type: string }[];
   selectedProvider: AIProvider;
   abortController: AbortController | null;
+  
+  // Artifact state for real-time preview
+  artifact: Artifact | null;
+  showArtifact: boolean;
   
   // Actions
   sendMessage: (message: string, context?: { teamId?: string; projectId?: string; mcpConnectors?: MCPConnector[] }) => Promise<void>;
@@ -39,6 +51,11 @@ interface LilyStore {
   acceptSuggestedIssue: (index: number) => void;
   rejectSuggestedIssue: (index: number) => void;
   setProvider: (provider: AIProvider) => void;
+  
+  // Artifact actions
+  setArtifact: (artifact: Artifact | null) => void;
+  updateArtifactContent: (content: string) => void;
+  toggleArtifactPanel: () => void;
 }
 
 // Parse MCP tool calls from AI response
@@ -392,6 +409,8 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
   dataSources: [],
   selectedProvider: 'auto',
   abortController: null,
+  artifact: null,
+  showArtifact: false,
 
   stopGeneration: () => {
     const controller = get().abortController;
@@ -769,4 +788,22 @@ If you can suggest any issues to create, use this format:
   setProvider: (provider: AIProvider) => {
     set({ selectedProvider: provider });
   },
+
+  // Artifact actions
+  setArtifact: (artifact: Artifact | null) => {
+    set({ artifact, showArtifact: artifact !== null });
+  },
+
+  updateArtifactContent: (content: string) => {
+    set((state) => ({
+      artifact: state.artifact ? { ...state.artifact, content } : null,
+    }));
+  },
+
+  toggleArtifactPanel: () => {
+    set((state) => ({ showArtifact: !state.showArtifact }));
+  },
 }));
+
+// Export Artifact type for use in components
+export type { Artifact };

@@ -27,6 +27,10 @@ import {
   MoreHorizontal,
   GripVertical,
   Brain,
+  PanelRightClose,
+  PanelRightOpen,
+  Code,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -264,6 +268,8 @@ export function LilyChat() {
     selectedProvider,
     conversations,
     currentConversationId,
+    artifact,
+    showArtifact,
     sendMessage, 
     stopGeneration,
     generatePRD,
@@ -279,6 +285,7 @@ export function LilyChat() {
     updateConversationTitle,
     pinConversation,
     analyzeProject,
+    toggleArtifactPanel,
   } = useLilyStore();
 
   // State for editing conversation titles
@@ -883,6 +890,89 @@ export function LilyChat() {
           </p>
         </div>
       </div>
+
+      {/* Artifact Panel - Real-time Preview */}
+      {showArtifact && artifact && (
+        <div className="w-96 border-l border-border flex flex-col bg-background">
+          {/* Artifact Header */}
+          <div className="h-12 flex items-center justify-between px-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              {artifact.type === 'prd' && <FileText className="h-4 w-4 text-blue-500" />}
+              {artifact.type === 'issue' && <Ticket className="h-4 w-4 text-green-500" />}
+              {artifact.type === 'code' && <Code className="h-4 w-4 text-amber-500" />}
+              {artifact.type === 'document' && <FileText className="h-4 w-4 text-purple-500" />}
+              <span className="font-medium text-sm truncate">{artifact.title}</span>
+              {artifact.isGenerating && (
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  navigator.clipboard.writeText(artifact.content);
+                  toast.success(t('common.copied', 'Copied!'));
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={toggleArtifactPanel}
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Artifact Content */}
+          <ScrollArea className="flex-1">
+            <div className="p-4">
+              {artifact.type === 'code' ? (
+                <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
+                  <code>{artifact.content}</code>
+                </pre>
+              ) : (
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{artifact.content}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* Artifact Footer */}
+          <div className="border-t border-border p-3">
+            <div className="flex gap-2">
+              {artifact.type === 'prd' && (
+                <Button size="sm" className="flex-1" onClick={() => {
+                  toast.success(t('lily.prdSaved', 'PRD saved!'));
+                }}>
+                  {t('common.save', 'Save PRD')}
+                </Button>
+              )}
+              {artifact.type === 'issue' && (
+                <Button size="sm" className="flex-1" onClick={() => {
+                  toast.success(t('lily.issueCreated', 'Issue created!'));
+                }}>
+                  {t('issues.create', 'Create Issue')}
+                </Button>
+              )}
+              {artifact.type === 'code' && (
+                <Button size="sm" className="flex-1" onClick={() => {
+                  navigator.clipboard.writeText(artifact.content);
+                  toast.success(t('common.copied', 'Code copied!'));
+                }}>
+                  {t('common.copyCode', 'Copy Code')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
