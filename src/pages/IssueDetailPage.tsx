@@ -8,6 +8,7 @@ import { useTeamStore } from '@/stores/teamStore';
 import { useAuthStore } from '@/stores/authStore';
 import { issueService, commentService, activityService } from '@/lib/services/issueService';
 import { teamMemberService } from '@/lib/services/teamService';
+import { BlockEditor } from '@/components/editor';
 import { IssueFocusIndicator, EditingIndicator, TypingIndicator } from '@/components/collaboration';
 import { useIssueFocus, useRealtimeIssueUpdates } from '@/hooks/useRealtimeCollaboration';
 import { useCollaborationStore } from '@/stores/collaborationStore';
@@ -448,46 +449,63 @@ export function IssueDetailPage() {
               )}
             </div>
 
-            {/* Description - Click to edit */}
+            {/* Description - Enhanced Block Editor */}
             <div className="mt-4 relative">
               {isEditingDescription ? (
-                <div className="relative">
-                  <Textarea
-                    value={editDescription}
-                    onChange={(e) => handleDescriptionChange(e.target.value)}
-                    onBlur={() => {
-                      setIsEditingDescription(false);
-                      setCollabIsEditing(false);
-                    }}
-                    autoFocus
-                    placeholder={t('issues.addDescription')}
-                    rows={15}
-                    className="focus-visible:ring-1 focus-visible:ring-primary min-h-[300px] resize-y"
-                  />
-                  <div className="absolute right-2 top-2 flex items-center gap-1">
+                <div className="relative border border-border rounded-lg bg-background shadow-sm">
+                  <div className="absolute right-3 top-3 flex items-center gap-2 z-10">
                     {isSavingDescription && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     {descriptionSaved && <Check className="h-4 w-4 text-green-500" />}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-7"
+                      onClick={() => {
+                        setIsEditingDescription(false);
+                        setCollabIsEditing(false);
+                      }}
+                    >
+                      Done
+                    </Button>
+                  </div>
+                  <div className="min-h-[400px] max-h-[70vh] overflow-y-auto p-4">
+                    <BlockEditor
+                      content={editDescription || ''}
+                      onChange={(content) => handleDescriptionChange(content)}
+                      placeholder={t('issues.addDescription', 'Add a description... Type "/" for commands')}
+                      editable={true}
+                      autoFocus={true}
+                    />
                   </div>
                 </div>
               ) : issue.description ? (
-                <p 
-                  className="text-muted-foreground whitespace-pre-wrap cursor-text hover:bg-muted/50 rounded px-2 py-2 -mx-2 transition-colors"
+                <div 
+                  className="cursor-text hover:bg-muted/30 rounded-lg px-3 py-3 -mx-2 transition-colors border border-transparent hover:border-border"
                   onClick={() => {
                     setIsEditingDescription(true);
                     setCollabIsEditing(true);
                   }}
                 >
-                  {issue.description}
-                </p>
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground
+                    [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-1
+                    [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm
+                    [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded
+                    [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded-lg
+                    [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-3
+                  ">
+                    <div dangerouslySetInnerHTML={{ __html: issue.description }} />
+                  </div>
+                </div>
               ) : (
                 <button
                   onClick={() => {
                     setIsEditingDescription(true);
                     setCollabIsEditing(true);
                   }}
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded px-2 py-2 -mx-2 transition-colors w-full text-left"
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-lg px-3 py-4 -mx-2 transition-colors w-full text-left border border-dashed border-border/50 hover:border-border"
                 >
-                  {t('issues.addDescription')}
+                  <Pencil className="h-4 w-4 inline-block mr-2 opacity-50" />
+                  {t('issues.addDescription', 'Add a description...')}
                 </button>
               )}
             </div>
@@ -761,6 +779,40 @@ export function IssueDetailPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Start Date */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.startDate', 'Start Date')}</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !(issue as any).start_date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {(issue as any).start_date ? (
+                    format(new Date((issue as any).start_date), 'PPP', { locale: dateLocale })
+                  ) : (
+                    <span>{t('issues.pickStartDate', 'Pick start date')}</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={(issue as any).start_date ? new Date((issue as any).start_date) : undefined}
+                  onSelect={(date) => {
+                    handleUpdateIssue({ start_date: date ? format(date, 'yyyy-MM-dd') : null } as any);
+                  }}
+                  initialFocus
+                  locale={dateLocale}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Due Date */}

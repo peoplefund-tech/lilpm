@@ -791,7 +791,26 @@ export function LilyChat() {
                       )}
                     >
                       {message.role === 'assistant' ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-[13px] leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_code]:text-xs">
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-[13px] leading-relaxed
+                          [&_p]:my-2 [&_p]:leading-relaxed
+                          [&_ul]:my-2 [&_ul]:pl-4 [&_ul]:list-disc
+                          [&_ol]:my-2 [&_ol]:pl-4 [&_ol]:list-decimal
+                          [&_li]:my-1 [&_li]:leading-relaxed
+                          [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+                          [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-foreground
+                          [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mt-2 [&_h3]:mb-1
+                          [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:font-mono
+                          [&_pre]:my-3 [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto
+                          [&_pre_code]:bg-transparent [&_pre_code]:p-0
+                          [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:italic [&_blockquote]:text-muted-foreground
+                          [&_strong]:font-semibold [&_strong]:text-foreground
+                          [&_em]:italic
+                          [&_hr]:my-4 [&_hr]:border-border
+                          [&_table]:my-2 [&_table]:w-full [&_table]:text-xs
+                          [&_th]:border [&_th]:border-border [&_th]:p-1.5 [&_th]:bg-muted [&_th]:font-medium
+                          [&_td]:border [&_td]:border-border [&_td]:p-1.5
+                          [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2
+                        ">
                           <ReactMarkdown>{cleanContent || t('lily.generating', 'Generating...')}</ReactMarkdown>
                         </div>
                       ) : (

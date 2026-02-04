@@ -43,7 +43,7 @@ import type { Issue } from '@/types';
 interface GanttChartProps {
   issues: Issue[];
   onIssueClick?: (issue: Issue) => void;
-  onIssueUpdate?: (issueId: string, updates: { dueDate?: string; startDate?: string }) => void;
+  onIssueUpdate?: (issueId: string, updates: { dueDate?: string; startDate?: string; sortOrder?: number }) => void;
   onDependencyCreate?: (fromIssueId: string, toIssueId: string) => void;
 }
 
@@ -383,10 +383,12 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
     const dueDate = issue.dueDate ? parseISO(issue.dueDate) : null;
     const createdDate = parseISO(issue.createdAt);
     
-    // Use created date as start if no explicit start date
-    const startDate = createdDate;
-    // Use due date as end, or created date + 3 days if no due date
-    const endDate = dueDate && isValid(dueDate) ? dueDate : addDays(createdDate, 3);
+    // Use explicit start_date if available, otherwise fall back to created date
+    const issueStartDate = (issue as any).startDate || (issue as any).start_date;
+    const startDate = issueStartDate ? parseISO(issueStartDate) : createdDate;
+    
+    // Use due date as end, or start date + 3 days if no due date
+    const endDate = dueDate && isValid(dueDate) ? dueDate : addDays(startDate, 3);
     
     const startIndex = differenceInDays(startDate, dateRange.start);
     const endIndex = differenceInDays(endDate, dateRange.start);
@@ -403,6 +405,7 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
       width: `${Math.min(width, (totalDays - Math.max(0, startIndex)) * cellWidth)}px`,
       isVisible,
       hasDueDate: !!dueDate && isValid(dueDate),
+      hasStartDate: !!issueStartDate,
     };
   }, [dateRange, cellWidth]);
 
@@ -592,13 +595,45 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
                     </div>
                   )}
                   
-                  {/* Group Issues */}
-                  {!group.isCollapsed && group.issues.map((issue) => (
+                  {/* Group Issues - Draggable for reordering */}
+                  {!group.isCollapsed && group.issues.map((issue, issueIndex) => (
                     <div
                       key={issue.id}
-                      className="h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-pointer hover:bg-muted/30 transition-colors"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', JSON.stringify({ issueId: issue.id, groupKey: group.key }));
+                        e.dataTransfer.effectAllowed = 'move';
+                        (e.currentTarget as HTMLElement).classList.add('opacity-50');
+                      }}
+                      onDragEnd={(e) => {
+                        (e.currentTarget as HTMLElement).classList.remove('opacity-50');
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        (e.currentTarget as HTMLElement).classList.add('border-t-2', 'border-primary');
+                      }}
+                      onDragLeave={(e) => {
+                        (e.currentTarget as HTMLElement).classList.remove('border-t-2', 'border-primary');
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLElement).classList.remove('border-t-2', 'border-primary');
+                        try {
+                          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                          if (data.issueId && data.issueId !== issue.id && onIssueUpdate) {
+                            // Calculate new sort order
+                            const targetOrder = issue.sortOrder || issueIndex;
+                            onIssueUpdate(data.issueId, { sortOrder: targetOrder });
+                          }
+                        } catch (err) {
+                          console.error('Drop error:', err);
+                        }
+                      }}
+                      className="h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 transition-colors active:cursor-grabbing"
                       onClick={() => handleIssueClick(issue)}
                     >
+                      <GripVertical className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
                       <IssueTypeIcon type={(issue as any).type || 'task'} size="sm" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate" title={issue.title}>

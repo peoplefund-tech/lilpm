@@ -18,6 +18,14 @@ interface Artifact {
   isGenerating: boolean;
 }
 
+// Memory/compression state
+interface ConversationMemory {
+  summary: string;
+  keyPoints: string[];
+  lastUpdated: string;
+  messageCount: number;
+}
+
 interface LilyStore {
   messages: LilyMessage[];
   isLoading: boolean;
@@ -32,6 +40,9 @@ interface LilyStore {
   // Artifact state for real-time preview
   artifact: Artifact | null;
   showArtifact: boolean;
+  
+  // Memory/compression state
+  conversationMemory: ConversationMemory | null;
   
   // Actions
   sendMessage: (message: string, context?: { teamId?: string; projectId?: string; mcpConnectors?: MCPConnector[]; canvasMode?: boolean }) => Promise<void>;
@@ -51,6 +62,7 @@ interface LilyStore {
   acceptSuggestedIssue: (index: number) => void;
   rejectSuggestedIssue: (index: number) => void;
   setProvider: (provider: AIProvider) => void;
+  compressConversation: () => Promise<void>;
   
   // Artifact actions
   setArtifact: (artifact: Artifact | null) => void;
@@ -402,6 +414,10 @@ async function streamChat({
   onDone(fullContent);
 }
 
+// Constants for conversation compression
+const MESSAGES_BEFORE_COMPRESSION = 20; // Compress after this many messages
+const MESSAGES_TO_KEEP_FULL = 6; // Keep this many recent messages in full
+
 export const useLilyStore = create<LilyStore>((set, get) => ({
   messages: [],
   isLoading: false,
@@ -414,6 +430,85 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
   abortController: null,
   artifact: null,
   showArtifact: false,
+  conversationMemory: null,
+
+  // Compress conversation when it gets too long
+  compressConversation: async () => {
+    const { messages, selectedProvider } = get();
+    
+    if (messages.length < MESSAGES_BEFORE_COMPRESSION) return;
+    
+    // Get messages to summarize (all except the most recent ones)
+    const messagesToSummarize = messages.slice(0, -MESSAGES_TO_KEEP_FULL);
+    if (messagesToSummarize.length === 0) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Create summary prompt
+      const summaryMessages = [
+        {
+          role: 'user' as const,
+          content: `Please create a concise summary of the following conversation. Include:
+1. Main topics discussed
+2. Key decisions made
+3. Important context needed for future messages
+4. Any tasks or requests mentioned
+
+Conversation to summarize:
+${messagesToSummarize.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 500)}${m.content.length > 500 ? '...' : ''}`).join('\n\n')}
+
+Provide a summary in 2-3 paragraphs.`
+        }
+      ];
+      
+      const resp = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          messages: summaryMessages,
+          provider: selectedProvider === 'auto' ? 'anthropic' : selectedProvider,
+          stream: false,
+        }),
+      });
+      
+      if (!resp.ok) {
+        console.error('Failed to compress conversation');
+        return;
+      }
+      
+      const data = await resp.json();
+      const summary = data.content || data.message || '';
+      
+      if (summary) {
+        // Store memory and keep only recent messages
+        const recentMessages = messages.slice(-MESSAGES_TO_KEEP_FULL);
+        
+        const newMemory: ConversationMemory = {
+          summary,
+          keyPoints: [],
+          lastUpdated: new Date().toISOString(),
+          messageCount: messages.length,
+        };
+        
+        set({
+          conversationMemory: newMemory,
+          messages: recentMessages,
+        });
+        
+        console.log('[Memory] Conversation compressed:', {
+          originalCount: messages.length,
+          keptCount: recentMessages.length,
+          summaryLength: summary.length,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to compress conversation:', error);
+    }
+  },
 
   stopGeneration: () => {
     const controller = get().abortController;
@@ -582,12 +677,33 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
       }
     }
 
-    // Prepare messages for API
-    const apiMessages = get().messages.map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+    // Prepare messages for API with memory context
+    const { messages, conversationMemory } = get();
+    const apiMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+    
+    // If we have memory from compressed conversation, include it first
+    if (conversationMemory?.summary) {
+      apiMessages.push({
+        role: 'system',
+        content: `[Previous Conversation Summary]\n${conversationMemory.summary}\n\n[Continue from here with the recent messages below]`,
+      });
+    }
+    
+    // Add current messages
+    messages.forEach(m => {
+      apiMessages.push({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      });
+    });
     apiMessages.push({ role: 'user', content: message });
+    
+    // Check if we need to compress after this message
+    const totalMessages = messages.length + 1;
+    if (totalMessages >= MESSAGES_BEFORE_COMPRESSION && !conversationMemory) {
+      // Schedule compression after response
+      setTimeout(() => get().compressConversation(), 2000);
+    }
 
     let assistantContent = '';
     

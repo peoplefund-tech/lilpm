@@ -135,6 +135,7 @@ export interface Issue {
   assignee_id: string | null;
   creator_id: string;
   estimate: number | null;
+  start_date: string | null;
   due_date: string | null;
   sort_order: number;
   acceptance_criteria: Json | null;
