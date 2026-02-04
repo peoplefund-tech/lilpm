@@ -17,7 +17,7 @@ export function AcceptInvitePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuthStore();
   const { teams, loadTeams, selectTeam } = useTeamStore();
   
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'not_authenticated'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'not_authenticated' | 'cancelled'>('loading');
   const [teamName, setTeamName] = useState<string>('');
   const [error, setError] = useState<string>('');
 
@@ -49,8 +49,13 @@ export function AcceptInvitePage() {
       await selectTeam(team.id);
       setStatus('success');
     } catch (err: any) {
-      setError(err.message || t('team.inviteError'));
-      setStatus('error');
+      // Check if it's a cancelled invite
+      if (err.message.includes('cancelled') || err.message.includes('Invite not found')) {
+        setStatus('cancelled');
+      } else {
+        setError(err.message || t('team.inviteError'));
+        setStatus('error');
+      }
     }
   };
 
@@ -101,6 +106,27 @@ export function AcceptInvitePage() {
                 {t('auth.signup')}
               </Button>
             </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (status === 'cancelled') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+              <XCircle className="h-6 w-6 text-red-500" />
+            </div>
+            <CardTitle>{t('team.inviteCancelled', 'Invitation Cancelled')}</CardTitle>
+            <CardDescription>{t('team.inviteCancelledMessage', 'This invitation has been cancelled by the team owner.')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={() => navigate('/dashboard')} className="w-full">
+              {t('common.goToDashboard', 'Go to Dashboard')}
+            </Button>
           </CardContent>
         </Card>
       </div>

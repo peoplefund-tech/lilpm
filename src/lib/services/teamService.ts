@@ -193,6 +193,20 @@ export const teamInviteService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Get user profile for inviter name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', user.id)
+      .single();
+
+    // Get team info
+    const { data: team } = await supabase
+      .from('teams')
+      .select('name')
+      .eq('id', teamId)
+      .single();
+
     // Generate a unique token
     const token = crypto.randomUUID();
 
@@ -204,33 +218,42 @@ export const teamInviteService = {
         role,
         invited_by: user.id,
         token,
+        status: 'pending',
       } as any)
-      .select('*, team:teams(name), inviter:profiles!invited_by(name)')
+      .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Failed to create invite:', error);
+      throw error;
+    }
 
     // Call Edge Function to send email
     try {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
-      const invite = data as any;
+      const inviterName = profile?.name || user.email?.split('@')[0] || 'A team member';
+      const teamName = team?.name || 'Team';
       
-      await fetch(`${SUPABASE_URL}/functions/v1/send-team-invite`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-team-invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          inviteId: invite.id,
-          email: invite.email,
-          teamName: invite.team?.name || 'Team',
-          inviterName: invite.inviter?.name || user.email?.split('@')[0] || 'A team member',
-          role: invite.role,
-          token: invite.token,
+          inviteId: data.id,
+          email: email,
+          teamName: teamName,
+          inviterName: inviterName,
+          role: role,
+          token: token,
         }),
       });
       
-      console.log('Invitation email sent successfully');
+      if (!response.ok) {
+        console.error('Failed to send invitation email:', await response.text());
+      } else {
+        console.log('Invitation email sent successfully');
+      }
     } catch (emailError) {
       console.error('Failed to send invitation email:', emailError);
       // Don't fail the invite creation if email fails

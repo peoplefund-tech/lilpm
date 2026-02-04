@@ -2,7 +2,7 @@ export { IssueRow } from './IssueRow';
 export { IssueList } from './IssueList';
 export { IssueBoard } from './IssueBoard';
 export { IssueCard } from './IssueCard';
-export { GanttChart } from './GanttChart';
+export { GanttChart } from './GanttChartNew';
 export { CreateIssueModal } from './CreateIssueModal';
 export { StatusIcon, PriorityIcon, statusLabels, priorityLabels, allStatuses, allPriorities } from './IssueIcons';
 export { IssueFilters, type IssueFiltersState } from './IssueFilters';

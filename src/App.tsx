@@ -10,7 +10,7 @@ import { useThemeStore } from "@/stores/themeStore";
 import { useEffect } from "react";
 
 // Pages
-import { LoginPage, SignupPage, AcceptInvitePage } from "./pages/auth";
+import { LoginPage, SignupPage, AcceptInvitePage, CancelledInvitePage } from "./pages/auth";
 import { LandingPage } from "./pages/LandingPage";
 import { CreateTeamPage, CreateProjectPage, AISetupPage } from "./pages/onboarding";
 import { AISettingsPage, GeneralSettingsPage, NotificationSettingsPage, SecuritySettingsPage, ProfilePage, MCPSettingsPage, LLMSettingsPage, GitHubSettingsPage, SlackSettingsPage } from "./pages/settings";
@@ -158,6 +158,7 @@ function AppRoutes() {
       <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
       <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
       <Route path="/invite/accept" element={<AcceptInvitePage />} />
+      <Route path="/invite/cancelled" element={<CancelledInvitePage />} />
       
       {/* Onboarding Routes */}
       <Route path="/onboarding/create-team" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
