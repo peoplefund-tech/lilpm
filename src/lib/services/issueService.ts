@@ -184,6 +184,13 @@ export const issueService = {
           to: updates.assignee_id,
         });
       }
+      // Track type changes
+      if ((updates as any).type && (updates as any).type !== (curr as any).type) {
+        await activityService.createActivity(issueId, 'type_changed' as any, {
+          from: (curr as any).type,
+          to: (updates as any).type,
+        });
+      }
     }
 
     return data as Issue;

@@ -170,7 +170,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   return (
     <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
       {/* Logo */}
-      <div className="h-11 flex items-center px-3 border-b border-sidebar-border">
+      <div className="h-12 flex items-center px-3 border-b border-sidebar-border">
         <Link to="/" onClick={onNavigate} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
             <span className="text-white font-bold text-xs">LP</span>

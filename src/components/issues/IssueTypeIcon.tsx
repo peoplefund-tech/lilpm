@@ -8,6 +8,11 @@ import {
 } from 'lucide-react';
 import type { IssueType } from '@/types';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export interface IssueTypeIconProps {
   type: IssueType;
@@ -79,10 +84,18 @@ export function IssueTypeIcon({ type, className, showLabel = false, size = 'md' 
     );
   }
   
+  // Show tooltip when label is not visible
   return (
-    <div className={cn('rounded', sizes.padding, config.bgColor, className)}>
-      <Icon className={cn(sizes.icon, config.color)} />
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={cn('rounded cursor-default', sizes.padding, config.bgColor, className)}>
+          <Icon className={cn(sizes.icon, config.color)} />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        {config.label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

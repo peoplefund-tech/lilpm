@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Bump this string to verify which deployment is actually running.
-const FUNCTION_VERSION = "2026-02-04.1";
+const FUNCTION_VERSION = "2026-02-04.2";
 const DEPLOYED_AT = new Date().toISOString();
 
 // AI Provider configurations

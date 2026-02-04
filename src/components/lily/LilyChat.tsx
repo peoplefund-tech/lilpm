@@ -45,6 +45,7 @@ export function LilyChat() {
   const { t, i18n } = useTranslation();
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [isComposing, setIsComposing] = useState(false); // For Korean IME
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
@@ -107,7 +108,8 @@ export function LilyChat() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Ignore Enter during Korean IME composition to prevent partial character submission
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -469,6 +471,8 @@ export function LilyChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
               placeholder={t('lily.placeholder')}
               className="min-h-[44px] max-h-[200px] resize-none text-sm"
               rows={1}

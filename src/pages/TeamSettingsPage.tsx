@@ -20,6 +20,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Settings, 
   Users, 
@@ -27,6 +34,7 @@ import {
   Loader2,
   Save,
   AlertTriangle,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TeamRole } from '@/types/database';
@@ -133,16 +141,43 @@ export function TeamSettingsPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
-            <Settings className="h-5 w-5 sm:h-6 sm:w-6" />
-            {t('teamSettings.title', 'Team Settings')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('teamSettings.description', 'Manage your team settings and preferences')}
-          </p>
+      <div className="p-4 sm:p-6 space-y-6">
+        {/* Header with Team Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
+              <Settings className="h-5 w-5 sm:h-6 sm:w-6" />
+              {t('teamSettings.title', 'Team Settings')}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {t('teamSettings.description', 'Manage your team settings and preferences')}
+            </p>
+          </div>
+          
+          {/* Team Selector */}
+          {teams.length > 1 && (
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={currentTeam?.id}
+                onValueChange={(teamId) => {
+                  const team = teams.find(t => t.id === teamId);
+                  if (team) selectTeam(team);
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder={t('team.selectTeam', 'Select Team')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* General Settings */}

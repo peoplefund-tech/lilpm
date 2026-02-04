@@ -59,13 +59,14 @@ import {
   X,
   RefreshCw,
   Copy,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TeamRole, TeamInvite } from '@/types/database';
 
 export function TeamMembersPage() {
   const { t } = useTranslation();
-  const { currentTeam } = useTeamStore();
+  const { currentTeam, teams, selectTeam } = useTeamStore();
   const [members, setMembers] = useState<TeamMemberWithProfile[]>([]);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -188,14 +189,39 @@ export function TeamMembersPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
+      <div className="p-4 sm:p-6">
+        {/* Header with Team Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 sm:mb-6">
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold">{t('nav.teamMembers')}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {currentTeam?.name}
-            </p>
+            {/* Team Selector */}
+            {teams.length > 1 ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <Select
+                  value={currentTeam?.id}
+                  onValueChange={(teamId) => {
+                    const team = teams.find(t => t.id === teamId);
+                    if (team) selectTeam(team);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[180px]">
+                    <SelectValue placeholder={t('team.selectTeam', 'Select Team')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">
+                {currentTeam?.name}
+              </p>
+            )}
           </div>
 
           <Button onClick={() => setInviteOpen(true)} className="gap-2 w-full sm:w-auto">
