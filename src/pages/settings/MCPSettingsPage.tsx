@@ -184,6 +184,98 @@ export function MCPSettingsPage() {
     setAddMode('manual');
   };
 
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestConnection = async () => {
+    if (!editingConnector) return;
+    
+    setIsTesting(true);
+    setTestResult(null);
+    
+    try {
+      // Determine endpoint
+      let endpoint = editingConnector.apiEndpoint;
+      let apiKey = editingConnector.apiKey;
+      
+      if (editingConnector.mcpConfig?.args) {
+        const urlArg = editingConnector.mcpConfig.args.find((arg: string) => arg.startsWith('http'));
+        if (urlArg) {
+          // Try both /rpc and base endpoint
+          endpoint = urlArg.replace('/sse', '');
+        }
+        
+        const authIndex = editingConnector.mcpConfig.args.findIndex((arg: string) => arg === '--header');
+        if (authIndex !== -1 && editingConnector.mcpConfig.args[authIndex + 1]) {
+          const authHeader = editingConnector.mcpConfig.args[authIndex + 1];
+          if (authHeader.startsWith('Authorization: Bearer ')) {
+            apiKey = authHeader.replace('Authorization: Bearer ', '');
+          }
+        }
+      }
+      
+      if (!endpoint) {
+        setTestResult({ success: false, message: 'No endpoint configured' });
+        return;
+      }
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+      
+      console.log('[MCP Test] Endpoint:', endpoint);
+      console.log('[MCP Test] Headers:', { ...headers, Authorization: apiKey ? 'Bearer ***' : undefined });
+      
+      // Try tools/list first (MCP standard)
+      const testEndpoints = [
+        { url: `${endpoint}/tools/list`, method: 'GET' },
+        { url: `${endpoint}/rpc`, method: 'POST', body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} } },
+        { url: endpoint, method: 'GET' },
+      ];
+      
+      let lastError = '';
+      for (const test of testEndpoints) {
+        try {
+          console.log('[MCP Test] Trying:', test.url, test.method);
+          const response = await fetch(test.url, {
+            method: test.method,
+            headers,
+            ...(test.body ? { body: JSON.stringify(test.body) } : {}),
+          });
+          
+          console.log('[MCP Test] Response status:', response.status);
+          
+          if (response.ok) {
+            const data = await response.text();
+            console.log('[MCP Test] Response:', data.substring(0, 500));
+            setTestResult({ 
+              success: true, 
+              message: `✅ Connected! (${test.url})\n\nResponse: ${data.substring(0, 200)}${data.length > 200 ? '...' : ''}` 
+            });
+            return;
+          } else {
+            lastError = `${response.status}: ${await response.text().then(t => t.substring(0, 100))}`;
+          }
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : 'Unknown error';
+          console.log('[MCP Test] Error:', lastError);
+        }
+      }
+      
+      setTestResult({ success: false, message: `Connection failed: ${lastError}` });
+    } catch (error) {
+      setTestResult({ 
+        success: false, 
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const handleSaveEdit = () => {
     if (!editingConnector) return;
     
@@ -221,6 +313,7 @@ export function MCPSettingsPage() {
     
     updateConnector(editingConnector.id, editingConnector);
     toast.success('Connector updated');
+    setTestResult(null);
     setEditingConnector(null);
   };
 
@@ -525,6 +618,7 @@ export function MCPSettingsPage() {
               </DialogDescription>
             </DialogHeader>
             {editingConnector && (
+              <>
               <Tabs defaultValue={editingConnector.mcpConfig ? 'json' : 'basic'} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                   <TabsTrigger value="basic">Basic</TabsTrigger>
@@ -569,7 +663,7 @@ export function MCPSettingsPage() {
                   <div className="space-y-2">
                     <Label>MCP Server Configuration (JSON)</Label>
                     <textarea
-                      className="w-full h-56 p-3 font-mono text-xs bg-muted rounded-md border resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full h-48 p-3 font-mono text-xs bg-muted rounded-md border resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                       placeholder={`{
   "command": "npx",
   "args": [
@@ -596,20 +690,51 @@ export function MCPSettingsPage() {
                     />
                     <p className="text-xs text-muted-foreground">
                       Configure MCP server with command, args, and environment variables.
-                      This will be used when calling the MCP server.
                     </p>
-                    {editingConnector.mcpConfig && (
+                    {editingConnector.mcpConfig && !(editingConnector.mcpConfig as any)._raw && (
                       <div className="p-3 bg-muted/50 rounded-md text-xs space-y-1">
                         <p><strong>Command:</strong> {(editingConnector.mcpConfig as any).command || 'N/A'}</p>
                         <p><strong>Args:</strong> {(editingConnector.mcpConfig as any).args?.join(' ') || 'N/A'}</p>
-                        {(editingConnector.mcpConfig as any).env && Object.keys((editingConnector.mcpConfig as any).env).length > 0 && (
-                          <p><strong>Env:</strong> {Object.keys((editingConnector.mcpConfig as any).env).join(', ')}</p>
-                        )}
                       </div>
                     )}
                   </div>
                 </TabsContent>
               </Tabs>
+              
+              {/* Test Connection Section */}
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleTestConnection}
+                    disabled={isTesting}
+                  >
+                    {isTesting ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <Plug className="h-4 w-4 mr-2" />
+                        Test Connection
+                      </>
+                    )}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Test if the MCP server is reachable
+                  </span>
+                </div>
+                {testResult && (
+                  <div className={`p-3 rounded-md text-xs font-mono whitespace-pre-wrap ${
+                    testResult.success ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                  }`}>
+                    {testResult.message}
+                  </div>
+                )}
+              </div>
+              </>
             )}
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button 
