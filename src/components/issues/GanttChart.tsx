@@ -387,7 +387,7 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
     if (onIssueClick) {
       onIssueClick(issue);
     } else {
-      navigate(`/issues/${issue.id}`);
+      navigate(`/issue/${issue.id}`);
     }
   };
 
@@ -769,6 +769,83 @@ export function GanttChart({ issues, onIssueClick, onIssueUpdate, onDependencyCr
           </div>
         </div>
       </div>
+
+      {/* Dependency Lines - SVG Overlay */}
+      <svg 
+        className="absolute top-0 left-0 w-full h-full pointer-events-none z-[15]"
+        style={{ overflow: 'visible' }}
+      >
+        {dependencies.map((dep, index) => {
+          const fromIssue = issues.find(i => i.id === dep.from);
+          const toIssue = issues.find(i => i.id === dep.to);
+          if (!fromIssue || !toIssue) return null;
+          
+          // Calculate positions - simplified for now
+          const fromPos = getBarPosition(fromIssue);
+          const toPos = getBarPosition(toIssue);
+          
+          // Get row indices
+          let fromRowIndex = 0;
+          let toRowIndex = 0;
+          let currentRow = 0;
+          for (const group of groupedIssues) {
+            for (const issue of group.issues) {
+              if (issue.id === dep.from) fromRowIndex = currentRow;
+              if (issue.id === dep.to) toRowIndex = currentRow;
+              currentRow++;
+            }
+          }
+          
+          // Calculate actual pixel positions
+          const sidebarWidth = 288; // w-72 = 288px
+          const headerHeight = 56 + 64; // Toolbar + Timeline header
+          const rowHeight = 40;
+          
+          const fromX = sidebarWidth + parseFloat(fromPos.left) + parseFloat(fromPos.width);
+          const fromY = headerHeight + (fromRowIndex * rowHeight) + (rowHeight / 2);
+          const toX = sidebarWidth + parseFloat(toPos.left);
+          const toY = headerHeight + (toRowIndex * rowHeight) + (rowHeight / 2);
+          
+          // Draw curved line
+          const midX = (fromX + toX) / 2;
+          
+          return (
+            <g key={`dep-${index}`} className="pointer-events-auto">
+              <path
+                d={`M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="2"
+                strokeDasharray="5,3"
+                className="cursor-pointer hover:stroke-red-500 transition-colors"
+                onClick={() => {
+                  // Remove dependency
+                  setDependencies(prev => prev.filter((_, i) => i !== index));
+                }}
+              />
+              {/* Arrow head */}
+              <polygon
+                points={`${toX},${toY} ${toX - 8},${toY - 4} ${toX - 8},${toY + 4}`}
+                fill="#f59e0b"
+                className="hover:fill-red-500 transition-colors"
+              />
+            </g>
+          );
+        })}
+        
+        {/* Linking line while dragging */}
+        {linkingFrom && mousePosition.x > 0 && (
+          <line
+            x1={288 + parseFloat(getBarPosition(issues.find(i => i.id === linkingFrom)!)?.left || '0') + parseFloat(getBarPosition(issues.find(i => i.id === linkingFrom)!)?.width || '0')}
+            y1={120 + groupedIssues.flatMap(g => g.issues).findIndex(i => i.id === linkingFrom) * 40 + 20}
+            x2={mousePosition.x}
+            y2={mousePosition.y}
+            stroke="#f59e0b"
+            strokeWidth="2"
+            strokeDasharray="5,3"
+          />
+        )}
+      </svg>
 
       {/* Footer Legend */}
       <div className="border-t border-border px-4 py-2 bg-muted/30">

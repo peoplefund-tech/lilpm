@@ -123,6 +123,10 @@ export function PRDDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [savedTitle, setSavedTitle] = useState('');
+  const [savedContent, setSavedContent] = useState('');
+  const [savedStatus, setSavedStatus] = useState<PRDStatus>('draft');
   
   // Editable fields
   const [title, setTitle] = useState('');
@@ -168,10 +172,15 @@ export function PRDDetailPage() {
         if (data) {
           setPrd(data);
           setTitle(data.title);
+          setSavedTitle(data.title);
           // Use content if available, otherwise use overview for backwards compatibility, or template
-          setContent(data.content || data.overview || DEFAULT_PRD_TEMPLATE);
+          const initialContent = data.content || data.overview || DEFAULT_PRD_TEMPLATE;
+          setContent(initialContent);
+          setSavedContent(initialContent);
           setStatus(data.status as PRDStatus);
+          setSavedStatus(data.status as PRDStatus);
           setLastSaved(new Date(data.updated_at));
+          setHasChanges(false);
         }
       } catch (error) {
         console.error('Failed to load PRD:', error);
@@ -186,11 +195,13 @@ export function PRDDetailPage() {
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
+    setHasChanges(value !== savedTitle || content !== savedContent || status !== savedStatus);
     debouncedSaveTitle(value);
   };
 
   const handleContentChange = (value: string) => {
     setContent(value);
+    setHasChanges(title !== savedTitle || value !== savedContent || status !== savedStatus);
     debouncedSaveContent(value);
   };
 
@@ -217,6 +228,10 @@ export function PRDDetailPage() {
         status,
       });
       setLastSaved(new Date());
+      setSavedTitle(title.trim());
+      setSavedContent(content);
+      setSavedStatus(status);
+      setHasChanges(false);
       toast.success(t('settings.saved'));
     } catch (error) {
       toast.error(t('common.error'));
@@ -347,14 +362,34 @@ export function PRDDetailPage() {
               </DropdownMenu>
               
               {/* Save button */}
-              <Button onClick={handleSave} disabled={isSaving || !title.trim()} size="sm">
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving || !title.trim() || !hasChanges} 
+                size="sm"
+                variant={hasChanges ? "default" : "secondary"}
+              >
                 {isSaving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {t('common.saving', 'Saving...')}
+                  </>
+                ) : hasChanges ? (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    {t('common.save')}
+                  </>
                 ) : (
-                  <Save className="h-4 w-4 mr-2" />
+                  <>
+                    <Check className="h-4 w-4 mr-2 text-green-500" />
+                    {t('common.saved', 'Saved')}
+                  </>
                 )}
-                {t('common.save')}
               </Button>
+              {lastSaved && !hasChanges && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  {formatDistanceToNow(lastSaved, { addSuffix: true })}
+                </span>
+              )}
             </div>
           </div>
         </div>

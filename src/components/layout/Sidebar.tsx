@@ -234,11 +234,22 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   
-  // Lily mode state - show conversation history in sidebar when on /lily route
-  const isLilyMode = location.pathname === '/lily';
+  // Lily mode state - manually controlled sidebar mode
+  const isOnLilyPage = location.pathname === '/lily';
+  const [showLilySidebar, setShowLilySidebar] = useState(false);
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [pinnedConversations, setPinnedConversations] = useState<string[]>([]);
+
+  // Auto-switch to Lily sidebar when entering /lily page
+  useEffect(() => {
+    if (isOnLilyPage && !showLilySidebar) {
+      setShowLilySidebar(true);
+    }
+  }, [isOnLilyPage]);
+  
+  // Determine if Lily sidebar should be shown
+  const isLilyMode = isOnLilyPage && showLilySidebar;
 
   // Load pinned conversations
   useEffect(() => {
@@ -300,9 +311,13 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   }, [navigate]);
 
   const mainNav = [
+    { icon: Home, label: t('nav.dashboard', 'Dashboard'), href: '/dashboard', shortcut: 'G D' },
     { icon: Inbox, label: t('nav.inbox'), href: '/inbox', shortcut: 'I' },
-    { icon: Home, label: t('nav.myIssues'), href: '/my-issues', shortcut: 'G M' },
+    { icon: Layers, label: t('nav.myIssues'), href: '/my-issues', shortcut: 'G M' },
   ];
+
+  // Dashboard menu is always at the very top
+  const dashboardNav = { icon: Home, label: t('nav.dashboard', 'Dashboard'), href: '/dashboard', shortcut: 'G D' };
 
   const workspaceNav = [
     { icon: Layers, label: t('nav.allIssues'), href: '/issues', shortcut: 'G I' },
@@ -353,7 +368,8 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
             variant="ghost" 
             size="icon" 
             className="h-8 w-8"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => setShowLilySidebar(false)}
+            title={t('common.back', 'Back to menu')}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -566,19 +582,33 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
 
         {/* Lily Chat - Special highlight */}
         <div className="space-y-0.5">
-          <Link
-            to="/lily"
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors group",
-              "bg-gradient-to-r from-violet-500/10 to-purple-500/10 hover:from-violet-500/20 hover:to-purple-500/20",
-              location.pathname === '/lily' && "from-violet-500/20 to-purple-500/20"
-            )}
-          >
-            <Sparkles className="h-4 w-4 text-violet-500" />
-            <span className="flex-1 truncate font-medium">{t('lily.title')}</span>
-            <span className="hidden group-hover:inline-flex text-xs text-muted-foreground kbd">L</span>
-          </Link>
+          {isOnLilyPage ? (
+            <button
+              onClick={() => setShowLilySidebar(true)}
+              className={cn(
+                "flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors group w-full",
+                "bg-gradient-to-r from-violet-500/10 to-purple-500/10 hover:from-violet-500/20 hover:to-purple-500/20",
+                "from-violet-500/20 to-purple-500/20"
+              )}
+            >
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              <span className="flex-1 truncate font-medium text-left">{t('lily.viewHistory', 'Chat History')}</span>
+              <MessageSquare className="h-3.5 w-3.5 text-violet-500" />
+            </button>
+          ) : (
+            <Link
+              to="/lily"
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors group",
+                "bg-gradient-to-r from-violet-500/10 to-purple-500/10 hover:from-violet-500/20 hover:to-purple-500/20"
+              )}
+            >
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              <span className="flex-1 truncate font-medium">{t('lily.title')}</span>
+              <span className="hidden group-hover:inline-flex text-xs text-muted-foreground kbd">L</span>
+            </Link>
+          )}
         </div>
 
         {/* Projects Section - Moved up */}

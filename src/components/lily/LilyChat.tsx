@@ -56,7 +56,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ko, enUS, Locale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Plug, ExternalLink } from 'lucide-react';
+import { Plug, ExternalLink, Eye, Save } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
 const MIN_HISTORY_WIDTH = 200;
@@ -304,6 +304,12 @@ export function LilyChat() {
   const { connectors, toggleConnector, getActiveConnectors, initializePresetConnectors } = useMCPStore();
   const navigate = useNavigate();
 
+  // Canvas mode state
+  const [canvasMode, setCanvasMode] = useState(false);
+  const [canvasViewMode, setCanvasViewMode] = useState<'code' | 'preview'>('code');
+  const [canvasCode, setCanvasCode] = useState('');
+  const [canvasError, setCanvasError] = useState<string | null>(null);
+
   // Initialize MCP connectors
   useEffect(() => {
     initializePresetConnectors();
@@ -331,6 +337,29 @@ export function LilyChat() {
       }
     }
   }, [messages]);
+
+  // Extract canvas code from latest assistant message when in canvas mode
+  useEffect(() => {
+    if (!canvasMode || messages.length === 0) return;
+    
+    // Find the last assistant message
+    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistantMessage) return;
+    
+    const content = lastAssistantMessage.content;
+    
+    // Try to extract code blocks from the message
+    // Match ```jsx, ```tsx, ```javascript, ```typescript, ```python, etc.
+    const codeBlockMatch = content.match(/```(?:jsx?|tsx?|javascript|typescript|python|html|css|react)?\n([\s\S]*?)```/);
+    
+    if (codeBlockMatch) {
+      const extractedCode = codeBlockMatch[1].trim();
+      if (extractedCode && extractedCode !== canvasCode) {
+        setCanvasCode(extractedCode);
+        setCanvasError(null);
+      }
+    }
+  }, [messages, canvasMode, canvasCode]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -695,26 +724,41 @@ export function LilyChat() {
                         <ThinkingBlock content={message.thinking} t={t} />
                       )}
                       {/* Parse thinking from content if present */}
-                      {message.content.includes('<thinking>') ? (
-                        <>
-                          <ThinkingBlock 
-                            content={message.content.match(/<thinking>([\s\S]*?)<\/thinking>/)?.[1] || ''} 
-                            t={t} 
-                          />
-                          <div className="prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown>
-                              {message.content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()}
-                            </ReactMarkdown>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </div>
-                      )}
+                      {(() => {
+                        // Clean content: remove <thinking> tags and [CANVAS:...] blocks
+                        let cleanContent = message.content;
+                        
+                        // Extract and remove thinking
+                        const thinkingMatch = cleanContent.match(/<thinking>([\s\S]*?)<\/thinking>/);
+                        if (thinkingMatch) {
+                          cleanContent = cleanContent.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+                        }
+                        
+                        // Remove [CANVAS:...] blocks and following template text
+                        cleanContent = cleanContent
+                          .replace(/\[CANVAS:[^\]]*\][\s\S]*?(?=\n\n|$)/g, '')  // Remove canvas block and its content
+                          .replace(/\/\/ Write a [^\n]*\n?/g, '')  // Remove template comments
+                          .trim();
+                        
+                        return (
+                          <>
+                            {thinkingMatch && (
+                              <ThinkingBlock content={thinkingMatch[1]} t={t} />
+                            )}
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{cleanContent}</ReactMarkdown>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : (
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.content
+                        .replace(/\[CANVAS:[^\]]*\][\s\S]*?(?=\n\n|$)/g, '')
+                        .replace(/\/\/ Write a [^\n]*\n?/g, '')
+                        .trim()}
+                    </p>
                   )}
                   <span className="text-[10px] opacity-70 mt-1 block">
                     {new Date(message.timestamp).toLocaleTimeString()}
@@ -790,12 +834,25 @@ export function LilyChat() {
             {/* MCP Connect Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-11 w-11 flex-shrink-0">
-                  <Plug className="h-4 w-4" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className={cn(
+                    "h-11 w-11 flex-shrink-0 relative",
+                    getActiveConnectors().length > 0 && "border-green-500/50"
+                  )}
+                >
+                  <Plug className={cn(
+                    "h-4 w-4",
+                    getActiveConnectors().length > 0 && "text-green-500"
+                  )} />
                   {getActiveConnectors().length > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
-                      {getActiveConnectors().length}
-                    </span>
+                    <>
+                      <span className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                        {getActiveConnectors().length}
+                      </span>
+                      <span className="absolute bottom-0 right-0 h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                    </>
                   )}
                 </Button>
               </DropdownMenuTrigger>
@@ -853,57 +910,22 @@ export function LilyChat() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Canvas Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-11 w-11 flex-shrink-0">
-                  <Code className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel className="flex items-center gap-2">
-                  <Code className="h-4 w-4" />
-                  {t('lily.canvas', 'Canvas')}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setInput(`${input}\n\n[CANVAS: React Component]\n// Write a React component here`);
-                    inputRef.current?.focus();
-                  }}
-                >
-                  <Code className="h-4 w-4 mr-2 text-blue-500" />
-                  React Component
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setInput(`${input}\n\n[CANVAS: Python Script]\n# Write a Python script here`);
-                    inputRef.current?.focus();
-                  }}
-                >
-                  <Code className="h-4 w-4 mr-2 text-green-500" />
-                  Python Script
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setInput(`${input}\n\n[CANVAS: HTML/CSS]\n<!-- Write HTML/CSS here -->`);
-                    inputRef.current?.focus();
-                  }}
-                >
-                  <Code className="h-4 w-4 mr-2 text-orange-500" />
-                  HTML/CSS
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setInput(`${input}\n\n[CANVAS: SQL Query]\n-- Write SQL here`);
-                    inputRef.current?.focus();
-                  }}
-                >
-                  <Code className="h-4 w-4 mr-2 text-purple-500" />
-                  SQL Query
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Canvas Toggle Button */}
+            <Button 
+              variant={canvasMode ? "default" : "outline"} 
+              size="icon" 
+              className={cn(
+                "h-11 w-11 flex-shrink-0 relative",
+                canvasMode && "bg-amber-500 hover:bg-amber-600"
+              )}
+              onClick={() => setCanvasMode(!canvasMode)}
+              title={canvasMode ? t('lily.canvasOn', 'Canvas Mode ON') : t('lily.canvasOff', 'Canvas Mode OFF')}
+            >
+              <Code className="h-4 w-4" />
+              {canvasMode && (
+                <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-background" />
+              )}
+            </Button>
             
             <Textarea
               ref={inputRef}
@@ -944,28 +966,63 @@ export function LilyChat() {
       </div>
 
       {/* Artifact Panel - Real-time Preview */}
-      {showArtifact && artifact && (
-        <div className="w-96 border-l border-border flex flex-col bg-background">
+      {(showArtifact && artifact) || canvasMode ? (
+        <div className="w-[450px] border-l border-border flex flex-col bg-background">
           {/* Artifact Header */}
           <div className="h-12 flex items-center justify-between px-4 border-b border-border">
             <div className="flex items-center gap-2">
-              {artifact.type === 'prd' && <FileText className="h-4 w-4 text-blue-500" />}
-              {artifact.type === 'issue' && <Ticket className="h-4 w-4 text-green-500" />}
-              {artifact.type === 'code' && <Code className="h-4 w-4 text-amber-500" />}
-              {artifact.type === 'document' && <FileText className="h-4 w-4 text-purple-500" />}
-              <span className="font-medium text-sm truncate">{artifact.title}</span>
-              {artifact.isGenerating && (
-                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+              {canvasMode ? (
+                <>
+                  <Code className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium text-sm">{t('lily.canvas', 'Canvas')}</span>
+                  {isLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                </>
+              ) : artifact && (
+                <>
+                  {artifact.type === 'prd' && <FileText className="h-4 w-4 text-blue-500" />}
+                  {artifact.type === 'issue' && <Ticket className="h-4 w-4 text-green-500" />}
+                  {artifact.type === 'code' && <Code className="h-4 w-4 text-amber-500" />}
+                  {artifact.type === 'document' && <FileText className="h-4 w-4 text-purple-500" />}
+                  <span className="font-medium text-sm truncate">{artifact.title}</span>
+                  {artifact.isGenerating && (
+                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  )}
+                </>
               )}
             </div>
             <div className="flex items-center gap-1">
+              {canvasMode && (
+                <div className="flex rounded-md border border-border mr-2">
+                  <Button
+                    variant={canvasViewMode === 'code' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 rounded-r-none text-xs"
+                    onClick={() => setCanvasViewMode('code')}
+                  >
+                    <Code className="h-3 w-3 mr-1" />
+                    Code
+                  </Button>
+                  <Button
+                    variant={canvasViewMode === 'preview' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 rounded-l-none text-xs"
+                    onClick={() => setCanvasViewMode('preview')}
+                  >
+                    <Eye className="h-3 w-3 mr-1" />
+                    Preview
+                  </Button>
+                </div>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => {
-                  navigator.clipboard.writeText(artifact.content);
-                  toast.success(t('common.copied', 'Copied!'));
+                  const contentToCopy = canvasMode ? canvasCode : artifact?.content;
+                  if (contentToCopy) {
+                    navigator.clipboard.writeText(contentToCopy);
+                    toast.success(t('common.copied', 'Copied!'));
+                  }
                 }}
               >
                 <Copy className="h-4 w-4" />
@@ -974,21 +1031,111 @@ export function LilyChat() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={toggleArtifactPanel}
+                onClick={() => {
+                  if (canvasMode) {
+                    setCanvasMode(false);
+                    setCanvasCode('');
+                    setCanvasError(null);
+                  } else {
+                    toggleArtifactPanel();
+                  }
+                }}
               >
                 <PanelRightClose className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* Artifact Content */}
+          {/* Canvas/Artifact Content */}
           <ScrollArea className="flex-1">
             <div className="p-4">
-              {artifact.type === 'code' ? (
+              {canvasMode ? (
+                canvasViewMode === 'code' ? (
+                  <div className="space-y-2">
+                    {canvasCode ? (
+                      <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto font-mono">
+                        <code className="text-green-400">{canvasCode}</code>
+                      </pre>
+                    ) : (
+                      <div className="text-center py-16 text-muted-foreground">
+                        <Code className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                        <p className="text-sm">{t('lily.canvasWaiting', 'Waiting for code generation...')}</p>
+                        <p className="text-xs mt-2 max-w-[250px] mx-auto">
+                          {t('lily.canvasHint', 'Ask Lily AI to create something and it will appear here')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {canvasError ? (
+                      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm text-destructive">
+                        <p className="font-medium mb-1">{t('lily.previewError', 'Preview Error')}</p>
+                        <p className="text-xs opacity-80">{canvasError}</p>
+                      </div>
+                    ) : canvasCode ? (
+                      <div className="border rounded-lg bg-white dark:bg-zinc-900 overflow-hidden min-h-[300px]">
+                        <iframe
+                          srcDoc={`
+                            <!DOCTYPE html>
+                            <html>
+                              <head>
+                                <meta charset="utf-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1">
+                                <script src="https://cdn.tailwindcss.com"></script>
+                                <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+                                <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+                                <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+                                <style>
+                                  body { 
+                                    font-family: system-ui, -apple-system, sans-serif;
+                                    padding: 1rem;
+                                    margin: 0;
+                                  }
+                                </style>
+                              </head>
+                              <body>
+                                <div id="root"></div>
+                                <script type="text/babel">
+                                  try {
+                                    ${canvasCode}
+                                    
+                                    // Try to find and render the component
+                                    const componentMatch = \`${canvasCode}\`.match(/(?:function|const|class)\\s+(\\w+)/);
+                                    if (componentMatch) {
+                                      const ComponentName = eval(componentMatch[1]);
+                                      ReactDOM.createRoot(document.getElementById('root')).render(
+                                        React.createElement(ComponentName)
+                                      );
+                                    }
+                                  } catch (e) {
+                                    document.getElementById('root').innerHTML = 
+                                      '<div style="color: red; padding: 1rem;">' + 
+                                      '<strong>Error:</strong> ' + e.message + 
+                                      '</div>';
+                                  }
+                                </script>
+                              </body>
+                            </html>
+                          `}
+                          className="w-full h-[400px] border-0"
+                          sandbox="allow-scripts"
+                          title="Canvas Preview"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 text-muted-foreground">
+                        <Eye className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                        <p className="text-sm">{t('lily.previewWaiting', 'No code to preview')}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : artifact?.type === 'code' ? (
                 <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                   <code>{artifact.content}</code>
                 </pre>
-              ) : (
+              ) : artifact && (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   <ReactMarkdown>{artifact.content}</ReactMarkdown>
                 </div>
@@ -999,32 +1146,65 @@ export function LilyChat() {
           {/* Artifact Footer */}
           <div className="border-t border-border p-3">
             <div className="flex gap-2">
-              {artifact.type === 'prd' && (
-                <Button size="sm" className="flex-1" onClick={() => {
-                  toast.success(t('lily.prdSaved', 'PRD saved!'));
-                }}>
-                  {t('common.save', 'Save PRD')}
-                </Button>
-              )}
-              {artifact.type === 'issue' && (
-                <Button size="sm" className="flex-1" onClick={() => {
-                  toast.success(t('lily.issueCreated', 'Issue created!'));
-                }}>
-                  {t('issues.create', 'Create Issue')}
-                </Button>
-              )}
-              {artifact.type === 'code' && (
-                <Button size="sm" className="flex-1" onClick={() => {
-                  navigator.clipboard.writeText(artifact.content);
-                  toast.success(t('common.copied', 'Code copied!'));
-                }}>
-                  {t('common.copyCode', 'Copy Code')}
-                </Button>
+              {canvasMode ? (
+                <>
+                  <Button 
+                    size="sm" 
+                    className="flex-1" 
+                    onClick={() => {
+                      if (canvasCode) {
+                        navigator.clipboard.writeText(canvasCode);
+                        toast.success(t('common.copied', 'Code copied!'));
+                      }
+                    }}
+                    disabled={!canvasCode}
+                  >
+                    <Copy className="h-3 w-3 mr-2" />
+                    {t('common.copyCode', 'Copy Code')}
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      // TODO: Save as component
+                      toast.info(t('lily.savingComponent', 'Saving component...'));
+                    }}
+                    disabled={!canvasCode}
+                  >
+                    <Save className="h-3 w-3 mr-2" />
+                    Save
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {artifact?.type === 'prd' && (
+                    <Button size="sm" className="flex-1" onClick={() => {
+                      toast.success(t('lily.prdSaved', 'PRD saved!'));
+                    }}>
+                      {t('common.save', 'Save PRD')}
+                    </Button>
+                  )}
+                  {artifact?.type === 'issue' && (
+                    <Button size="sm" className="flex-1" onClick={() => {
+                      toast.success(t('lily.issueCreated', 'Issue created!'));
+                    }}>
+                      {t('issues.create', 'Create Issue')}
+                    </Button>
+                  )}
+                  {artifact?.type === 'code' && (
+                    <Button size="sm" className="flex-1" onClick={() => {
+                      navigator.clipboard.writeText(artifact.content);
+                      toast.success(t('common.copied', 'Code copied!'));
+                    }}>
+                      {t('common.copyCode', 'Copy Code')}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
