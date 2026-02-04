@@ -37,6 +37,112 @@ interface LilyStore {
   setProvider: (provider: AIProvider) => void;
 }
 
+// Parse MCP tool calls from AI response
+interface MCPToolCall {
+  tool: string;
+  action: string;
+  params: Record<string, unknown>;
+}
+
+function parseMCPToolCalls(content: string): MCPToolCall[] {
+  const toolCalls: MCPToolCall[] = [];
+  const regex = /\[MCP_TOOL_CALL\]([\s\S]*?)\[\/MCP_TOOL_CALL\]/g;
+  let match;
+  
+  while ((match = regex.exec(content)) !== null) {
+    const block = match[1];
+    const tool = block.match(/tool:\s*(.+)/)?.[1]?.trim();
+    const action = block.match(/action:\s*(.+)/)?.[1]?.trim();
+    const paramsMatch = block.match(/params:\s*(\{[\s\S]*\}|\{\})/);
+    
+    let params = {};
+    if (paramsMatch) {
+      try {
+        params = JSON.parse(paramsMatch[1]);
+      } catch {
+        params = {};
+      }
+    }
+    
+    if (tool && action) {
+      toolCalls.push({ tool, action, params });
+    }
+  }
+  
+  return toolCalls;
+}
+
+// Call MCP server
+async function callMCPServer(
+  connector: MCPConnector,
+  action: string,
+  params: Record<string, unknown>
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  try {
+    // Determine the endpoint
+    let endpoint = connector.apiEndpoint;
+    
+    // If mcpConfig exists, extract endpoint from args
+    if (connector.mcpConfig?.args) {
+      const urlArg = connector.mcpConfig.args.find((arg: string) => arg.startsWith('http'));
+      if (urlArg) {
+        // For SSE endpoints, use the base URL for RPC calls
+        endpoint = urlArg.replace('/sse', '/rpc');
+      }
+    }
+    
+    if (!endpoint) {
+      return { success: false, error: 'No API endpoint configured' };
+    }
+    
+    // Prepare authorization header
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (connector.apiKey) {
+      headers['Authorization'] = `Bearer ${connector.apiKey}`;
+    }
+    
+    // MCP JSON-RPC 2.0 request
+    const rpcRequest = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: `tools/${action}`,
+      params: params,
+    };
+    
+    console.log('[MCP] Calling:', endpoint, rpcRequest);
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(rpcRequest),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[MCP] Error response:', response.status, errorText);
+      return { success: false, error: `MCP server error: ${response.status}` };
+    }
+    
+    const result = await response.json();
+    console.log('[MCP] Response:', result);
+    
+    if (result.error) {
+      return { success: false, error: result.error.message || 'MCP error' };
+    }
+    
+    return { success: true, data: result.result };
+  } catch (error) {
+    console.error('[MCP] Call failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'MCP call failed' 
+    };
+  }
+}
+
 // Parse issue suggestions from AI response with enhanced format support
 function parseIssueSuggestions(content: string): Partial<Issue>[] {
   const issues: Partial<Issue>[] = [];
@@ -397,8 +503,44 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
         mcpConnectors: context?.mcpConnectors,
         signal: abortController.signal,
         onDelta: (chunk) => updateAssistantMessage(chunk),
-        onDone: (fullContent) => {
+        onDone: async (fullContent) => {
           const issues = parseIssueSuggestions(fullContent);
+          const mcpCalls = parseMCPToolCalls(fullContent);
+          
+          // Process MCP tool calls
+          if (mcpCalls.length > 0 && context?.mcpConnectors) {
+            for (const call of mcpCalls) {
+              // Find matching connector
+              const connector = context.mcpConnectors.find(
+                c => c.enabled && (
+                  c.name.toLowerCase().includes(call.tool.toLowerCase()) ||
+                  call.tool.toLowerCase().includes(c.name.toLowerCase())
+                )
+              );
+              
+              if (connector) {
+                // Update message to show we're calling MCP
+                const mcpStatusMsg = `\n\n⏳ **MCP 호출 중**: ${connector.name} - ${call.action}...`;
+                updateAssistantMessage(mcpStatusMsg);
+                
+                // Call MCP server
+                const result = await callMCPServer(connector, call.action, call.params);
+                
+                // Add result to conversation
+                let resultMsg = '';
+                if (result.success) {
+                  resultMsg = `\n\n✅ **MCP 결과** (${connector.name}):\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``;
+                } else {
+                  resultMsg = `\n\n❌ **MCP 오류** (${connector.name}): ${result.error}`;
+                }
+                updateAssistantMessage(resultMsg);
+              } else {
+                // Connector not found
+                updateAssistantMessage(`\n\n⚠️ **MCP 커넥터를 찾을 수 없음**: ${call.tool}. Settings > MCP에서 커넥터를 활성화해주세요.`);
+              }
+            }
+          }
+          
           set((state) => ({
             isLoading: false,
             abortController: null,
