@@ -27,10 +27,10 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { 
-  ArrowLeft, 
-  Save, 
-  Loader2, 
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
   FileText,
   MoreHorizontal,
   History,
@@ -68,9 +68,9 @@ import type { AIProvider } from '@/types';
 // Timeline Thinking Block Component (like Gemini/Claude)
 const TimelineThinkingBlock = ({ content, isExpanded = false }: { content: string; isExpanded?: boolean }) => {
   const [expanded, setExpanded] = useState(isExpanded);
-  
+
   if (!content) return null;
-  
+
   return (
     <div className="flex gap-2 mb-3">
       <div className="flex flex-col items-center">
@@ -80,7 +80,7 @@ const TimelineThinkingBlock = ({ content, isExpanded = false }: { content: strin
         <div className="w-px flex-1 bg-border" />
       </div>
       <div className="flex-1 pb-2">
-        <button 
+        <button
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-2 text-xs text-amber-600 hover:text-amber-500 font-medium mb-1"
         >
@@ -197,7 +197,7 @@ export function PRDDetailPage() {
   const { prdId } = useParams<{ prdId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  
+
   const [prd, setPrd] = useState<PRDWithRelations | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -206,13 +206,19 @@ export function PRDDetailPage() {
   const [savedTitle, setSavedTitle] = useState('');
   const [savedContent, setSavedContent] = useState('');
   const [savedStatus, setSavedStatus] = useState<PRDStatus>('draft');
-  
+
+  // Individual save states for UI feedback (matching Issue pattern)
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [isSavingContent, setIsSavingContent] = useState(false);
+  const [titleSaved, setTitleSaved] = useState(false);
+  const [contentSaved, setContentSaved] = useState(false);
+
   // Editable fields
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState<PRDStatus>('draft');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  
+
   // AI Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
@@ -231,7 +237,7 @@ export function PRDDetailPage() {
     openai: '🟢 GPT-4o',
     gemini: '🔵 Gemini',
   };
-  
+
   // Fetch available AI providers on mount
   useEffect(() => {
     async function fetchProviders() {
@@ -246,7 +252,7 @@ export function PRDDetailPage() {
           } else if (providers.length > 0) {
             setSelectedProvider(providers[0]);
           }
-    } catch (error) {
+        } catch (error) {
           console.error('Failed to fetch AI providers:', error);
           setAvailableProviders(['anthropic']); // Fallback
         }
@@ -254,12 +260,12 @@ export function PRDDetailPage() {
     }
     fetchProviders();
   }, [user]);
-  
+
   // Version history for undo
   const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
-  
+
   // Add to version history
   const addToHistory = useCallback((newContent: string, description: string) => {
     setVersionHistory(prev => {
@@ -275,7 +281,7 @@ export function PRDDetailPage() {
     });
     setCurrentVersionIndex(prev => prev + 1);
   }, [currentVersionIndex]);
-  
+
   // Undo
   const handleUndo = useCallback(() => {
     if (currentVersionIndex > 0) {
@@ -285,7 +291,7 @@ export function PRDDetailPage() {
       toast.success(`Undone: ${versionHistory[currentVersionIndex].description}`);
     }
   }, [currentVersionIndex, versionHistory]);
-  
+
   // Redo
   const handleRedo = useCallback(() => {
     if (currentVersionIndex < versionHistory.length - 1) {
@@ -295,35 +301,45 @@ export function PRDDetailPage() {
       toast.success(`Redone: ${nextVersion.description}`);
     }
   }, [currentVersionIndex, versionHistory]);
-  
+
   // Scroll AI messages to bottom
   useEffect(() => {
     aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [aiMessages]);
 
-  // Auto-save content
-  const { debouncedSave: debouncedSaveContent } = useAutoSave({
+  // Auto-save content (matching Issue pattern)
+  const { debouncedSave: debouncedSaveContent, setInitialValue: setInitialContent } = useAutoSave({
     onSave: async (value) => {
       if (!prdId) return;
+      setIsSavingContent(true);
       try {
         await prdService.updatePRD(prdId, { content: value });
         setLastSaved(new Date());
+        setContentSaved(true);
+        setTimeout(() => setContentSaved(false), 2000);
       } catch (error) {
         console.error('Failed to auto-save:', error);
+      } finally {
+        setIsSavingContent(false);
       }
     },
     delay: 2000,
   });
 
-  // Auto-save title
-  const { debouncedSave: debouncedSaveTitle } = useAutoSave({
+  // Auto-save title (matching Issue pattern)
+  const { debouncedSave: debouncedSaveTitle, setInitialValue: setInitialTitle } = useAutoSave({
     onSave: async (value) => {
       if (!prdId || !value.trim()) return;
+      setIsSavingTitle(true);
       try {
         await prdService.updatePRD(prdId, { title: value.trim() });
         setLastSaved(new Date());
+        setTitleSaved(true);
+        setTimeout(() => setTitleSaved(false), 2000);
       } catch (error) {
         console.error('Failed to auto-save title:', error);
+      } finally {
+        setIsSavingTitle(false);
       }
     },
     delay: 1500,
@@ -332,7 +348,7 @@ export function PRDDetailPage() {
   useEffect(() => {
     const loadPRD = async () => {
       if (!prdId) return;
-      
+
       setIsLoading(true);
       try {
         const data = await prdService.getPRD(prdId);
@@ -340,10 +356,12 @@ export function PRDDetailPage() {
           setPrd(data);
           setTitle(data.title);
           setSavedTitle(data.title);
+          setInitialTitle(data.title);
           // Use content if available, otherwise use overview for backwards compatibility, or template
           const initialContent = data.content || data.overview || DEFAULT_PRD_TEMPLATE;
           setContent(initialContent);
           setSavedContent(initialContent);
+          setInitialContent(initialContent);
           setStatus(data.status as PRDStatus);
           setSavedStatus(data.status as PRDStatus);
           setLastSaved(new Date(data.updated_at));
@@ -356,7 +374,7 @@ export function PRDDetailPage() {
         setIsLoading(false);
       }
     };
-    
+
     loadPRD();
   }, [prdId, t]);
 
@@ -386,7 +404,7 @@ export function PRDDetailPage() {
 
   const handleSave = async () => {
     if (!prdId || !title.trim()) return;
-    
+
     setIsSaving(true);
     try {
       await prdService.updatePRD(prdId, {
@@ -428,7 +446,7 @@ export function PRDDetailPage() {
   // Handle AI message send with streaming
   const handleAISend = async () => {
     if (!aiInput.trim() || isAILoading) return;
-    
+
     const userMessage: AIMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -439,7 +457,7 @@ export function PRDDetailPage() {
     const userQuery = aiInput.trim();
     setAiInput('');
     setIsAILoading(true);
-    
+
     // Create initial assistant message for streaming
     const assistantMessageId = (Date.now() + 1).toString();
     setAiMessages(prev => [...prev, {
@@ -448,7 +466,7 @@ export function PRDDetailPage() {
       content: '',
       timestamp: new Date(),
     }]);
-    
+
     try {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
       const response = await fetch(`${SUPABASE_URL}/functions/v1/lily-chat`, {
@@ -456,8 +474,8 @@ export function PRDDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
-            { 
-              role: 'system', 
+            {
+              role: 'system',
               content: `You are a PRD editing assistant. The user wants to modify their PRD document.
               
 Current PRD content (HTML format):
@@ -482,7 +500,7 @@ Respond in the same language as the user's message.`
           stream: true,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
@@ -491,30 +509,30 @@ Respond in the same language as the user's message.`
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
-      
+
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6);
               if (data === '[DONE]') continue;
-              
+
               try {
                 const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta?.content || 
-                             parsed.delta?.text || 
-                             parsed.content || 
-                             parsed.text ||
-                             '';
+                const delta = parsed.choices?.[0]?.delta?.content ||
+                  parsed.delta?.text ||
+                  parsed.content ||
+                  parsed.text ||
+                  '';
                 if (delta) {
                   fullContent += delta;
-                  setAiMessages(prev => prev.map(m => 
+                  setAiMessages(prev => prev.map(m =>
                     m.id === assistantMessageId ? { ...m, content: fullContent } : m
                   ));
                 }
@@ -522,7 +540,7 @@ Respond in the same language as the user's message.`
                 // Not JSON, might be raw text
                 if (line.trim() && !line.startsWith(':')) {
                   fullContent += data;
-                  setAiMessages(prev => prev.map(m => 
+                  setAiMessages(prev => prev.map(m =>
                     m.id === assistantMessageId ? { ...m, content: fullContent } : m
                   ));
                 }
@@ -531,12 +549,12 @@ Respond in the same language as the user's message.`
           }
         }
       }
-      
+
       // Parse PRD edit suggestion from final content
       const editMatch = fullContent.match(/\[PRD_EDIT\]([\s\S]*?)\[\/PRD_EDIT\]/);
       let suggestion: AISuggestion | undefined;
       let cleanContent = fullContent;
-      
+
       if (editMatch) {
         try {
           const editData = JSON.parse(editMatch[1]);
@@ -554,17 +572,17 @@ Respond in the same language as the user's message.`
           console.error('Failed to parse PRD edit:', e);
         }
       }
-      
+
       // Update final message with suggestion
-      setAiMessages(prev => prev.map(m => 
+      setAiMessages(prev => prev.map(m =>
         m.id === assistantMessageId ? { ...m, content: cleanContent, suggestion } : m
       ));
     } catch (error) {
       console.error('AI request failed:', error);
-      setAiMessages(prev => prev.map(m => 
-        m.id === assistantMessageId ? { 
-          ...m, 
-          content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.` 
+      setAiMessages(prev => prev.map(m =>
+        m.id === assistantMessageId ? {
+          ...m,
+          content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`
         } : m
       ));
     } finally {
@@ -578,14 +596,14 @@ Respond in the same language as the user's message.`
     setContent(suggestion.suggestedContent);
     addToHistory(suggestion.suggestedContent, suggestion.description);
     setPendingSuggestion(null);
-    
+
     // Update message status
-    setAiMessages(prev => prev.map(msg => 
-      msg.suggestion?.id === suggestion.id 
+    setAiMessages(prev => prev.map(msg =>
+      msg.suggestion?.id === suggestion.id
         ? { ...msg, suggestion: { ...msg.suggestion, status: 'accepted' as const } }
         : msg
     ));
-    
+
     toast.success('Change applied! Use Undo to revert.');
     setHasChanges(true);
   };
@@ -593,14 +611,14 @@ Respond in the same language as the user's message.`
   // Reject AI suggestion
   const handleRejectSuggestion = (suggestion: AISuggestion) => {
     setPendingSuggestion(null);
-    
+
     // Update message status
-    setAiMessages(prev => prev.map(msg => 
-      msg.suggestion?.id === suggestion.id 
+    setAiMessages(prev => prev.map(msg =>
+      msg.suggestion?.id === suggestion.id
         ? { ...msg, suggestion: { ...msg.suggestion, status: 'rejected' as const } }
         : msg
     ));
-    
+
     toast.info('Suggestion rejected');
   };
 
@@ -633,14 +651,14 @@ Respond in the same language as the user's message.`
         <div className="sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border">
           <div className="flex items-center justify-between px-4 sm:px-6 py-3">
             <div className="flex items-center gap-3">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => navigate('/prd')}
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              
+
               {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">PRDs</span>
@@ -654,15 +672,27 @@ Respond in the same language as the user's message.`
                 <span className="font-medium truncate max-w-[200px]">{title}</span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
-              {/* Last saved indicator */}
-              {lastSaved && (
-                <span className="text-xs text-muted-foreground hidden sm:block">
-                  Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}
-                </span>
-              )}
-              
+              {/* Save Status Indicator (Google Docs style - matching Issue pattern) */}
+              <div className="hidden sm:flex items-center gap-1.5 text-xs">
+                {(isSavingTitle || isSavingContent) ? (
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Saving...</span>
+                  </div>
+                ) : (titleSaved || contentSaved) ? (
+                  <div className="flex items-center gap-1 text-green-500">
+                    <Cloud className="h-3 w-3" />
+                    <span>Saved</span>
+                  </div>
+                ) : lastSaved ? (
+                  <span className="text-muted-foreground">
+                    Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}
+                  </span>
+                ) : null}
+              </div>
+
               {/* Status dropdown */}
               <Select value={status} onValueChange={(v) => handleStatusChange(v as PRDStatus)}>
                 <SelectTrigger className="w-[140px] h-8">
@@ -682,7 +712,7 @@ Respond in the same language as the user's message.`
                   ))}
                 </SelectContent>
               </Select>
-              
+
               {/* Undo/Redo buttons */}
               <div className="flex items-center gap-1">
                 <Button
@@ -704,8 +734,8 @@ Respond in the same language as the user's message.`
                   title="Redo"
                 >
                   <Redo2 className="h-4 w-4" />
-              </Button>
-            </div>
+                </Button>
+              </div>
 
               {/* AI Panel toggle */}
               <Button
@@ -742,8 +772,8 @@ Respond in the same language as the user's message.`
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              
-{/* Auto-save status indicator (Google Docs style) */}
+
+              {/* Auto-save status indicator (Google Docs style) */}
               <div className="flex items-center gap-2 text-xs">
                 {isSaving ? (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -776,7 +806,7 @@ Respond in the same language as the user's message.`
             <div className="w-full p-6 sm:p-8 lg:p-12">
               {/* Title */}
               <div className="mb-8">
-              {isEditingTitle ? (
+                {isEditingTitle ? (
                   <Input
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
@@ -791,16 +821,16 @@ Respond in the same language as the user's message.`
                     placeholder={t('prd.titlePlaceholder', 'Untitled PRD')}
                     className="text-3xl sm:text-4xl font-bold border-none px-0 focus-visible:ring-0 h-auto py-2 bg-transparent"
                   />
-              ) : (
-                  <h1 
+                ) : (
+                  <h1
                     className="text-3xl sm:text-4xl font-bold cursor-text hover:bg-muted/30 rounded px-2 py-2 -mx-2 transition-colors group flex items-center gap-3"
-                  onClick={() => setIsEditingTitle(true)}
-                >
+                    onClick={() => setIsEditingTitle(true)}
+                  >
                     {title || t('prd.titlePlaceholder', 'Untitled PRD')}
                     <Pencil className="h-5 w-5 opacity-0 group-hover:opacity-30 transition-opacity" />
                   </h1>
                 )}
-                
+
                 {/* Meta info */}
                 <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1.5">
@@ -818,7 +848,7 @@ Respond in the same language as the user's message.`
                     <span className="ml-1">{statusConfig[status].label}</span>
                   </Badge>
                 </div>
-            </div>
+              </div>
 
               {/* Block Editor */}
               <div className="min-h-[500px]">
@@ -829,7 +859,7 @@ Respond in the same language as the user's message.`
                   editable={true}
                   autoFocus={false}
                 />
-                  </div>
+              </div>
 
               {/* Footer actions */}
               <div className="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -837,7 +867,7 @@ Respond in the same language as the user's message.`
                   <Clock className="h-4 w-4" />
                   <span>Last updated {format(new Date(prd.updated_at), 'MMM d, yyyy h:mm a')}</span>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <Button variant="outline" onClick={() => setShowAIPanel(true)} className="gap-2">
                     <Sparkles className="h-4 w-4" />
@@ -856,7 +886,7 @@ Respond in the same language as the user's message.`
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span className="font-medium text-sm">AI Assistant</span>
-              </div>
+                </div>
                 <div className="flex items-center gap-2">
                   {/* Model Selector */}
                   <Select value={selectedProvider} onValueChange={(v: AIProvider) => setSelectedProvider(v)}>
@@ -875,8 +905,8 @@ Respond in the same language as the user's message.`
                       )}
                     </SelectContent>
                   </Select>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
                     className="h-7 w-7"
                     onClick={() => setShowAIPanel(false)}
@@ -901,7 +931,7 @@ Respond in the same language as the user's message.`
                     >
                       <CheckCircle2 className="h-3 w-3" />
                       Allow
-              </Button>
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -917,12 +947,12 @@ Respond in the same language as the user's message.`
 
               {/* Messages */}
               <ScrollArea className="flex-1 p-3">
-{aiMessages.length === 0 ? (
+                {aiMessages.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-30" />
                     <p className="text-sm font-medium">Ask AI to edit your PRD</p>
                     <p className="text-xs mt-1">Try: "Add a section about security requirements"</p>
-              </div>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {aiMessages.map((msg) => {
@@ -934,14 +964,14 @@ Respond in the same language as the user's message.`
                         thinkingContent = thinkingMatch[1];
                         cleanContent = cleanContent.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
                       }
-                      
+
                       return (
                         <div key={msg.id}>
                           {/* Timeline Thinking Block */}
                           {msg.role === 'assistant' && thinkingContent && (
                             <TimelineThinkingBlock content={thinkingContent} />
                           )}
-                          
+
                           <div className={cn(
                             "flex gap-2",
                             msg.role === 'user' && "flex-row-reverse"
@@ -956,8 +986,8 @@ Respond in the same language as the user's message.`
                             </Avatar>
                             <div className={cn(
                               "rounded-lg px-2.5 py-1.5 max-w-[85%]",
-                              msg.role === 'user' 
-                                ? "bg-primary text-primary-foreground text-xs" 
+                              msg.role === 'user'
+                                ? "bg-primary text-primary-foreground text-xs"
                                 : "bg-background border"
                             )}>
                               {msg.role === 'assistant' ? (
@@ -997,7 +1027,7 @@ Respond in the same language as the user's message.`
                                         <CheckCircle2 className="h-2.5 w-2.5" />
                                         Allow
                                       </Button>
-                    <Button 
+                                      <Button
                                         size="sm"
                                         variant="outline"
                                         className="flex-1 gap-1 h-6 text-[10px]"
@@ -1005,21 +1035,21 @@ Respond in the same language as the user's message.`
                                       >
                                         <XCircle className="h-2.5 w-2.5" />
                                         Deny
-                    </Button>
-                  </div>
+                                      </Button>
+                                    </div>
                                   ) : (
                                     <Badge variant={msg.suggestion.status === 'accepted' ? 'default' : 'secondary'} className="text-[10px]">
                                       {msg.suggestion.status === 'accepted' ? '✓ Applied' : '✗ Rejected'}
                                     </Badge>
                                   )}
-                      </div>
+                                </div>
                               )}
                               <span className="text-[9px] opacity-50 mt-1 block">
                                 {format(msg.timestamp, 'h:mm a')}
                               </span>
-                      </div>
-                      </div>
-                    </div>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
                     {isAILoading && (
@@ -1035,10 +1065,10 @@ Respond in the same language as the user's message.`
                             <span className="text-xs text-muted-foreground">Thinking...</span>
                           </div>
                         </div>
-                    </div>
-                  )}
+                      </div>
+                    )}
                     <div ref={aiMessagesEndRef} />
-                </div>
+                  </div>
                 )}
               </ScrollArea>
 
@@ -1070,8 +1100,8 @@ Respond in the same language as the user's message.`
                   Press Enter to send • Shift+Enter for new line
                 </p>
               </div>
-                    </div>
-                  )}
+            </div>
+          )}
 
           {/* Version History Panel */}
           {showVersionHistory && (
@@ -1081,15 +1111,15 @@ Respond in the same language as the user's message.`
                   <History className="h-4 w-4" />
                   <span className="font-medium text-sm">Version History</span>
                 </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-7 w-7"
                   onClick={() => setShowVersionHistory(false)}
                 >
                   <X className="h-4 w-4" />
-                  </Button>
-                </div>
+                </Button>
+              </div>
               <ScrollArea className="h-[calc(100%-48px)]">
                 <div className="p-2 space-y-1">
                   {versionHistory.length === 0 ? (
@@ -1119,10 +1149,10 @@ Respond in the same language as the user's message.`
                         </button>
                       );
                     })
-                )}
-              </div>
+                  )}
+                </div>
               </ScrollArea>
-          </div>
+            </div>
           )}
         </div>
       </div>

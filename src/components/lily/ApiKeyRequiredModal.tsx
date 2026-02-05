@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 interface ApiKeyRequiredModalProps {
     open: boolean;
     onKeysSaved: () => void;
+    onClose: () => void;
     saveApiKey: (provider: 'anthropic' | 'openai' | 'gemini', key: string) => Promise<void>;
 }
 
@@ -46,7 +47,7 @@ const PROVIDER_INFO = {
 
 type Provider = keyof typeof PROVIDER_INFO;
 
-export function ApiKeyRequiredModal({ open, onKeysSaved, saveApiKey }: ApiKeyRequiredModalProps) {
+export function ApiKeyRequiredModal({ open, onKeysSaved, onClose, saveApiKey }: ApiKeyRequiredModalProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<Provider>('anthropic');
     const [apiKey, setApiKey] = useState('');
@@ -71,7 +72,7 @@ export function ApiKeyRequiredModal({ open, onKeysSaved, saveApiKey }: ApiKeyReq
     };
 
     return (
-        <Dialog open={open} onOpenChange={() => { }}>
+        <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
             <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
                 <DialogHeader>
                     <div className="flex items-center gap-3">
@@ -128,7 +129,10 @@ export function ApiKeyRequiredModal({ open, onKeysSaved, saveApiKey }: ApiKeyReq
                     ))}
                 </Tabs>
 
-                <div className="flex justify-end gap-2 mt-4">
+                <div className="flex justify-between gap-2 mt-4">
+                    <Button variant="ghost" onClick={onClose}>
+                        나중에
+                    </Button>
                     <Button onClick={handleSave} disabled={isSaving || !apiKey.trim()}>
                         {isSaving ? (
                             <>

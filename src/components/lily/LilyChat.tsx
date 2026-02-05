@@ -626,6 +626,10 @@ export function LilyChat() {
           setShowApiKeyModal(false);
           loadSettings();
         }}
+        onClose={() => {
+          setShowApiKeyModal(false);
+          navigate('/');
+        }}
         saveApiKey={saveApiKey}
       />
 
