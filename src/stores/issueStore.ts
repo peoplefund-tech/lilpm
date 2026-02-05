@@ -219,18 +219,20 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
 
     try {
       // Map to database format
-      await issueService.updateIssue(issueId, {
-        title: data.title,
-        description: data.description,
-        status: data.status,
-        priority: data.priority,
-        project_id: data.projectId,
-        cycle_id: data.cycleId,
-        assignee_id: data.assigneeId,
-        estimate: data.estimate,
-        due_date: data.dueDate,
-        sort_order: data.sortOrder,
-      } as any);
+      // Map to database format, only including defined fields
+      const payload: any = {};
+      if (data.title !== undefined) payload.title = data.title;
+      if (data.description !== undefined) payload.description = data.description;
+      if (data.status !== undefined) payload.status = data.status;
+      if (data.priority !== undefined) payload.priority = data.priority;
+      if (data.projectId !== undefined) payload.project_id = data.projectId;
+      if (data.cycleId !== undefined) payload.cycle_id = data.cycleId;
+      if (data.assigneeId !== undefined) payload.assignee_id = data.assigneeId;
+      if (data.estimate !== undefined) payload.estimate = data.estimate;
+      if (data.dueDate !== undefined) payload.due_date = data.dueDate;
+      if (data.sortOrder !== undefined) payload.sort_order = data.sortOrder;
+
+      await issueService.updateIssue(issueId, payload);
     } catch (error) {
       console.error('Failed to update issue:', error);
       // Revert on failure
