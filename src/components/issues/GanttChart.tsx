@@ -22,7 +22,7 @@ import {
   subDays,
 } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Layers, User, Folder, GripVertical, Link2, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Layers, User, Folder, GripVertical, Link2, Plus, ArrowLeft, ListFilter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -59,8 +59,9 @@ interface GanttChartProps {
 
 interface DragState {
   issueId: string | null;
-  mode: 'move' | 'resize-start' | 'resize-end' | 'link' | null;
+  mode: 'move' | 'resize-start' | 'resize-end' | 'link' | 'row-reorder' | 'pending-bar' | null;
   startX: number;
+  startY: number;
   originalDueDate: string | null;
   originalCreatedAt: string | null;
 }
@@ -84,7 +85,13 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+
+  // Refs for scroll sync
+  const scrollContainerRef = useRef<HTMLDivElement>(null); // Timeline
+  const sidebarRef = useRef<HTMLDivElement>(null); // Sidebar
+  const isSyncingLeft = useRef(false);
+  const isSyncingRight = useRef(false);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -96,17 +103,50 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
     issueId: null,
     mode: null,
     startX: 0,
+    startY: 0,
     originalDueDate: null,
     originalCreatedAt: null,
   });
-  const [dragDelta, setDragDelta] = useState(0); // Visual offset during drag (in pixels)
+  const [dragDelta, setDragDelta] = useState(0); // X-axis delta (Date)
+  const [dragDeltaY, setDragDeltaY] = useState(0); // Y-axis delta (Row Reorder)
   const [snappedDelta, setSnappedDelta] = useState(0); // Snapped to cell boundaries
   const [linkingFrom, setLinkingFrom] = useState<string | null>(null);
   const [linkingFromPos, setLinkingFromPos] = useState<{ x: number; y: number } | null>(null);
   const [linkingFromSide, setLinkingFromSide] = useState<'left' | 'right'>('right');
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
-  const [hoverTarget, setHoverTarget] = useState<{ issueId: string; side: 'left' | 'right' } | null>(null); // For snapping dependency lines
+  const [hoverTarget, setHoverTarget] = useState<{ issueId: string; side: 'left' | 'right' } | null>(null);
+
+  // Scroll Sync Effect
+  useEffect(() => {
+    const right = scrollContainerRef.current;
+    const left = sidebarRef.current;
+    if (!right || !left) return;
+
+    const handleLeftScroll = () => {
+      if (!isSyncingLeft.current) {
+        isSyncingRight.current = true;
+        right.scrollTop = left.scrollTop;
+      }
+      isSyncingLeft.current = false;
+    };
+
+    const handleRightScroll = () => {
+      if (!isSyncingRight.current) {
+        isSyncingLeft.current = true;
+        left.scrollTop = right.scrollTop;
+      }
+      isSyncingRight.current = false;
+    };
+
+    left.addEventListener('scroll', handleLeftScroll);
+    right.addEventListener('scroll', handleRightScroll);
+
+    return () => {
+      left.removeEventListener('scroll', handleLeftScroll);
+      right.removeEventListener('scroll', handleRightScroll);
+    };
+  }, []); // For snapping dependency lines
 
   // Sync dependencies from issues (DB persistence)
   useEffect(() => {
@@ -331,12 +371,14 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
     setDragState({
       issueId: issue.id,
-      mode,
+      mode: mode === 'move' ? 'pending-bar' : mode, // Default to pending check only for move mode
       startX: e.clientX,
+      startY: e.clientY,
       originalDueDate: issue.dueDate || null,
       originalCreatedAt: issueStartDate || issue.createdAt,
     });
     setDragDelta(0);
+    setDragDeltaY(0);
     setSnappedDelta(0);
   }, []);
 
@@ -347,7 +389,45 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
       return;
     }
 
+    if (dragState.mode === 'pending-bar') {
+      const dx = Math.abs(e.clientX - dragState.startX);
+      const dy = Math.abs(e.clientY - dragState.startY);
+
+      // Threshold for movement
+      if (dx > 5 || dy > 5) {
+        if (dy > dx) {
+          // Vertical movement -> Row Reorder
+          setDragState(prev => ({ ...prev, mode: 'row-reorder' }));
+        } else {
+          // Horizontal movement -> Move Date
+          setDragState(prev => ({ ...prev, mode: 'move' }));
+        }
+      }
+      return;
+    }
+
     if (!dragState.issueId || !dragState.mode) return;
+
+    if (dragState.mode === 'row-reorder') {
+      const deltaY = e.clientY - dragState.startY;
+      setDragDeltaY(deltaY);
+
+      // Find drop target using elementFromPoint
+      // We temporarily hide the dragged element pointer events via CSS/style in render, 
+      // so elementFromPoint hits what's underneath.
+      const element = document.elementFromPoint(e.clientX, e.clientY);
+      const row = element?.closest('[data-issue-index]');
+
+      if (row) {
+        const index = parseInt(row.getAttribute('data-issue-index') || '0', 10);
+        const rect = row.getBoundingClientRect();
+        const isAbove = e.clientY < (rect.top + rect.height / 2);
+
+        setRowDropTargetIndex(index);
+        setRowDropPosition(isAbove ? 'above' : 'below');
+      }
+      return;
+    }
 
     const deltaX = e.clientX - dragState.startX;
 
@@ -375,66 +455,90 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
     }
 
     // Commit the drag changes using snapped delta
-    if (dragState.issueId && dragState.mode && snappedDelta !== 0) {
-      const daysDelta = Math.round(snappedDelta / cellWidth);
+    if (dragState.issueId && dragState.mode) {
+      if (dragState.mode === 'row-reorder' && rowDropTargetIndex !== null) {
+        const allIssues = groupedIssues.flatMap(g => g.issues);
+        if (rowDropTargetIndex >= 0 && rowDropTargetIndex < allIssues.length) {
+          const targetIssue = allIssues[rowDropTargetIndex];
+          const issueId = dragState.issueId;
+          const targetSortOrder = targetIssue.sortOrder ?? (rowDropTargetIndex * 1000);
+          let newSortOrder = targetSortOrder;
 
-      if (daysDelta !== 0) {
-        const issue = issues.find(i => i.id === dragState.issueId);
-        if (issue) {
-          const issueStartDateStr = (issue as any).startDate || (issue as any).start_date;
-          const originalStartDate = issueStartDateStr
-            ? parseISO(issueStartDateStr)
-            : parseISO(issue.createdAt);
-          const originalDueDate = dragState.originalDueDate
-            ? parseISO(dragState.originalDueDate)
-            : addDays(originalStartDate, 3);
+          if (rowDropPosition === 'above') {
+            const prevIssue = rowDropTargetIndex > 0 ? allIssues[rowDropTargetIndex - 1] : null;
+            const prevSort = prevIssue?.sortOrder ?? (targetSortOrder - 1000);
+            newSortOrder = (prevSort + targetSortOrder) / 2;
+          } else {
+            const nextIssue = rowDropTargetIndex < allIssues.length - 1 ? allIssues[rowDropTargetIndex + 1] : null;
+            const nextSort = nextIssue?.sortOrder ?? (targetSortOrder + 1000);
+            newSortOrder = (targetSortOrder + nextSort) / 2;
+          }
+          onIssueUpdate?.(issueId, { sortOrder: newSortOrder });
+        }
+      } else if (snappedDelta !== 0) {
+        const daysDelta = Math.round(snappedDelta / cellWidth);
 
-          if (dragState.mode === 'move') {
-            // Move both start and end dates
-            const newStartDate = addDays(originalStartDate, daysDelta);
-            const newDueDate = addDays(originalDueDate, daysDelta);
-            if (onIssueUpdate) {
-              onIssueUpdate(issue.id, {
-                startDate: format(newStartDate, 'yyyy-MM-dd'),
-                dueDate: format(newDueDate, 'yyyy-MM-dd')
-              });
-            }
-          } else if (dragState.mode === 'resize-end') {
-            // Only change the end date
-            const newDueDate = addDays(originalDueDate, daysDelta);
-            // Ensure due date is not before start date
-            if (newDueDate >= originalStartDate) {
-              onIssueUpdate?.(issue.id, { dueDate: format(newDueDate, 'yyyy-MM-dd') });
-            }
-          } else if (dragState.mode === 'resize-start') {
-            // Only change the start date
-            const newStartDate = addDays(originalStartDate, daysDelta);
+        if (daysDelta !== 0) {
+          const issue = issues.find(i => i.id === dragState.issueId);
+          if (issue) {
+            const issueStartDateStr = (issue as any).startDate || (issue as any).start_date;
+            const originalStartDate = issueStartDateStr
+              ? parseISO(issueStartDateStr)
+              : parseISO(issue.createdAt);
+            const originalDueDate = dragState.originalDueDate
+              ? parseISO(dragState.originalDueDate)
+              : addDays(originalStartDate, 3);
 
-            // Check if newStartDate exceeds dueDate
-            if (newStartDate <= originalDueDate) {
-              // Update
+            if (dragState.mode === 'move') {
+              // Move both start and end dates
+              const newStartDate = addDays(originalStartDate, daysDelta);
+              const newDueDate = addDays(originalDueDate, daysDelta);
               if (onIssueUpdate) {
-                onIssueUpdate(issue.id, { startDate: format(newStartDate, 'yyyy-MM-dd') });
+                onIssueUpdate(issue.id, {
+                  startDate: format(newStartDate, 'yyyy-MM-dd'),
+                  dueDate: format(newDueDate, 'yyyy-MM-dd')
+                });
               }
-            } else {
-              // Clamp to due date? Or just don't update.
-              // For better UX, we might clamp, but stopping update is safer for data integrity.
+            } else if (dragState.mode === 'resize-end') {
+              // Only change the end date
+              const newDueDate = addDays(originalDueDate, daysDelta);
+              // Ensure due date is not before start date
+              if (newDueDate >= originalStartDate) {
+                onIssueUpdate?.(issue.id, { dueDate: format(newDueDate, 'yyyy-MM-dd') });
+              }
+            } else if (dragState.mode === 'resize-start') {
+              // Only change the start date
+              const newStartDate = addDays(originalStartDate, daysDelta);
+
+              // Check if newStartDate exceeds dueDate
+              if (newStartDate <= originalDueDate) {
+                // Update
+                if (onIssueUpdate) {
+                  onIssueUpdate(issue.id, { startDate: format(newStartDate, 'yyyy-MM-dd') });
+                }
+              } else {
+                // Clamp to due date? Or just don't update.
+                // For better UX, we might clamp, but stopping update is safer for data integrity.
+              }
             }
           }
         }
       }
-    }
 
-    setDragDelta(0);
-    setSnappedDelta(0);
-    setDragState({
-      issueId: null,
-      mode: null,
-      startX: 0,
-      originalDueDate: null,
-      originalCreatedAt: null,
-    });
-  }, [linkingFrom, hoverTarget, dragState, snappedDelta, cellWidth, issues, onIssueUpdate, onDependencyCreate]);
+      setDragDelta(0);
+      setSnappedDelta(0);
+      setDragDeltaY(0);
+      setDragState({
+        issueId: null,
+        mode: null,
+        startX: 0,
+        startY: 0,
+        originalDueDate: null,
+        originalCreatedAt: null,
+      });
+      setRowDropTargetIndex(null);
+      setRowDropPosition(null);
+    }, [linkingFrom, hoverTarget, dragState, snappedDelta, cellWidth, issues, onIssueUpdate, onDependencyCreate, rowDropTargetIndex, rowDropPosition, groupedIssues]);
 
   const handleStartLinking = useCallback((e: React.MouseEvent, issueId: string, side: 'left' | 'right') => {
     e.preventDefault();
@@ -590,63 +694,66 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
   const totalIssuesWithDates = groupedIssues.reduce((sum, g) => sum + g.issues.length, 0);
 
+  const handleRowMouseDown = useCallback((e: React.MouseEvent, issue: Issue) => {
+    e.preventDefault();
+    if ((e.target as HTMLElement).closest('button, [role="button"], .cursor-pointer')) return;
+
+    setDragState({
+      issueId: issue.id,
+      mode: 'row-reorder',
+      startX: e.clientX,
+      startY: e.clientY,
+      originalDueDate: issue.dueDate || null,
+      originalCreatedAt: (issue as any).startDate || (issue as any).start_date || issue.createdAt,
+    });
+    setDragDeltaY(0);
+    setRowDragIssueId(issue.id);
+  }, []);
+
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevious}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" className="h-8" onClick={handleToday}>
-            {t('gantt.today', 'Today')}
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNext}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <span className="ml-3 text-base font-semibold">
-            {format(currentDate, 'MMMM yyyy', { locale: dateLocale })}
-          </span>
+    <div className="flex flex-col h-full bg-background text-foreground select-none">
+      {/* Header Controls */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-lg font-semibold">{t('gantt.title', 'Gantt Chart')}</h1>
+          </div>
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToday}
+              className="h-7 text-xs"
+            >
+              {t('gantt.today', 'Today')}
+            </Button>
+            <div className="h-4 w-px bg-border mx-1" />
+            <span className="text-sm font-medium px-2">
+              {format(currentDate, 'MMMM yyyy', { locale: dateLocale })}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Create Cycle Button */}
-          {onCycleCreate && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-2"
-              onClick={() => {
-                // Create a cycle for the current month view
-                const startDate = format(dateRange.start, 'yyyy-MM-dd');
-                const endDate = format(addDays(dateRange.start, 13), 'yyyy-MM-dd');
-                const cycleName = t('gantt.newCycle', 'New Cycle');
-                onCycleCreate(startDate, endDate, cycleName);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t('gantt.createCycle', 'New Cycle')}
-            </Button>
-          )}
-
           {/* Group By */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 gap-2">
-                <Layers className="h-3.5 w-3.5" />
-                {t('gantt.groupBy', 'Group')}
+                <ListFilter className="h-3.5 w-3.5" />
+                <span className="text-xs">{t('gantt.groupBy', 'Group By')}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setGroupBy('none')}>
-                {groupBy === 'none' && '✓ '}{t('gantt.noGrouping', 'No Grouping')}
+                {groupBy === 'none' && '✓ '}{t('gantt.none', 'None')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setGroupBy('project')}>
-                <Folder className="h-4 w-4 mr-2" />
                 {groupBy === 'project' && '✓ '}{t('gantt.byProject', 'By Project')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setGroupBy('assignee')}>
-                <User className="h-4 w-4 mr-2" />
                 {groupBy === 'assignee' && '✓ '}{t('gantt.byAssignee', 'By Assignee')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setGroupBy('status')}>
@@ -691,9 +798,9 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex">
         {/* Fixed Issue Column */}
-        <div className="w-72 flex-shrink-0 border-r border-border flex flex-col bg-background z-10">
+        <div className="w-72 flex-shrink-0 border-r border-border flex flex-col bg-background z-10 shadow-sm relative">
           {/* Column Header */}
-          <div className="h-16 border-b border-border px-3 flex items-end pb-2">
+          <div className="h-16 border-b border-border px-3 flex items-end pb-2 bg-background z-20">
             <span className="text-sm font-medium text-muted-foreground">
               {t('gantt.issues', 'Issues')} ({totalIssuesWithDates})
             </span>
@@ -701,8 +808,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
           {/* Issue List */}
           <div
+            ref={sidebarRef}
             className="flex-1 overflow-y-auto overflow-x-hidden"
-            onDragOver={handleContainerDragOver} // Add listener here to track Y coordinates during drag
           >
             {totalIssuesWithDates === 0 ? (
               <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -720,7 +827,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                   {/* Group Header */}
                   {groupBy !== 'none' && (
                     <div
-                      className="h-8 px-3 flex items-center gap-2 bg-muted/50 border-b border-border cursor-pointer hover:bg-muted/70"
+                      className="h-8 px-3 flex items-center gap-2 bg-muted/50 border-b border-border cursor-pointer hover:bg-muted/70 sticky top-0 z-10"
                       onClick={() => toggleGroup(group.key)}
                     >
                       <ChevronRight className={cn(
@@ -732,156 +839,32 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                     </div>
                   )}
 
-                  {/* Group Issues - Draggable for reordering */}
+                  {/* Group Issues - Custom Drag for reordering */}
                   {!group.isCollapsed && group.issues.map((issue, issueIndex) => {
-                    const isSidebarDragging = rowDragIssueId === issue.id;
-                    const isSidebarDropTarget = rowDropTargetIndex === issueIndex;
+                    const isDragging = dragState.mode === 'row-reorder' && dragState.issueId === issue.id;
+                    const isDropTarget = rowDropTargetIndex !== null &&
+                      groupedIssues.flatMap(g => g.issues)[rowDropTargetIndex]?.id === issue.id;
+
+                    // Simple translate effect for drag preview?
+                    // Actual drag movement is handled by specific drag layer or just `isDragging` style.
+                    // Here we apply `rowDropPosition` visual feedback.
 
                     return (
                       <div
                         key={issue.id}
-                        draggable
-                        onDragStart={(e) => {
-                          const globalIndex = group.issues.slice(0, issueIndex).reduce((acc, iss) => acc + 1, 0) +
-                            groupedIssues.slice(0, groupedIssues.findIndex(g => g.key === group.key))
-                              .reduce((acc, g) => acc + g.issues.length, 0);
-
-                          e.dataTransfer.setData('text/plain', JSON.stringify({
-                            issueId: issue.id,
-                            groupKey: group.key,
-                            originalIndex: issueIndex,
-                            globalIndex
-                          }));
-                          e.dataTransfer.effectAllowed = 'move';
-                          // Use a transparent image to avoid default ghost if possible
-                          const img = new Image();
-                          img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // Transparent 1x1 pixel
-                          e.dataTransfer.setDragImage(img, 0, 0);
-
-                          setRowDragIssueId(issue.id);
-                          setRowDragFromIndex(globalIndex);
-                          setRowDragStartY(e.clientY);
-                          setRowDragCurrentY(e.clientY);
-                        }}
-                        onDragEnd={() => {
-                          setRowDragIssueId(null);
-                          setRowDropTargetIndex(null);
-                          setRowDropPosition(null);
-                          setRowDragFromIndex(null);
-                          setRowDragStartY(0);
-                          setRowDragCurrentY(0);
-                        }}
-                        onDragOver={(e) => {
-                          if (!rowDragIssueId || rowDragIssueId === issue.id) return;
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = 'move';
-
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const midY = rect.top + rect.height / 2;
-                          const dragY = e.clientY;
-                          const isAbove = dragY < midY;
-
-                          // Calculate global index for target
-                          const globalIndex = group.issues.slice(0, issueIndex).reduce((acc, iss) => acc + 1, 0) +
-                            groupedIssues.slice(0, groupedIssues.findIndex(g => g.key === group.key))
-                              .reduce((acc, g) => acc + g.issues.length, 0);
-
-                          setRowDropTargetIndex(globalIndex);
-                          setRowDropPosition(isAbove ? 'above' : 'below');
-                        }}
-                        onDragLeave={(e) => {
-                          // Only clear if we're actually leaving the entire row area
-                          const relatedTarget = e.relatedTarget as HTMLElement;
-                          const currentTarget = e.currentTarget as HTMLElement;
-
-                          // Check if the related target is still within the current row or a child
-                          if (relatedTarget && (currentTarget.contains(relatedTarget) || relatedTarget === currentTarget)) {
-                            return;
-                          }
-
-                          // Additional check: Only clear if mouse is outside bounds
-                          const rect = currentTarget.getBoundingClientRect();
-                          if (
-                            e.clientX >= rect.left &&
-                            e.clientX <= rect.right &&
-                            e.clientY >= rect.top &&
-                            e.clientY <= rect.bottom
-                          ) {
-                            return;
-                          }
-
-                          setRowDropTargetIndex(null);
-                          setRowDropPosition(null);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          if (!rowDragIssueId || rowDragIssueId === issue.id || !onIssueUpdate) return;
-
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const midY = rect.top + rect.height / 2;
-                          const isAbove = e.clientY < midY;
-
-                          // Get the target issue's sort order
-                          const targetSortOrder = issue.sortOrder !== undefined ? issue.sortOrder : issueIndex * 1000;
-
-                          // Find all issues in the same group
-                          const allIssues = groupedIssues.flatMap(g => g.issues);
-                          const targetIdx = allIssues.findIndex(i => i.id === issue.id);
-
-                          // Calculate new sort order based on position
-                          let newSortOrder: number;
-                          if (isAbove) {
-                            // Insert above: use target's sort order - 500
-                            const prevIssue = targetIdx > 0 ? allIssues[targetIdx - 1] : null;
-                            if (prevIssue && prevIssue.sortOrder !== undefined) {
-                              newSortOrder = (prevIssue.sortOrder + targetSortOrder) / 2;
-                            } else {
-                              newSortOrder = targetSortOrder - 500;
-                            }
-                          } else {
-                            // Insert below: use target's sort order + 500
-                            const nextIssue = targetIdx < allIssues.length - 1 ? allIssues[targetIdx + 1] : null;
-                            if (nextIssue && nextIssue.sortOrder !== undefined) {
-                              newSortOrder = (targetSortOrder + nextIssue.sortOrder) / 2;
-                            } else {
-                              newSortOrder = targetSortOrder + 500;
-                            }
-                          }
-
-                          console.log(`Moving issue ${rowDragIssueId} ${isAbove ? 'above' : 'below'} ${issue.identifier} (new sortOrder: ${newSortOrder})`);
-                          onIssueUpdate(rowDragIssueId, { sortOrder: newSortOrder });
-
-                          setRowDragIssueId(null);
-                          setRowDropTargetIndex(null);
-                          setRowDropPosition(null);
-                          setRowDragFromIndex(null);
-                        }}
+                        data-issue-id={issue.id}
+                        data-issue-index={groupedIssues.flatMap(g => g.issues).findIndex(i => i.id === issue.id)} // Global index for drag target finding
+                        onMouseDown={(e) => handleRowMouseDown(e, issue)}
                         className={cn(
-                          "h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 active:cursor-grabbing select-none relative",
-                          "transition-all duration-200 ease-out",
-                          isSidebarDragging && "opacity-50 scale-[0.98] shadow-lg z-50",
-                          isSidebarDropTarget && rowDropPosition === 'above' && "border-t-4 border-t-primary shadow-sm",
-                          isSidebarDropTarget && rowDropPosition === 'below' && "border-b-4 border-b-primary shadow-sm",
-                          // Add animated translate for neighbor rows
-                          !isSidebarDragging && rowDropTargetIndex !== null && (() => {
-                            const globalIndex = group.issues.slice(0, issueIndex).reduce((acc, iss) => acc + 1, 0) +
-                              groupedIssues.slice(0, groupedIssues.findIndex(g => g.key === group.key))
-                                .reduce((acc, g) => acc + g.issues.length, 0);
-
-                            if (rowDragFromIndex !== null && rowDropTargetIndex !== null) {
-                              if (rowDropPosition === 'above' && globalIndex >= rowDropTargetIndex && globalIndex < rowDragFromIndex) {
-                                return 'translate-y-10';
-                              }
-                              if (rowDropPosition === 'below' && globalIndex <= rowDropTargetIndex && globalIndex > rowDragFromIndex) {
-                                return '-translate-y-10';
-                              }
-                            }
-                            return '';
-                          })()
+                          "h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 relative",
+                          "transition-colors duration-100",
+                          isDragging && "bg-muted opacity-50",
+                          isDropTarget && rowDropPosition === 'above' && "border-t-2 border-t-primary",
+                          isDropTarget && rowDropPosition === 'below' && "border-b-2 border-b-primary"
                         )}
                         onClick={() => handleIssueClick(issue)}
                       >
-                        <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab active:cursor-grabbing" />
+                        <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab" />
                         <DropdownMenu>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -917,11 +900,6 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                             {issue.title}
                           </p>
                         </div>
-                        {/* Issue Type Dropdown Trigger (Hidden normally, but accessible via icon if needed, but user requirement #7 says tooltip and dropdown) */}
-                        {/* Actually, user wants to hover the icon to see tooltip, and click to change type. */}
-                        {/* So we should wrap IssueTypeIcon in the dropdown/tooltip here? */}
-                        {/* No, the request says "On the text part... left... icon". This IS that icon. */}
-                        {/* We need to re-render this part to support the interaction. */}
                         <span className="text-[10px] text-muted-foreground font-mono flex-shrink-0">
                           {issue.identifier}
                         </span>
