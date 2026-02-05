@@ -59,7 +59,7 @@ interface GanttChartProps {
 
 interface DragState {
   issueId: string | null;
-  mode: 'move' | 'resize-start' | 'resize-end' | 'link' | 'row-reorder' | 'pending-bar' | null;
+  mode: 'move' | 'resize-start' | 'resize-end' | 'link' | 'row-reorder' | 'pending-bar' | 'pending-row' | null;
   startX: number;
   startY: number;
   originalDueDate: string | null;
@@ -406,6 +406,17 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
       return;
     }
 
+    // Handle pending-row mode (from sidebar row mousedown)
+    if (dragState.mode === 'pending-row') {
+      const dy = Math.abs(e.clientY - dragState.startY);
+
+      // Only activate row reordering after a small threshold to distinguish from click
+      if (dy > 5) {
+        setDragState(prev => ({ ...prev, mode: 'row-reorder' }));
+      }
+      return;
+    }
+
     if (!dragState.issueId || !dragState.mode) return;
 
     if (dragState.mode === 'row-reorder') {
@@ -456,6 +467,35 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
     // Commit the drag changes using snapped delta
     if (dragState.issueId && dragState.mode) {
+      // Handle pending-row mode (click without significant drag = navigate to issue)
+      if (dragState.mode === 'pending-row') {
+        const issue = issues.find(i => i.id === dragState.issueId);
+        if (issue) {
+          // Reset drag state first
+          setDragDelta(0);
+          setSnappedDelta(0);
+          setDragDeltaY(0);
+          setDragState({
+            issueId: null,
+            mode: null,
+            startX: 0,
+            startY: 0,
+            originalDueDate: null,
+            originalCreatedAt: null,
+          });
+          setRowDropTargetIndex(null);
+          setRowDropPosition(null);
+          setRowDragIssueId(null);
+          // Navigate to issue
+          if (onIssueClick) {
+            onIssueClick(issue);
+          } else {
+            navigate(`/issue/${issue.id}`);
+          }
+          return;
+        }
+      }
+
       if (dragState.mode === 'row-reorder' && rowDropTargetIndex !== null) {
         const allIssues = groupedIssues.flatMap(g => g.issues);
         if (rowDropTargetIndex >= 0 && rowDropTargetIndex < allIssues.length) {
@@ -539,7 +579,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
     });
     setRowDropTargetIndex(null);
     setRowDropPosition(null);
-  }, [linkingFrom, hoverTarget, dragState, snappedDelta, cellWidth, issues, onIssueUpdate, onDependencyCreate, rowDropTargetIndex, rowDropPosition, groupedIssues]);
+    setRowDragIssueId(null);
+  }, [linkingFrom, hoverTarget, dragState, snappedDelta, cellWidth, issues, onIssueUpdate, onDependencyCreate, rowDropTargetIndex, rowDropPosition, groupedIssues, navigate, onIssueClick]);
 
   const handleStartLinking = useCallback((e: React.MouseEvent, issueId: string, side: 'left' | 'right') => {
     e.preventDefault();
@@ -697,11 +738,12 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
   const handleRowMouseDown = useCallback((e: React.MouseEvent, issue: Issue) => {
     e.preventDefault();
-    if ((e.target as HTMLElement).closest('button, [role="button"], .cursor-pointer')) return;
+    // Don't trigger if clicking interactive elements like buttons or dropdowns
+    if ((e.target as HTMLElement).closest('button, [role="button"], .cursor-pointer, [role="menuitem"]')) return;
 
     setDragState({
       issueId: issue.id,
-      mode: 'row-reorder',
+      mode: 'pending-row', // Use pending mode to distinguish click from drag
       startX: e.clientX,
       startY: e.clientY,
       originalDueDate: issue.dueDate || null,
@@ -858,11 +900,12 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                         onMouseDown={(e) => handleRowMouseDown(e, issue)}
                         className={cn(
                           "h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 relative",
-                          "transition-colors duration-100",
-                          isDragging && "bg-muted opacity-50",
+                          "transition-all duration-100",
+                          isDragging && "bg-primary/20 opacity-70 pointer-events-none z-50 shadow-lg",
                           isDropTarget && rowDropPosition === 'above' && "border-t-2 border-t-primary",
                           isDropTarget && rowDropPosition === 'below' && "border-b-2 border-b-primary"
                         )}
+                        style={isDragging ? { transform: `translateY(${dragDeltaY}px)` } : undefined}
                         onClick={() => handleIssueClick(issue)}
                       >
                         <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab" />
