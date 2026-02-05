@@ -565,38 +565,23 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
           // Calculate bounds for the new sortOrder using TRUE effective sort orders
           // This prevents random jumps by aligning drag-logic with render-logic
+          // CRITICAL FIX: Use allIssues directly - it's already in render order from groupedIssues!
+          // Don't re-calculate sort order independently, as that caused mismatches.
 
-          // 1. Re-calculate Effective Orders for ALL issues (Natural Sort -> Virtual Map)
-          // Use the exact same logic as sortIssues
-          const sortedAllIssues = [...allIssues].sort((a, b) => {
-            // Fallback 1: Due Date
-            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-            if (dateA !== dateB) {
-              if (dateA === 0) return 1;
-              if (dateB === 0) return -1;
-              return dateA - dateB;
-            }
-            // Fallback 2: Creation Date
-            const createdA = new Date(a.createdAt).getTime();
-            const createdB = new Date(b.createdAt).getTime();
-            if (createdA !== createdB) return createdA - createdB;
-            // Fallback 3: ID
-            return a.id.localeCompare(b.id);
-          });
-
-          // Create map: IssueID -> EffectiveSortOrder
+          // Create map: IssueID -> EffectiveSortOrder based on RENDER POSITION
           const effectiveOrderMap = new Map<string, number>();
-          sortedAllIssues.forEach((issue, index) => {
+          allIssues.forEach((issue, index) => {
+            // Use the issue's actual sortOrder if defined, otherwise use render position * gap
+            // The key insight is we need BOUNDS from adjacent items, not from a re-sorted array
             const effectiveOrder = issue.sortOrder ?? ((index + 1) * BASE_GAP);
             effectiveOrderMap.set(issue.id, effectiveOrder);
           });
 
-          // Helper to safely get order
+          // Helper to safely get order from issuesWithoutDragged
           const getOrder = (index: number) => {
             if (index < 0 || index >= issuesWithoutDragged.length) return null;
             const targetId = issuesWithoutDragged[index].id;
-            return effectiveOrderMap.get(targetId) ?? ((index + 1) * BASE_GAP); // Fallback should unlikely trigger
+            return effectiveOrderMap.get(targetId) ?? ((index + 1) * BASE_GAP);
           };
 
           let lowerBound: number;
