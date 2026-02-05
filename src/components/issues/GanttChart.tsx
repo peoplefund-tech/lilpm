@@ -933,28 +933,47 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
                   {/* Group Issues - Custom Drag for reordering */}
                   {!group.isCollapsed && group.issues.map((issue, issueIndex) => {
+                    const globalIndex = groupedIssues.flatMap(g => g.issues).findIndex(i => i.id === issue.id);
+                    const draggedIndex = dragState.issueId ? groupedIssues.flatMap(g => g.issues).findIndex(i => i.id === dragState.issueId) : -1;
                     const isDragging = dragState.mode === 'row-reorder' && dragState.issueId === issue.id;
                     const isDropTarget = rowDropTargetIndex !== null &&
                       groupedIssues.flatMap(g => g.issues)[rowDropTargetIndex]?.id === issue.id;
 
-                    // Simple translate effect for drag preview?
-                    // Actual drag movement is handled by specific drag layer or just `isDragging` style.
-                    // Here we apply `rowDropPosition` visual feedback.
+                    // Calculate visual shift for live preview
+                    let shiftY = 0;
+                    if (dragState.mode === 'row-reorder' && draggedIndex !== -1 && !isDragging && rowDropTargetIndex !== null) {
+                      const targetIdx = rowDropPosition === 'below' ? rowDropTargetIndex + 1 : rowDropTargetIndex;
+                      // If dragging from above to below this row, shift up
+                      if (draggedIndex < globalIndex && globalIndex <= targetIdx - 1) {
+                        shiftY = -40; // Row height
+                      }
+                      // If dragging from below to above this row, shift down
+                      else if (draggedIndex > globalIndex && globalIndex >= targetIdx) {
+                        shiftY = 40;
+                      }
+                    }
 
                     return (
                       <div
                         key={issue.id}
                         data-issue-id={issue.id}
-                        data-issue-index={groupedIssues.flatMap(g => g.issues).findIndex(i => i.id === issue.id)} // Global index for drag target finding
+                        data-issue-index={globalIndex}
                         onMouseDown={(e) => handleRowMouseDown(e, issue)}
                         className={cn(
                           "h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 relative",
-                          "transition-all duration-100",
-                          isDragging && "bg-primary/20 opacity-70 pointer-events-none z-50 shadow-lg",
-                          isDropTarget && rowDropPosition === 'above' && "border-t-2 border-t-primary",
-                          isDropTarget && rowDropPosition === 'below' && "border-b-2 border-b-primary"
+                          "transition-transform duration-150 ease-out",
+                          isDragging && "bg-primary/30 opacity-80 pointer-events-none z-50 shadow-xl ring-2 ring-primary/50",
+                          isDropTarget && rowDropPosition === 'above' && "border-t-4 border-t-primary",
+                          isDropTarget && rowDropPosition === 'below' && "border-b-4 border-b-primary"
                         )}
-                        style={isDragging ? { transform: `translateY(${dragDeltaY}px)` } : undefined}
+                        style={{
+                          transform: isDragging
+                            ? `translateY(${dragDeltaY}px) scale(1.02)`
+                            : shiftY !== 0
+                              ? `translateY(${shiftY}px)`
+                              : undefined,
+                          zIndex: isDragging ? 100 : undefined
+                        }}
                         onClick={() => handleIssueClick(issue)}
                       >
                         <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab" />
