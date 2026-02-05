@@ -47,8 +47,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Plus, 
+import {
+  Plus,
   MoreHorizontal,
   Mail,
   UserMinus,
@@ -100,7 +100,7 @@ export function TeamMembersPage() {
 
   const loadData = async () => {
     if (!currentTeam) return;
-    
+
     setIsLoading(true);
     try {
       const [membersData, invitesData] = await Promise.all([
@@ -166,24 +166,24 @@ export function TeamMembersPage() {
 
   const handleInvite = async () => {
     if (!currentTeam || !inviteEmail) return;
-    
+
     setIsSending(true);
     try {
       const newInvite = await teamInviteService.createInvite(currentTeam.id, inviteEmail, inviteRole);
-      
+
       // Show different message based on whether user exists
       if ((newInvite as any).isExistingUser) {
         toast.success(t('team.inviteSentExistingUser', 'Invitation sent! The user will be notified via email and in-app notification.'));
       } else {
         toast.success(t('team.inviteSent'));
       }
-      
+
       // Immediately add the invite to the local state for instant UI update
       setInvites(prev => [...prev, newInvite]);
-      
+
       setInviteEmail('');
       setInviteOpen(false);
-      
+
       // Also reload data to ensure consistency
       await loadData();
     } catch (error: any) {
@@ -196,8 +196,9 @@ export function TeamMembersPage() {
   const handleCancelInvite = async (inviteId: string) => {
     try {
       await teamInviteService.cancelInvite(inviteId);
+      setInvites(prev => prev.filter(i => i.id !== inviteId));
       toast.success(t('team.inviteCancelled'));
-      loadData();
+      loadData(); // Still reload to be safe, but state update gives instant feedback
     } catch (error) {
       toast.error(t('common.error'));
     }
@@ -223,7 +224,7 @@ export function TeamMembersPage() {
 
   const handleRemoveMember = async () => {
     if (!removeMember) return;
-    
+
     try {
       await teamMemberService.removeMember(removeMember.id);
       toast.success(t('team.memberRemoved'));
@@ -366,7 +367,7 @@ export function TeamMembersPage() {
                                   {t('team.member')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => setRemoveMember(member)}
                                   className="text-destructive focus:text-destructive"
                                 >
@@ -439,7 +440,7 @@ export function TeamMembersPage() {
                                 {t('team.resendInvite')}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => handleCancelInvite(invite.id)}
                                 className="text-destructive focus:text-destructive"
                               >
@@ -532,7 +533,7 @@ export function TeamMembersPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-              <AlertDialogAction 
+              <AlertDialogAction
                 onClick={handleRemoveMember}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >

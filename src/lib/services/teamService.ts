@@ -249,21 +249,25 @@ export const teamInviteService = {
     try {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
 
+      const payload = {
+        inviteId: data.id,
+        email: email,
+        teamName: teamName,
+        inviterName: inviterName,
+        role: role,
+        token: token,
+        isExistingUser: isExistingUser,
+        targetUserId: existingProfile?.id,
+      };
+
+      console.log('Sending invitation payload to edge function:', payload);
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/send-team-invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          inviteId: data.id,
-          email: email,
-          teamName: teamName,
-          inviterName: inviterName,
-          role: role,
-          token: token,
-          isExistingUser: isExistingUser,
-          targetUserId: existingProfile?.id, // Pass target user ID for notification creation
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
