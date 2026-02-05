@@ -461,7 +461,7 @@ export function TeamMembersPage() {
 
         {/* Invite Dialog */}
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-          <DialogContent>
+          <DialogContent aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>{t('team.inviteMember')}</DialogTitle>
             </DialogHeader>
