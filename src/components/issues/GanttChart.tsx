@@ -119,6 +119,9 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
   const [hoverTarget, setHoverTarget] = useState<{ issueId: string; side: 'left' | 'right' } | null>(null);
 
+  // Track optimistically deleted dependencies to prevent resurrection from stale props
+  const deletedDepKeysRef = useRef<Set<string>>(new Set());
+
   // Scroll Sync Effect
   useEffect(() => {
     const right = scrollContainerRef.current;
@@ -152,12 +155,17 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
 
   // Sync dependencies from issues (DB persistence)
-  // CRITICAL FIX: Only update if the server state is TRULY different to avoid reverting optimistic deletions
+  // CRITICAL FIX: Filter out optimistically deleted dependencies
   useEffect(() => {
     const serverDependencies: Dependency[] = [];
     issues.forEach(issue => {
       if (issue.blocking) {
         issue.blocking.forEach(dep => {
+          const key = `${issue.id}->${dep.targetIssueId}`;
+          // Skip dependencies that were optimistically deleted locally
+          if (deletedDepKeysRef.current.has(key)) {
+            return;
+          }
           if (!serverDependencies.some(d => d.from === issue.id && d.to === dep.targetIssueId)) {
             serverDependencies.push({ from: issue.id, to: dep.targetIssueId });
           }
@@ -171,11 +179,6 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
         currentDeps.every(c => serverDependencies.some(s => s.from === c.from && s.to === c.to))) {
         return currentDeps;
       }
-
-      // Intelligent Merge:
-      // If we have distinct local changes (like a just-deleted item), we might want to keep them.
-      // BUT strict sync is safer for consistency. Use explicit "optimistic" actions for deletes.
-      // For now, let's just do a deep comparison to minimize thrashing.
       return serverDependencies;
     });
   }, [issues]);
@@ -1243,7 +1246,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                 }
 
                 return (
-                  <g key={`dep-${index}`} className={cn("group/dep", (dragState.mode === 'row-reorder' || !!linkingFrom) ? "pointer-events-none" : "pointer-events-auto")}>
+                  <g key={`dep-${index}`} className={cn("group/dep", (dragState.mode && dragState.mode !== null) || !!linkingFrom ? "pointer-events-none" : "pointer-events-auto")}>
                     {/* Clickable transparent path for easier selection */}
                     <path
                       d={pathD}
@@ -1255,6 +1258,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                         e.stopPropagation();
                         // Double click to delete
                         if (confirm(t('gantt.deleteDependencyConfirm', 'Delete this dependency?'))) {
+                          const key = `${dep.from}->${dep.to}`;
+                          deletedDepKeysRef.current.add(key);
                           setDependencies(prev => prev.filter((_, i) => i !== index));
                           onDependencyDelete?.(dep.from, dep.to);
                         }
@@ -1278,10 +1283,13 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                       fill="rgba(59, 130, 246, 0.5)"
                       stroke="white"
                       strokeWidth="2"
-                      className="cursor-grab hover:fill-blue-600 pointer-events-auto z-50"
+                      className={cn("cursor-grab hover:fill-blue-600 z-50", (dragState.mode && dragState.mode !== null) ? "pointer-events-none" : "pointer-events-auto")}
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+
+                        const key = `${dep.from}->${dep.to}`;
+                        deletedDepKeysRef.current.add(key);
 
                         setLinkingFrom(dep.from);
                         setLinkingFromSide('right');
