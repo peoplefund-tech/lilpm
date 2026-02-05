@@ -888,6 +888,29 @@ export function LilyChat() {
                     ))}
                   </div>
 
+                  {/* PRD and Tickets generation buttons */}
+                  <div className="mt-4 flex gap-2 justify-center">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => generatePRD()}
+                    >
+                      <FileText className="h-4 w-4" />
+                      {t('lily.createPRD', 'PRD 생성하기')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => currentTeam && generateTickets(currentTeam.id)}
+                      disabled={!currentTeam}
+                    >
+                      <Ticket className="h-4 w-4" />
+                      {t('lily.createTickets', '티켓 생성하기')}
+                    </Button>
+                  </div>
+
                   {/* Model Info */}
                   <div className="mt-8 p-4 bg-muted/50 rounded-lg max-w-md mx-auto">
                     <p className="text-xs text-muted-foreground mb-2">{t('lily.currentModel', 'Current AI Model')}</p>
@@ -917,8 +940,13 @@ export function LilyChat() {
                 cleanContent = cleanContent
                   .replace(/\[CANVAS:[^\]]*\][\s\S]*?(?=\n\n|$)/g, '')
                   .replace(/\/\/ Write a [^\n]*\n?/g, '')
-                  .replace(/```[\s\S]*?```/g, '') // Also remove code blocks from chat when canvas mode
                   .trim();
+
+                // Only remove code blocks from chat when canvas mode is ON
+                // This allows code blocks to display normally when not in canvas mode
+                if (canvasMode && showCanvasPanel) {
+                  cleanContent = cleanContent.replace(/```[\s\S]*?```/g, '').trim();
+                }
 
                 return (
                   <div key={message.id}>
