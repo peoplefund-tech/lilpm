@@ -226,13 +226,16 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
     const left = Math.max(0, startIndex * cellWidth);
     const width = Math.max(cellWidth, (endIndex - startIndex + 1) * cellWidth);
     
+    // Fallback styling logic
+    const isFallbackDate = !dueDate || !isValid(dueDate);
+
     const isVisible = endIndex >= 0 && startIndex < totalDays;
     
     return {
       left: `${left}px`,
       width: `${Math.min(width, (totalDays - Math.max(0, startIndex)) * cellWidth)}px`,
       isVisible,
-      hasDueDate: !!dueDate && isValid(dueDate),
+      hasDueDate: !isFallbackDate,
     };
   }, [dateRange, cellWidth]);
 
@@ -307,11 +310,13 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
           });
         } else if (dragState.mode === 'resize-end') {
           const newEndDate = addDays(dragState.endDate, daysDelta);
+          // Resize constraint: End date cannot be before start date
           if (newEndDate >= dragState.startDate) {
             onIssueUpdate?.(dragState.issueId, { dueDate: format(newEndDate, 'yyyy-MM-dd') });
           }
         } else if (dragState.mode === 'resize-start') {
           const newStartDate = addDays(dragState.startDate, daysDelta);
+          // Resize constraint: Start date cannot be after end date
           if (newStartDate <= dragState.endDate) {
             onIssueUpdate?.(dragState.issueId, { startDate: format(newStartDate, 'yyyy-MM-dd') });
           }
@@ -468,7 +473,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                     className={cn(
                       "flex flex-col items-center justify-center border-r border-gray-200/40 dark:border-gray-700/40",
                       isToday(day) && "bg-blue-50/50 dark:bg-blue-900/10",
-                      !isSameMonth(day, currentDate) && "text-gray-400 dark:text-gray-600"
+                      !isSameMonth(day, currentDate) && "bg-gray-50/50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-600"
                     )}
                     style={{ width: `${cellWidth}px`, minWidth: `${cellWidth}px` }}
                   >
@@ -675,15 +680,15 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
               })}
             </div>
 
-            {/* Today Line - Notion-style */}
+            {/* Today Line - Optimized */}
             {dateRange.days.some(d => isToday(d)) && (
               <div
-                className="absolute top-10 bottom-0 w-[2px] bg-blue-500/60 dark:bg-blue-400/60 z-20 pointer-events-none"
+                className="absolute top-10 bottom-0 w-[2px] bg-blue-500/60 z-20 pointer-events-none"
                 style={{
-                  left: `${(dateRange.days.findIndex(d => isToday(d)) * cellWidth) + cellWidth / 2 - 1}px`
+                  left: `${(dateRange.days.findIndex(d => isToday(d)) * cellWidth) + (cellWidth / 2) - 1}px`
                 }}
               >
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 shadow-sm" />
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-blue-500 shadow-sm" />
               </div>
             )}
           </div>
@@ -754,18 +759,23 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
             const direction = linkingFromSide === 'right' ? 1 : -1;
             
             if ((toX - fromX) * direction > 15) {
+              // Straight / Simple curve for forward connections
               const cp1x = fromX + (direction * cpOffset);
               const cp1y = fromY;
               const cp2x = toX - (direction * cpOffset);
               const cp2y = toY;
               pathD = `M ${fromX} ${fromY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${toX} ${toY}`;
             } else {
+              // S-curve for backward or close connections
               const loopOffset = Math.max(cpOffset, 50);
               const midY = (fromY + toY) / 2;
+              const midX = (fromX + toX) / 2;
+              
+              // More complex S-curve logic for better backward routing
               pathD = `M ${fromX} ${fromY}
                        C ${fromX + (direction * loopOffset)} ${fromY},
                          ${fromX + (direction * loopOffset)} ${midY},
-                         ${(fromX + toX) / 2} ${midY}
+                         ${midX} ${midY}
                        S ${toX - (direction * loopOffset)} ${toY},
                          ${toX} ${toY}`;
             }
