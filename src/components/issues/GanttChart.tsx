@@ -92,6 +92,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   const sidebarRef = useRef<HTMLDivElement>(null); // Sidebar
   const isSyncingLeft = useRef(false);
   const isSyncingRight = useRef(false);
+  const wasDraggedRef = useRef(false); // Track if row was just dragged to prevent click-after-drag
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -564,8 +565,12 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
             issueId
           });
 
+          // Mark that we just completed a drag to prevent click-after-drag navigation
+          wasDraggedRef.current = true;
           onIssueUpdate?.(issueId, { sortOrder: newSortOrder });
         }
+        // Also mark as dragged even if dropped on same position
+        wasDraggedRef.current = true;
       } else if (snappedDelta !== 0) {
         const daysDelta = Math.round(snappedDelta / cellWidth);
 
@@ -976,7 +981,14 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                               : undefined,
                           zIndex: isDragging ? 100 : undefined
                         }}
-                        onClick={() => handleIssueClick(issue)}
+                        onClick={() => {
+                          // Skip click if we just finished dragging
+                          if (wasDraggedRef.current) {
+                            wasDraggedRef.current = false;
+                            return;
+                          }
+                          handleIssueClick(issue);
+                        }}
                       >
                         <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground flex-shrink-0 cursor-grab" />
                         <DropdownMenu>
