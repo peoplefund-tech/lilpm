@@ -17,7 +17,7 @@ export const prdService = {
       `)
       .eq('team_id', teamId)
       .order('updated_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []) as unknown as PRDWithRelations[];
   },
@@ -31,7 +31,7 @@ export const prdService = {
       `)
       .eq('id', prdId)
       .single();
-    
+
     if (error) throw error;
     return data as unknown as PRDWithRelations;
   },
@@ -69,20 +69,25 @@ export const prdService = {
       } as any)
       .select()
       .single();
-    
+
     if (error) throw error;
     return prd as PRDDocument;
   },
 
   async updatePRD(prdId: string, updates: Partial<PRDDocument>): Promise<PRDDocument> {
+    console.log('[prdService] Updating PRD:', prdId, updates);
     const { data, error } = await supabase
       .from('prd_documents')
       .update(updates as any)
       .eq('id', prdId)
       .select()
       .single();
-    
-    if (error) throw error;
+
+    if (error) {
+      console.error('[prdService] Update failed:', error);
+      throw error;
+    }
+    console.log('[prdService] Update success:', data);
     return data as PRDDocument;
   },
 
@@ -91,7 +96,7 @@ export const prdService = {
       .from('prd_documents')
       .delete()
       .eq('id', prdId);
-    
+
     if (error) throw error;
   },
 

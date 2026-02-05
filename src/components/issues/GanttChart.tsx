@@ -1055,8 +1055,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                           "h-10 px-3 flex items-center gap-2 border-b border-border/50 cursor-grab hover:bg-muted/30 relative",
                           "transition-transform duration-150 ease-out",
                           isDragging && "bg-primary/30 opacity-80 pointer-events-none z-50 shadow-xl ring-2 ring-primary/50",
-                          isDropTarget && rowDropPosition === 'above' && "border-t-4 border-t-primary",
-                          isDropTarget && rowDropPosition === 'below' && "border-b-4 border-b-primary"
+                          // Removed border-t/b indicators in favor of Ghost Row below
                         )}
                         style={{
                           transform: isDragging
@@ -1581,8 +1580,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                         className={cn(
                           "h-10 relative border-b border-border/30 transition-all duration-150 ease-out", // Match sidebar transition
                           isRowDragging && "z-50 bg-background/80 shadow-xl opacity-80 pointer-events-none", // Match sidebar dragging style
-                          isDropTarget && rowDropPosition === 'above' && "border-t-4 border-t-primary",
-                          isDropTarget && rowDropPosition === 'below' && "border-b-4 border-b-primary"
+                          // Removed border-t/b indicators
                         )}
                         style={{
                           transform: isRowDragging
@@ -1790,6 +1788,18 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                             </>
                           );
                         })()}
+                        {/* Ghost Row for Timeline - shows where bar will land */}
+                        {shiftY !== 0 && (
+                          <div
+                            className="absolute left-0 right-0 h-10 bg-muted/50 border-y border-dashed border-primary/30 pointer-events-none z-10"
+                            style={{
+                              top: shiftY > 0 ? '-40px' : 'auto',
+                              bottom: shiftY < 0 ? '-40px' : 'auto',
+                            }}
+                          >
+                            <div className="absolute inset-0 bg-primary/5" />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
