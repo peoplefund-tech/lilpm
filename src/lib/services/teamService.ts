@@ -12,7 +12,7 @@ export const profileService = {
       .select('*')
       .eq('id', userId)
       .single();
-    
+
     if (error) throw error;
     return data as Profile | null;
   },
@@ -24,7 +24,7 @@ export const profileService = {
       .eq('id', userId)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data as Profile;
   },
@@ -40,7 +40,7 @@ export const teamService = {
       .from('teams')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []) as Team[];
   },
@@ -51,7 +51,7 @@ export const teamService = {
       .select('*')
       .eq('id', teamId)
       .single();
-    
+
     if (error) throw error;
     return data as Team | null;
   },
@@ -59,7 +59,7 @@ export const teamService = {
   async createTeam(name: string, slug: string, issuePrefix?: string): Promise<Team> {
     // First check for a valid session
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (!session?.user) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -75,12 +75,12 @@ export const teamService = {
         _slug: slug,
         _issue_prefix: issuePrefix || slug.toUpperCase().slice(0, 3),
       });
-    
+
     if (error) {
       console.error('Team creation error:', error);
       throw new Error(error.message || 'Failed to create team');
     }
-    
+
     if (!team) throw new Error('Failed to create team');
 
     return team as Team;
@@ -93,7 +93,7 @@ export const teamService = {
       .eq('id', teamId)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data as Team;
   },
@@ -103,7 +103,7 @@ export const teamService = {
       .from('teams')
       .delete()
       .eq('id', teamId);
-    
+
     if (error) throw error;
   },
 };
@@ -126,7 +126,7 @@ export const teamMemberService = {
       `)
       .eq('team_id', teamId)
       .order('joined_at', { ascending: true });
-    
+
     if (error) throw error;
     return (data || []) as unknown as TeamMemberWithProfile[];
   },
@@ -137,7 +137,7 @@ export const teamMemberService = {
       .insert({ team_id: teamId, user_id: userId, role } as any)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data as TeamMember;
   },
@@ -149,7 +149,7 @@ export const teamMemberService = {
       .eq('id', memberId)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data as TeamMember;
   },
@@ -159,14 +159,14 @@ export const teamMemberService = {
       .from('team_members')
       .delete()
       .eq('id', memberId);
-    
+
     if (error) throw error;
   },
 
   async getUserRole(teamId: string, userId: string): Promise<TeamRole | null> {
     const { data, error } = await supabase
       .rpc('get_team_role', { _user_id: userId, _team_id: teamId } as any);
-    
+
     if (error) return null;
     return data as TeamRole | null;
   },
@@ -184,7 +184,7 @@ export const teamInviteService = {
       .eq('team_id', teamId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []) as TeamInvite[];
   },
@@ -231,7 +231,7 @@ export const teamInviteService = {
       } as any)
       .select()
       .single();
-    
+
     if (error) {
       console.error('Failed to create invite:', error);
       throw error;
@@ -240,36 +240,15 @@ export const teamInviteService = {
     const inviterName = profile?.name || user.email?.split('@')[0] || 'A team member';
     const teamName = team?.name || 'Team';
 
-    // If existing user, create inbox notification
+    // Notification creation is now handled by the Edge Function to bypass RLS
     if (isExistingUser && existingProfile) {
-      try {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: existingProfile.id,
-            type: 'team_invite',
-            title: `You've been invited to join ${teamName}`,
-            message: `${inviterName} invited you to join ${teamName} as a ${role}`,
-            data: {
-              inviteId: data.id,
-              teamId: teamId,
-              teamName: teamName,
-              inviterName: inviterName,
-              role: role,
-              token: token,
-            },
-          } as any);
-        
-        console.log('Inbox notification created for existing user');
-      } catch (notifError) {
-        console.error('Failed to create inbox notification:', notifError);
-      }
+      console.log('Existing user detected, Edge Function will handle notification');
     }
 
     // Call Edge Function to send email
     try {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
-      
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/send-team-invite`, {
         method: 'POST',
         headers: {
@@ -277,15 +256,13 @@ export const teamInviteService = {
         },
         body: JSON.stringify({
           inviteId: data.id,
-          email: email,
-          teamName: teamName,
-          inviterName: inviterName,
           role: role,
           token: token,
           isExistingUser: isExistingUser,
+          targetUserId: existingProfile?.id, // Pass target user ID for notification creation
         }),
       });
-      
+
       if (!response.ok) {
         console.error('Failed to send invitation email:', await response.text());
       } else {
@@ -295,7 +272,7 @@ export const teamInviteService = {
       console.error('Failed to send invitation email:', emailError);
       // Don't fail the invite creation if email fails
     }
-    
+
     return { ...data, isExistingUser } as TeamInvite & { isExistingUser?: boolean };
   },
 
@@ -304,7 +281,7 @@ export const teamInviteService = {
       .from('team_invites')
       .update({ status: 'cancelled' } as any)
       .eq('id', inviteId);
-    
+
     if (error) throw error;
   },
 
@@ -319,7 +296,7 @@ export const teamInviteService = {
       .eq('token', token)
       .eq('status', 'pending')
       .single();
-    
+
     if (inviteError) throw inviteError;
     if (!invite) throw new Error('Invite not found or expired');
 
@@ -342,7 +319,7 @@ export const teamInviteService = {
           user_id: user.id,
           role: typedInvite.role,
         } as any);
-      
+
       if (memberError) throw memberError;
     }
 
@@ -391,7 +368,7 @@ export const teamInviteService = {
       .eq('token', token)
       .eq('status', 'pending')
       .single();
-    
+
     if (inviteError) throw inviteError;
     if (!invite) throw new Error('Invite not found or expired');
 

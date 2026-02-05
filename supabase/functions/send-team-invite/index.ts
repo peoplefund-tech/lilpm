@@ -15,6 +15,7 @@ interface InviteEmailRequest {
   inviterName: string;
   role: string;
   token: string;
+  targetUserId?: string; // Added for notification creation
 }
 
 serve(async (req) => {
@@ -28,7 +29,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const siteUrl = Deno.env.get('SITE_URL') || 'https://lilpmaiai.vercel.app';
-    
+
     // Create Supabase admin client
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -37,9 +38,39 @@ serve(async (req) => {
       }
     });
 
-    const { inviteId, email, teamName, inviterName, role, token }: InviteEmailRequest = await req.json();
+    const { inviteId, email, teamName, inviterName, role, token, targetUserId }: InviteEmailRequest = await req.json();
 
-    console.log(`[${FUNCTION_VERSION}] Sending team invite email to ${email} for team ${teamName}`);
+    console.log(`[${FUNCTION_VERSION}] Processing invite for ${email} (Target User: ${targetUserId || 'New User'})`);
+
+    // 1. Create Notification (if existing user)
+    if (targetUserId) {
+      try {
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: targetUserId,
+            type: 'team_invite',
+            title: `You've been invited to join ${teamName}`,
+            message: `${inviterName} invited you to join ${teamName} as a ${role}`,
+            data: {
+              inviteId: inviteId,
+              teamId: null, // We don't have teamId readily available here without query, but inviteId/token is key
+              teamName: teamName,
+              inviterName: inviterName,
+              role: role,
+              token: token,
+            },
+          });
+
+        if (notifError) {
+          console.error('Failed to create inbox notification:', notifError);
+        } else {
+          console.log(`Inbox notification created for user ${targetUserId}`);
+        }
+      } catch (err) {
+        console.error('Error creating notification:', err);
+      }
+    }
 
     // Create the invite link
     const inviteLink = `${siteUrl}/accept-invite/${token}`;
@@ -57,7 +88,7 @@ serve(async (req) => {
 
     if (emailError) {
       console.error('Email send error:', emailError);
-      
+
       // Try alternative method: Use raw email API
       const emailContent = `
         <html>
@@ -128,32 +159,32 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Invitation email sent',
-        version: FUNCTION_VERSION 
+        version: FUNCTION_VERSION
       }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     );
   } catch (error) {
     console.error('Error sending team invite:', error);
-    
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error.message || 'Internal server error',
-        version: FUNCTION_VERSION 
+        version: FUNCTION_VERSION
       }),
-      { 
+      {
         status: 500,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     );
   }
