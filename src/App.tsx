@@ -10,7 +10,7 @@ import { useThemeStore } from "@/stores/themeStore";
 import { useEffect } from "react";
 
 // Pages
-import { LoginPage, SignupPage, AcceptInvitePage, CancelledInvitePage } from "./pages/auth";
+import { LoginPage, SignupPage, AcceptInvitePage, CancelledInvitePage, EmailVerificationPage } from "./pages/auth";
 import { LandingPage } from "./pages/LandingPage";
 import { CreateTeamPage, CreateProjectPage, AISetupPage } from "./pages/onboarding";
 import { AISettingsPage, GeneralSettingsPage, NotificationSettingsPage, SecuritySettingsPage, ProfilePage, MCPSettingsPage, LLMSettingsPage, GitHubSettingsPage, SlackSettingsPage } from "./pages/settings";
@@ -62,7 +62,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Onboarding check wrapper - redirects to onboarding if needed
 function OnboardingCheck({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const { isAuthenticated, isLoading: authLoading, isEmailVerified } = useAuthStore();
   const { teams, isLoading: teamsLoading, loadTeams } = useTeamStore();
   const { onboardingCompleted } = useMCPStore();
 
@@ -93,6 +93,12 @@ function OnboardingCheck({ children }: { children: React.ReactNode }) {
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
+  }
+
+  // Check if email is verified (for new signups)
+  // Skip this check if user already has teams (existing user)
+  if (!isEmailVerified && teams.length === 0) {
+    return <Navigate to="/auth/verify-email" replace />;
   }
 
   // Redirect to onboarding if no teams
@@ -152,14 +158,15 @@ function AppRoutes() {
     <Routes>
       {/* Root redirect - unauthenticated users go to landing */}
       <Route path="/" element={<RootRedirect />} />
-      
+
       {/* Public Routes */}
       <Route path="/welcome" element={<LandingPage />} />
       <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
       <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
       <Route path="/invite/accept" element={<AcceptInvitePage />} />
       <Route path="/invite/cancelled" element={<CancelledInvitePage />} />
-      
+      <Route path="/auth/verify-email" element={<ProtectedRoute><EmailVerificationPage /></ProtectedRoute>} />
+
       {/* Onboarding Routes */}
       <Route path="/onboarding/create-team" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
       <Route path="/onboarding/create-project" element={<ProtectedRoute><CreateProjectPage /></ProtectedRoute>} />
@@ -203,12 +210,12 @@ function AppRoutes() {
 // Theme wrapper component that applies the theme class
 function ThemeWrapper({ children }: { children: React.ReactNode }) {
   const { theme } = useThemeStore();
-  
+
   // Apply theme to document on mount and when theme changes
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
-    
+
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
@@ -216,7 +223,7 @@ function ThemeWrapper({ children }: { children: React.ReactNode }) {
       root.classList.add(theme);
     }
   }, [theme]);
-  
+
   return <>{children}</>;
 }
 

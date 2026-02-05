@@ -51,7 +51,7 @@ export function SignupPage() {
       setError(null);
       await signup(data.email, data.password, data.name);
       toast.success(t('auth.signupSuccess'));
-      navigate('/');
+      navigate('/auth/verify-email');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.signupError'));
     }
@@ -208,8 +208,8 @@ export function SignupPage() {
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground">
           {t('auth.hasAccount')}{' '}
-          <Link 
-            to="/login" 
+          <Link
+            to="/login"
             className="font-medium text-primary hover:underline"
           >
             {t('auth.login')}

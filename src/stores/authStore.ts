@@ -7,6 +7,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isEmailVerified: boolean;
 }
 
 interface AuthStore extends AuthState {
@@ -15,6 +16,7 @@ interface AuthStore extends AuthState {
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
+  resendVerificationEmail: () => Promise<void>;
 }
 
 const mapSupabaseUser = (supabaseUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown>; created_at?: string }): User => ({
@@ -33,10 +35,11 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      isEmailVerified: false,
 
       login: async (email: string, password: string) => {
         set({ isLoading: true });
-        
+
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -48,10 +51,12 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         if (data.user) {
+          const emailVerified = !!data.user.email_confirmed_at;
           set({
             user: mapSupabaseUser(data.user),
             isAuthenticated: true,
             isLoading: false,
+            isEmailVerified: emailVerified,
           });
         }
       },
@@ -60,9 +65,9 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
 
         // Use environment variable for production URL, fallback to current origin
-        // This ensures email confirmation links work correctly in production
+        // Email verification link redirects to team creation page
         const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-        const redirectUrl = `${siteUrl}/`;
+        const redirectUrl = `${siteUrl}/onboarding/create-team`;
 
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -80,12 +85,13 @@ export const useAuthStore = create<AuthStore>()(
 
         if (data.user) {
           const user = mapSupabaseUser(data.user);
-          user.name = name; // Ensure name is set from signup form
-          
+          user.name = name;
+          // New signups are NOT email verified yet
           set({
             user,
             isAuthenticated: true,
             isLoading: false,
+            isEmailVerified: false,
           });
         }
       },
@@ -96,6 +102,7 @@ export const useAuthStore = create<AuthStore>()(
           user: null,
           isAuthenticated: false,
           isLoading: false,
+          isEmailVerified: false,
         });
       },
 
@@ -110,16 +117,19 @@ export const useAuthStore = create<AuthStore>()(
           // Set up auth state listener (only once)
           const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (session?.user) {
+              const emailVerified = !!session.user.email_confirmed_at;
               set({
                 user: mapSupabaseUser(session.user),
                 isAuthenticated: true,
                 isLoading: false,
+                isEmailVerified: emailVerified,
               });
             } else {
               set({
                 user: null,
                 isAuthenticated: false,
                 isLoading: false,
+                isEmailVerified: false,
               });
             }
           });
@@ -128,26 +138,51 @@ export const useAuthStore = create<AuthStore>()(
           const { data: { session } } = await supabase.auth.getSession();
 
           if (session?.user) {
+            const emailVerified = !!session.user.email_confirmed_at;
             set({
               user: mapSupabaseUser(session.user),
               isAuthenticated: true,
               isLoading: false,
+              isEmailVerified: emailVerified,
             });
           } else {
-            set({ 
+            set({
               user: null,
               isAuthenticated: false,
-              isLoading: false 
+              isLoading: false,
+              isEmailVerified: false,
             });
           }
         } catch (error) {
           console.error('Failed to load user:', error);
-          // Always set loading to false on error
-          set({ 
+          set({
             user: null,
             isAuthenticated: false,
-            isLoading: false 
+            isLoading: false,
+            isEmailVerified: false,
           });
+        }
+      },
+
+      resendVerificationEmail: async () => {
+        const currentUser = get().user;
+        if (!currentUser?.email) {
+          throw new Error('No user email found');
+        }
+
+        const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
+        const redirectUrl = `${siteUrl}/onboarding/create-team`;
+
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email: currentUser.email,
+          options: {
+            emailRedirectTo: redirectUrl,
+          },
+        });
+
+        if (error) {
+          throw new Error(error.message);
         }
       },
 
