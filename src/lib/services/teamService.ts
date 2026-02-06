@@ -138,7 +138,7 @@ export const teamMemberService = {
       .from('team_members')
       .select(`
         *,
-        profile:profiles(*)
+        profile:profiles!team_members_user_id_fkey(*)
       `)
       .eq('team_id', teamId)
       .order('joined_at', { ascending: true });
