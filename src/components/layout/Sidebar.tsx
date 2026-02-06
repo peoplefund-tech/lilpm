@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
+import {
   Home,
   Inbox,
   Search,
@@ -136,7 +136,7 @@ function ConversationListItem({
       ) : (
         <MessageSquare className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
       )}
-      
+
       <div className="flex-1 min-w-0">
         {isEditing ? (
           <input
@@ -161,7 +161,7 @@ function ConversationListItem({
           {formatDistanceToNow(new Date(conv.updatedAt), { addSuffix: true, locale: dateLocale })}
         </p>
       </div>
-      
+
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
         <Button
           variant="ghost"
@@ -217,23 +217,23 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
   const { currentTeam, teams, selectTeam } = useTeamStore();
-  const { 
-    conversations, 
-    currentConversationId, 
-    loadConversations, 
+  const {
+    conversations,
+    currentConversationId,
+    loadConversations,
     loadConversation,
     createConversation,
     deleteConversation,
     updateConversationTitle,
     pinConversation,
   } = useLilyStore();
-  
+
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [teamsOpen, setTeamsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
-  
+
   // Lily mode state - manually controlled sidebar mode
   const isOnLilyPage = location.pathname === '/lily';
   const [showLilySidebar, setShowLilySidebar] = useState(false);
@@ -247,7 +247,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
       setShowLilySidebar(true);
     }
   }, [isOnLilyPage]);
-  
+
   // Determine if Lily sidebar should be shown
   const isLilyMode = isOnLilyPage && showLilySidebar;
 
@@ -279,15 +279,34 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   // Keyboard shortcut for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip shortcuts when typing in input/textarea/contenteditable
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('[role="dialog"]') !== null;
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setSearchOpen(true);
       }
+
+      // Skip all other shortcuts when typing
+      if (isTyping) return;
+
       // Quick navigation shortcuts
       if (!e.metaKey && !e.ctrlKey && !e.altKey) {
         if (e.key === 'g') {
           // Wait for next key
           const handleNext = (e2: KeyboardEvent) => {
+            // Also check if typing during second key
+            const target2 = e2.target as HTMLElement;
+            const isTyping2 = target2.tagName === 'INPUT' ||
+              target2.tagName === 'TEXTAREA' ||
+              target2.isContentEditable ||
+              target2.closest('[role="dialog"]') !== null;
+            if (isTyping2) return;
+
             if (e2.key === 'i') navigate('/issues');
             if (e2.key === 'm') navigate('/my-issues');
             if (e2.key === 's') navigate('/settings');
@@ -328,7 +347,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
     { icon: BarChart3, label: t('nav.insights'), href: '/insights' },
   ];
 
-  const filteredProjects = projects.filter(p => 
+  const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -364,9 +383,9 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
       <aside className="flex-1 bg-sidebar border-r border-border flex flex-col" style={style}>
         {/* Back button header */}
         <div className="h-12 flex items-center px-3 border-b border-border gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-8 w-8"
             onClick={() => setShowLilySidebar(false)}
             title={t('common.back', 'Back to menu')}
@@ -381,8 +400,8 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
 
         {/* New Conversation Button */}
         <div className="px-3 py-3 border-b border-border">
-          <Button 
-            onClick={handleNewConversation} 
+          <Button
+            onClick={handleNewConversation}
             className="w-full gap-2"
             size="sm"
           >
@@ -428,7 +447,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                     ))}
                   </div>
                 )}
-                
+
                 {/* Recent */}
                 {conversations.filter(c => !pinnedConversations.includes(c.id)).length > 0 && (
                   <div>
@@ -496,9 +515,9 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 hover:bg-sidebar-accent rounded-md px-2 py-1.5 w-full">
-              <div 
+              <div
                 className="h-6 w-6 rounded flex items-center justify-center text-xs font-semibold"
-                style={{ 
+                style={{
                   backgroundColor: 'hsl(var(--primary))',
                   color: 'hsl(var(--primary-foreground))'
                 }}
@@ -516,14 +535,14 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
               {t('nav.teams')}
             </div>
             {teams.map((team) => (
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 key={team.id}
                 onClick={() => selectTeam(team.id)}
                 className={cn(currentTeam?.id === team.id && "bg-accent")}
               >
-                <div 
+                <div
                   className="h-5 w-5 rounded flex items-center justify-center text-xs font-semibold mr-2"
-                  style={{ 
+                  style={{
                     backgroundColor: 'hsl(var(--primary) / 0.8)',
                     color: 'hsl(var(--primary-foreground))'
                   }}
@@ -557,7 +576,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
 
       {/* Search */}
       <div className="px-3 py-2">
-        <button 
+        <button
           onClick={() => setSearchOpen(true)}
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
         >
@@ -622,9 +641,9 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
               )}
               {t('nav.projects')}
             </CollapsibleTrigger>
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-5 w-5 ml-auto"
               onClick={() => { navigate('/projects'); onNavigate?.(); }}
             >
@@ -722,7 +741,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
             <div className="mt-4 space-y-2">
               <div className="text-xs font-medium text-muted-foreground uppercase">Quick Actions</div>
               <div className="space-y-1">
-                <button 
+                <button
                   onClick={() => { navigate('/issues'); setSearchOpen(false); }}
                   className="flex items-center gap-2 w-full px-2 py-1.5 text-sm hover:bg-accent rounded-md"
                 >
@@ -730,7 +749,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                   {t('nav.allIssues')}
                   <span className="ml-auto kbd text-xs">G I</span>
                 </button>
-                <button 
+                <button
                   onClick={() => { navigate('/lily'); setSearchOpen(false); }}
                   className="flex items-center gap-2 w-full px-2 py-1.5 text-sm hover:bg-accent rounded-md"
                 >
@@ -738,7 +757,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                   {t('lily.title')}
                   <span className="ml-auto kbd text-xs">L</span>
                 </button>
-                <button 
+                <button
                   onClick={() => { navigate('/projects'); setSearchOpen(false); }}
                   className="flex items-center gap-2 w-full px-2 py-1.5 text-sm hover:bg-accent rounded-md"
                 >
@@ -751,7 +770,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                   <div className="text-xs font-medium text-muted-foreground uppercase mt-4">{t('nav.projects')}</div>
                   <div className="space-y-1">
                     {filteredProjects.slice(0, 5).map((project) => (
-                      <button 
+                      <button
                         key={project.id}
                         onClick={() => { navigate(`/project/${project.id}`); setSearchOpen(false); }}
                         className="flex items-center gap-2 w-full px-2 py-1.5 text-sm hover:bg-accent rounded-md"

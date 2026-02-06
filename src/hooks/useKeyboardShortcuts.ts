@@ -43,11 +43,13 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!enabled) return;
 
-    // Ignore if typing in input/textarea
+    // Ignore if typing in input/textarea or if inside a dialog
     const target = e.target as HTMLElement;
-    const isInputField = target.tagName === 'INPUT' || 
-                         target.tagName === 'TEXTAREA' || 
-                         target.isContentEditable;
+    const isInputField = target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable ||
+      target.closest('[role="dialog"]') !== null ||
+      target.closest('[data-radix-focus-guard]') !== null;
 
     // Allow Cmd/Ctrl+K even in input fields
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -56,7 +58,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
       return;
     }
 
-    // Skip other shortcuts if in input field
+    // Skip other shortcuts if in input field or dialog
     if (isInputField) return;
 
     const now = Date.now();
@@ -66,7 +68,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     // Handle "G + X" shortcuts (two-key sequences)
     if (waitingForNextKey.current && timeSinceLastKey < 500) {
       waitingForNextKey.current = false;
-      
+
       switch (e.key.toLowerCase()) {
         case 'i':
           e.preventDefault();
