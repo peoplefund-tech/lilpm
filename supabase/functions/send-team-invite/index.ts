@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
-const FUNCTION_VERSION = '2026-02-05.1';
+const FUNCTION_VERSION = '2026-02-05.2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,20 +74,31 @@ serve(async (req) => {
 
     // Create the invite link
     const inviteLink = `${siteUrl}/accept-invite/${token}`;
+    let emailSendError = null;
 
     // Send email using Supabase Auth Admin API
-    const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email, {
-      data: {
-        team_name: teamName,
-        inviter_name: inviterName,
-        role: role,
-        invite_link: inviteLink,
-      },
-      redirectTo: inviteLink,
-    });
+    // ONLY for NEW users. Existing users will throw "email_exists" error.
+    if (!targetUserId) {
+      const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email, {
+        data: {
+          team_name: teamName,
+          inviter_name: inviterName,
+          role: role,
+          invite_link: inviteLink,
+        },
+        redirectTo: inviteLink,
+      });
+      emailSendError = emailError;
+    } else {
+      console.log(`User ${email} already exists (ID: ${targetUserId}). Skipping Auth Invite and relying on Notification/Resend.`);
+      // We manually trigger the "error" path to force fallback to Resend if configured
+      emailSendError = { message: 'Existing User - Falling back to custom email/notification' };
+    }
 
-    if (emailError) {
-      console.error('Email send error:', emailError);
+    if (emailSendError) {
+      if (!targetUserId) {
+        console.error('Email send error:', emailSendError);
+      }
 
       // Try alternative method: Use raw email API
       const emailContent = `
