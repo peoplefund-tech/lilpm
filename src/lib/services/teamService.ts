@@ -334,7 +334,7 @@ export const teamInviteService = {
 
     // Check invite status
     if (!anyInvite) {
-      throw new Error('Invite not found or expired');
+      throw new Error('INVITE_NOT_FOUND');
     }
 
     if (anyInvite.status === 'cancelled') {
@@ -346,7 +346,7 @@ export const teamInviteService = {
     }
 
     if (anyInvite.status !== 'pending') {
-      throw new Error('Invite not found or expired');
+      throw new Error('INVITE_INVALID_STATUS');
     }
 
     // Check if invite has expired (24 hours)

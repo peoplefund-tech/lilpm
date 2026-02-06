@@ -50,16 +50,21 @@ export function AcceptInvitePage() {
       setStatus('success');
     } catch (err: any) {
       console.error('Accept invite error:', err.message);
-      // Check specific error types
-      if (err.message.includes('cancelled')) {
+      const msg = err.message || '';
+
+      // Check specific error types - order matters!
+      if (msg.includes('cancelled')) {
         setStatus('cancelled');
-      } else if (err.message.includes('24 hours') || err.message.includes('expired')) {
+      } else if (msg.includes('24 hours')) {
         setStatus('expired');
-      } else if (err.message.includes('not found')) {
-        setError(t('team.inviteNotFound', 'This invitation was not found.'));
+      } else if (msg.includes('INVITE_NOT_FOUND') || msg.includes('INVITE_INVALID_STATUS')) {
+        setError(t('team.inviteNotFound', 'This invitation was not found or is no longer valid.'));
+        setStatus('error');
+      } else if (msg.includes('already been accepted')) {
+        setError(t('team.inviteAlreadyAccepted', 'This invitation has already been accepted.'));
         setStatus('error');
       } else {
-        setError(err.message || t('team.inviteError'));
+        setError(msg || t('team.inviteError'));
         setStatus('error');
       }
     }
