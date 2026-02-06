@@ -586,8 +586,8 @@ export function BlockEditor({
       //     },
       //   }),
       // ] : []),
-      // Legacy collaboration (cursor only, no doc sync) - for backward compatibility
-      ...(collaboration && !yjsDoc ? [
+      // Supabase Realtime cursor (works alongside Yjs doc sync)
+      ...(collaboration ? [
         LegacyCollaborationCursor.configure({
           prdId: collaboration.prdId,
           teamId: collaboration.teamId,
