@@ -157,13 +157,45 @@ serve(async (req) => {
         if (!resendResponse.ok) {
           const resendError = await resendResponse.text();
           console.error('Resend API error:', resendError);
-          throw new Error('Failed to send invitation email');
+          // Return success but indicate email failed
+          return new Response(
+            JSON.stringify({
+              success: true,
+              emailSent: false,
+              message: 'Invitation created but email failed to send',
+              error: resendError,
+              version: FUNCTION_VERSION
+            }),
+            {
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
         }
 
         console.log(`Invitation email sent via Resend to ${email}`);
       } else {
-        // No email service configured, just log
-        console.warn('No email service configured. Invitation created but email not sent.');
+        // No email service configured
+        console.warn('RESEND_API_KEY not configured. Invitation created but email not sent.');
+        return new Response(
+          JSON.stringify({
+            success: true,
+            emailSent: false,
+            notificationCreated: !!targetUserId,
+            message: targetUserId
+              ? 'Invitation created. User will see notification in their inbox.'
+              : 'Invitation created but email not sent (no email service configured)',
+            version: FUNCTION_VERSION
+          }),
+          {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
       }
     } else {
       console.log(`Invitation email sent successfully to ${email}`);
@@ -172,6 +204,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        emailSent: true,
         message: 'Invitation email sent',
         version: FUNCTION_VERSION
       }),
