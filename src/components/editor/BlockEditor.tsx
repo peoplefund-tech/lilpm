@@ -575,16 +575,17 @@ export function BlockEditor({
           document: yjsDoc,
         }),
       ] : []),
-      // Yjs Collaboration Cursor (shows other users' cursors when using Yjs)
-      ...(yjsDoc && yjsProvider ? [
-        TiptapCollaborationCursor.configure({
-          provider: yjsProvider,
-          user: yjsProvider.awareness.getLocalState()?.user || {
-            name: collaboration?.userName || 'Anonymous',
-            color: collaboration?.userColor || '#F87171',
-          },
-        }),
-      ] : []),
+      // Yjs Collaboration Cursor - TEMPORARILY DISABLED for debugging
+      // TODO: Implement proper awareness with getStates() method
+      // ...(yjsDoc && yjsProvider ? [
+      //   TiptapCollaborationCursor.configure({
+      //     provider: yjsProvider,
+      //     user: yjsProvider.awareness.getLocalState()?.user || {
+      //       name: collaboration?.userName || 'Anonymous',
+      //       color: collaboration?.userColor || '#F87171',
+      //     },
+      //   }),
+      // ] : []),
       // Legacy collaboration (cursor only, no doc sync) - for backward compatibility
       ...(collaboration && !yjsDoc ? [
         LegacyCollaborationCursor.configure({
