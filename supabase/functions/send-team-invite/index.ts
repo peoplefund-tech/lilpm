@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
-const FUNCTION_VERSION = '2026-02-05.2';
+const FUNCTION_VERSION = '2026-02-06.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +15,7 @@ interface InviteEmailRequest {
   inviterName: string;
   role: string;
   token: string;
-  targetUserId?: string; // Added for notification creation
+  targetUserId?: string;
 }
 
 serve(async (req) => {
@@ -25,12 +25,10 @@ serve(async (req) => {
   }
 
   try {
-    // Get Supabase URL and service role key from environment
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const siteUrl = Deno.env.get('SITE_URL') || 'https://lilpmaiai.vercel.app';
 
-    // Create Supabase admin client
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -42,8 +40,12 @@ serve(async (req) => {
 
     console.log(`[${FUNCTION_VERSION}] Processing invite for ${email} (Target User: ${targetUserId || 'New User'})`);
 
-    // 1. Create Notification (if existing user)
+    const inviteLink = `${siteUrl}/invite/accept?token=${token}`;
+
+    // CASE 1: Existing user - Create notification only (no email)
     if (targetUserId) {
+      console.log(`Existing user ${email} - Creating in-app notification only`);
+
       try {
         const { error: notifError } = await supabase
           .from('notifications')
@@ -54,183 +56,120 @@ serve(async (req) => {
             message: `${inviterName} invited you to join ${teamName} as a ${role}`,
             data: {
               inviteId: inviteId,
-              teamId: null, // We don't have teamId readily available here without query, but inviteId/token is key
               teamName: teamName,
               inviterName: inviterName,
               role: role,
               token: token,
+              inviteLink: inviteLink,
             },
           });
 
         if (notifError) {
-          console.error('Failed to create inbox notification:', notifError);
-        } else {
-          console.log(`Inbox notification created for user ${targetUserId}`);
-        }
-      } catch (err) {
-        console.error('Error creating notification:', err);
-      }
-    }
-
-    // Create the invite link (matches App.tsx route: /invite/accept?token=xxx)
-    const inviteLink = `${siteUrl}/invite/accept?token=${token}`;
-    let emailSendError = null;
-
-    // Send email using Supabase Auth Admin API
-    // ONLY for NEW users. Existing users will throw "email_exists" error.
-    if (!targetUserId) {
-      const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          team_name: teamName,
-          inviter_name: inviterName,
-          role: role,
-          invite_link: inviteLink,
-        },
-        redirectTo: inviteLink,
-      });
-      emailSendError = emailError;
-    } else {
-      console.log(`User ${email} already exists (ID: ${targetUserId}). Skipping Auth Invite and relying on Notification/Resend.`);
-      // We manually trigger the "error" path to force fallback to Resend if configured
-      emailSendError = { message: 'Existing User - Falling back to custom email/notification' };
-    }
-
-    if (emailSendError) {
-      if (!targetUserId) {
-        console.error('Email send error:', emailSendError);
-      }
-
-      // Try alternative method: Use raw email API
-      const emailContent = `
-        <html>
-          <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0;">Lil PM</h1>
-            </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
-              <h2 style="color: #1f2937; margin-top: 0;">You've been invited to join a team!</h2>
-              <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                <strong>${inviterName}</strong> has invited you to join <strong>${teamName}</strong> on Lil PM as a <strong>${role}</strong>.
-              </p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${inviteLink}" 
-                   style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                          color: white; 
-                          padding: 15px 40px; 
-                          text-decoration: none; 
-                          border-radius: 8px; 
-                          display: inline-block;
-                          font-weight: bold;">
-                  Accept Invitation
-                </a>
-              </div>
-              <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                Or copy and paste this link into your browser:<br>
-                <a href="${inviteLink}" style="color: #667eea; word-break: break-all;">${inviteLink}</a>
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-              <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-                This invitation was sent to ${email}. If you weren't expecting this invitation, you can safely ignore this email.
-              </p>
-            </div>
-          </body>
-        </html>
-      `;
-
-      // Use Resend API as fallback (if configured)
-      const resendApiKey = Deno.env.get('RESEND_API_KEY');
-      if (resendApiKey) {
-        const resendResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'Lil PM <onboarding@resend.dev>',
-            to: [email],
-            subject: `${inviterName} invited you to join ${teamName} on Lil PM`,
-            html: emailContent,
-          }),
-        });
-
-        if (!resendResponse.ok) {
-          const resendError = await resendResponse.text();
-          console.error('Resend API error:', resendError);
-          // Return success but indicate email failed
+          console.error('Failed to create notification:', notifError);
           return new Response(
             JSON.stringify({
               success: true,
               emailSent: false,
-              message: 'Invitation created but email failed to send',
-              error: resendError,
+              notificationCreated: false,
+              message: 'Invitation created but notification failed',
+              error: notifError.message,
               version: FUNCTION_VERSION
             }),
-            {
-              headers: {
-                ...corsHeaders,
-                'Content-Type': 'application/json'
-              }
-            }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        console.log(`Invitation email sent via Resend to ${email}`);
-      } else {
-        // No email service configured
-        console.warn('RESEND_API_KEY not configured. Invitation created but email not sent.');
+        console.log(`Notification created for existing user ${targetUserId}`);
         return new Response(
           JSON.stringify({
             success: true,
             emailSent: false,
-            notificationCreated: !!targetUserId,
-            message: targetUserId
-              ? 'Invitation created. User will see notification in their inbox.'
-              : 'Invitation created but email not sent (no email service configured)',
+            notificationCreated: true,
+            message: 'Invitation created. User will see notification in their inbox.',
             version: FUNCTION_VERSION
           }),
-          {
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json'
-            }
-          }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (err) {
+        console.error('Error creating notification:', err);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            emailSent: false,
+            notificationCreated: false,
+            message: 'Invitation created but notification failed',
+            version: FUNCTION_VERSION
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-    } else {
-      console.log(`Invitation email sent successfully to ${email}`);
     }
 
+    // CASE 2: New user - Use Supabase Auth invite email
+    console.log(`New user ${email} - Sending Supabase Auth invite email`);
+
+    const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email, {
+      data: {
+        team_name: teamName,
+        inviter_name: inviterName,
+        role: role,
+        invite_link: inviteLink,
+      },
+      redirectTo: inviteLink,
+    });
+
+    if (emailError) {
+      console.error('Supabase Auth invite error:', emailError);
+
+      // If the error is "email_exists", treat as existing user
+      if (emailError.message?.includes('already been registered') ||
+        emailError.message?.includes('email_exists')) {
+        console.log('User exists but was not detected - creating fallback');
+        return new Response(
+          JSON.stringify({
+            success: true,
+            emailSent: false,
+            message: 'User may already exist. Please ask them to log in and check notifications.',
+            version: FUNCTION_VERSION
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          emailSent: false,
+          message: 'Invitation created but email failed to send',
+          error: emailError.message,
+          version: FUNCTION_VERSION
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Supabase Auth invite email sent successfully to ${email}`);
     return new Response(
       JSON.stringify({
         success: true,
         emailSent: true,
-        message: 'Invitation email sent',
+        message: 'Invitation email sent via Supabase Auth',
         version: FUNCTION_VERSION
       }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
     console.error('Error sending team invite:', error);
-
     return new Response(
       JSON.stringify({
-        error: error.message || 'Internal server error',
+        error: (error as Error).message || 'Internal server error',
         version: FUNCTION_VERSION
       }),
       {
         status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
 });
-
