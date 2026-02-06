@@ -7,10 +7,11 @@ import { useAuthStore } from '@/stores/authStore';
  * Hook to subscribe to realtime team member changes.
  * When a member is added or removed from the current team,
  * the members list is automatically refreshed.
+ * 
+ * NOTE: We only reload members, NOT teams, to prevent redirect issues.
  */
 export function useTeamMemberRealtime() {
-    const { currentTeam, loadMembers, loadTeams } = useTeamStore();
-    const { user } = useAuthStore();
+    const { currentTeam, loadMembers } = useTeamStore();
 
     useEffect(() => {
         if (!currentTeam?.id) return;
@@ -28,15 +29,8 @@ export function useTeamMemberRealtime() {
                 },
                 (payload) => {
                     console.log('[Realtime] Team member change:', payload);
-
-                    // Reload members when any change happens
+                    // Only reload members, not teams (to prevent redirect)
                     loadMembers(currentTeam.id);
-
-                    // If the deleted member is the current user, reload teams
-                    if (payload.eventType === 'DELETE' && payload.old?.user_id === user?.id) {
-                        console.log('[Realtime] Current user was removed from team');
-                        loadTeams();
-                    }
                 }
             )
             .subscribe();
@@ -44,13 +38,15 @@ export function useTeamMemberRealtime() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [currentTeam?.id, loadMembers, loadTeams, user?.id]);
+    }, [currentTeam?.id, loadMembers]);
 }
 
 /**
  * Hook to subscribe to user's team membership changes.
- * When the user is added to or removed from any team,
- * the teams list is automatically refreshed.
+ * Only triggers when the current user is REMOVED from a team.
+ * 
+ * NOTE: Disabled aggressive reload to prevent UI flickering.
+ * Users will need to refresh to see new team invites.
  */
 export function useUserTeamsRealtime() {
     const { loadTeams } = useTeamStore();
@@ -59,19 +55,19 @@ export function useUserTeamsRealtime() {
     useEffect(() => {
         if (!user?.id) return;
 
-        // Subscribe to all team_members changes for this user
+        // Subscribe to DELETE events only for this user
         const channel = supabase
             .channel(`user_teams:${user.id}`)
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'DELETE', // Only listen for removals
                     schema: 'public',
                     table: 'team_members',
                     filter: `user_id=eq.${user.id}`,
                 },
                 (payload) => {
-                    console.log('[Realtime] User team membership change:', payload);
+                    console.log('[Realtime] User removed from team:', payload);
                     loadTeams();
                 }
             )

@@ -71,19 +71,21 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   error: null,
 
   loadTeams: async () => {
+    // Don't clear existing teams during refresh to prevent redirect flicker
+    const existingTeams = get().teams;
     set({ isLoading: true, error: null });
-    
+
     try {
       // Use teamService directly (bypasses non-existent REST API)
       const dbTeams = await teamService.getTeams();
       const teams = dbTeams.map(convertDbTeam);
-      
+
       set({ teams, isLoading: false, error: null });
-      
+
       // Try to restore last selected team from localStorage
       if (!get().currentTeam && teams.length > 0) {
         let teamToSelect = teams[0].id;
-        
+
         try {
           const savedTeamId = localStorage.getItem('lily-current-team-id');
           if (savedTeamId && teams.find(t => t.id === savedTeamId)) {
@@ -92,15 +94,16 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         } catch (e) {
           console.error('Failed to read team selection from localStorage:', e);
         }
-        
+
         await get().selectTeam(teamToSelect);
       }
     } catch (error) {
       console.error('Failed to load teams:', error);
-      set({ 
-        teams: [], 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to load teams' 
+      // Keep existing teams on error to prevent redirect
+      set({
+        teams: existingTeams.length > 0 ? existingTeams : [],
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to load teams'
       });
     }
   },
@@ -111,20 +114,20 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       // Don't show loading overlay if it's the same team
       const currentTeamId = get().currentTeam?.id;
       const isNewTeam = currentTeamId && currentTeamId !== teamId;
-      
+
       if (isNewTeam) {
         set({ isSwitchingTeam: true, switchingToTeamName: team.name });
       }
-      
+
       set({ currentTeam: team });
-      
+
       // Save selected team to localStorage for persistence across refreshes
       try {
         localStorage.setItem('lily-current-team-id', teamId);
       } catch (e) {
         console.error('Failed to save team selection to localStorage:', e);
       }
-      
+
       // Load members and projects in parallel, but don't block on errors
       try {
         await Promise.all([
@@ -146,12 +149,12 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
   createTeam: async (name: string, slug: string, issuePrefix?: string) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       // Use teamService which calls the RPC function (bypasses RLS)
       const dbTeam = await teamService.createTeam(name, slug, issuePrefix);
       const team = convertDbTeam(dbTeam);
-      
+
       // Update store with new team and set as current
       set((state) => ({
         ...state,
@@ -160,7 +163,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         isLoading: false,
         error: null,
       }));
-      
+
       return team;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create team';
@@ -177,7 +180,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         logo_url: data.logoUrl,
       });
       const team = convertDbTeam(dbTeam);
-      
+
       set((state) => ({
         teams: state.teams.map(t => t.id === teamId ? team : t),
         currentTeam: state.currentTeam?.id === teamId ? team : state.currentTeam,
@@ -262,7 +265,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     try {
       await teamMemberService.updateMemberRole(memberId, role as any);
       set((state) => ({
-        members: state.members.map(m => 
+        members: state.members.map(m =>
           m.id === memberId ? { ...m, role: role as any } : m
         ),
       }));
@@ -287,7 +290,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   createProject: async (data: Partial<Project>) => {
     const teamId = get().currentTeam?.id;
     if (!teamId) throw new Error('No team selected');
-    
+
     try {
       const dbProject = await projectService.createProject(teamId, {
         name: data.name || 'Untitled Project',
@@ -297,9 +300,9 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         start_date: data.startDate,
         target_date: data.targetDate,
       });
-      
+
       const project = convertDbProject(dbProject);
-      
+
       set((state) => ({
         projects: [...state.projects, project],
       }));
@@ -322,7 +325,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         target_date: data.targetDate,
       });
       const project = convertDbProject(dbProject);
-      
+
       set((state) => ({
         projects: state.projects.map(p => p.id === projectId ? project : p),
       }));
