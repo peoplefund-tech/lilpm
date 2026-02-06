@@ -46,9 +46,14 @@ export const CollaborationCursor = Extension.create<CollaborationCursorOptions>(
     addProseMirrorPlugins() {
         const { prdId, teamId, userName, userId, userColor, avatarUrl } = this.options;
 
+        console.log('[CollaborationCursor] addProseMirrorPlugins called with:', { prdId, teamId, userName, userId });
+
         if (!prdId || !teamId || !userId) {
+            console.log('[CollaborationCursor] Missing required options, returning empty plugins');
             return [];
         }
+
+        console.log('[CollaborationCursor] Creating cursor plugin for prdId:', prdId);
 
         const cursors: Map<string, CollaboratorCursor> = new Map();
         let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -138,11 +143,13 @@ export const CollaborationCursor = Extension.create<CollaborationCursorOptions>(
                 view: (view) => {
                     // Subscribe to Supabase Realtime channel
                     const channelName = `prd-cursors:${prdId}`;
+                    console.log('[CollaborationCursor] Creating Supabase channel:', channelName);
                     channel = supabase.channel(channelName);
 
                     channel
                         .on('presence', { event: 'sync' }, () => {
                             const presenceState = channel!.presenceState();
+                            console.log('[CollaborationCursor] Presence sync:', presenceState);
 
                             // Update cursors from presence state
                             cursors.clear();
@@ -150,6 +157,7 @@ export const CollaborationCursor = Extension.create<CollaborationCursorOptions>(
                             Object.values(presenceState).forEach((presences: any[]) => {
                                 presences.forEach((presence) => {
                                     if (presence.user_id !== userId) {
+                                        console.log('[CollaborationCursor] Adding cursor for:', presence.user_name, 'at position:', presence.cursor_position);
                                         cursors.set(presence.user_id, {
                                             odId: presence.user_id,
                                             name: presence.user_name,
@@ -162,12 +170,15 @@ export const CollaborationCursor = Extension.create<CollaborationCursorOptions>(
                                 });
                             });
 
+                            console.log('[CollaborationCursor] Total other cursors:', cursors.size);
                             // Trigger view update
                             view.dispatch(view.state.tr);
                         })
                         .subscribe(async (status) => {
+                            console.log('[CollaborationCursor] Channel status:', status);
                             if (status === 'SUBSCRIBED') {
                                 // Track own presence
+                                console.log('[CollaborationCursor] Tracking own presence, userId:', userId, 'position:', view.state.selection.from);
                                 await channel!.track({
                                     user_id: userId,
                                     user_name: userName,
