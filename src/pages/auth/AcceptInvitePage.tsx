@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { teamInviteService } from '@/lib/services/teamService';
 import { useTeamStore } from '@/stores/teamStore';
 import { useAuthStore } from '@/stores/authStore';
-import { Loader2, CheckCircle2, XCircle, Users } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Users, Timer } from 'lucide-react';
 
 export function AcceptInvitePage() {
   const { t } = useTranslation();
@@ -17,7 +17,7 @@ export function AcceptInvitePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuthStore();
   const { teams, loadTeams, selectTeam } = useTeamStore();
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'not_authenticated' | 'cancelled'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'not_authenticated' | 'cancelled' | 'expired'>('loading');
   const [teamName, setTeamName] = useState<string>('');
   const [error, setError] = useState<string>('');
 
@@ -50,11 +50,13 @@ export function AcceptInvitePage() {
       setStatus('success');
     } catch (err: any) {
       console.error('Accept invite error:', err.message);
-      // Check if it's a cancelled invite
+      // Check specific error types
       if (err.message.includes('cancelled')) {
         setStatus('cancelled');
-      } else if (err.message.includes('not found') || err.message.includes('expired')) {
-        setError(t('team.inviteExpired', 'This invitation has expired or is no longer valid.'));
+      } else if (err.message.includes('24 hours') || err.message.includes('expired')) {
+        setStatus('expired');
+      } else if (err.message.includes('not found')) {
+        setError(t('team.inviteNotFound', 'This invitation was not found.'));
         setStatus('error');
       } else {
         setError(err.message || t('team.inviteError'));
@@ -126,6 +128,29 @@ export function AcceptInvitePage() {
             </div>
             <CardTitle>{t('team.inviteCancelled', 'Invitation Cancelled')}</CardTitle>
             <CardDescription>{t('team.inviteCancelledMessage', 'This invitation has been cancelled by the team owner.')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={() => navigate('/dashboard')} className="w-full">
+              {t('common.goToDashboard', 'Go to Dashboard')}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (status === 'expired') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto h-12 w-12 rounded-full bg-orange-500/10 flex items-center justify-center mb-4">
+              <Timer className="h-6 w-6 text-orange-500" />
+            </div>
+            <CardTitle>{t('team.inviteExpired', 'Invitation Expired')}</CardTitle>
+            <CardDescription>
+              {t('team.inviteExpiredMessage', 'This invitation has expired after 24 hours. Please ask the team owner to send a new invitation.')}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={() => navigate('/dashboard')} className="w-full">

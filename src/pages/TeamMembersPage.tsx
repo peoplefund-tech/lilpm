@@ -61,6 +61,8 @@ import {
   RefreshCw,
   Copy,
   Building2,
+  Timer,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TeamRole, TeamInvite } from '@/types/database';
@@ -98,6 +100,39 @@ export function TeamMembersPage() {
     member: 'outline',
     guest: 'outline',
   };
+
+  // Helper function to check if invite is expired
+  const isInviteExpired = (invite: TeamInvite): boolean => {
+    if (!invite.expires_at) return false;
+    return new Date(invite.expires_at) < new Date();
+  };
+
+  // Helper function to get remaining time
+  const getRemainingTime = (expiresAt: string): string => {
+    const now = new Date();
+    const expires = new Date(expiresAt);
+    const diffMs = expires.getTime() - now.getTime();
+
+    if (diffMs <= 0) return 'Expired';
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m left`;
+    }
+    return `${minutes}m left`;
+  };
+
+  // Real-time countdown timer refresh
+  const [, setRefreshCounter] = React.useState(0);
+  React.useEffect(() => {
+    // Refresh every minute to update countdown timers
+    const timer = setInterval(() => {
+      setRefreshCounter(c => c + 1);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const loadData = async () => {
     if (!currentTeam) return;
@@ -408,14 +443,15 @@ export function TeamMembersPage() {
                   <TableRow>
                     <TableHead>{t('auth.email')}</TableHead>
                     <TableHead>{t('team.role')}</TableHead>
-                    <TableHead>{t('issues.created')}</TableHead>
+                    <TableHead>{t('common.status', 'Status')}</TableHead>
+                    <TableHead>{t('team.timeLeft', 'Time Left')}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invites.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         {t('team.noInvitations')}
                       </TableCell>
@@ -434,8 +470,32 @@ export function TeamMembersPage() {
                             {roleLabels[invite.role]}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          {isInviteExpired(invite) ? (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Expired
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1">
+                              <Timer className="h-3 w-3" />
+                              Waiting
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          {new Date(invite.created_at).toLocaleDateString()}
+                          {invite.expires_at ? (
+                            isInviteExpired(invite) ? (
+                              <span className="text-destructive">—</span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <Timer className="h-3 w-3" />
+                                {getRemainingTime(invite.expires_at)}
+                              </span>
+                            )
+                          ) : (
+                            '—'
+                          )}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

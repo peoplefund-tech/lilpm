@@ -349,6 +349,11 @@ export const teamInviteService = {
       throw new Error('Invite not found or expired');
     }
 
+    // Check if invite has expired (24 hours)
+    if (anyInvite.expires_at && new Date(anyInvite.expires_at) < new Date()) {
+      throw new Error('This invitation has expired (24 hours have passed)');
+    }
+
     const typedInvite = anyInvite as any;
 
     // Check if already a member - use maybeSingle to avoid error
