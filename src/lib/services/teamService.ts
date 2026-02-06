@@ -307,26 +307,26 @@ export const teamInviteService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Get invite
+    // Get invite - use maybeSingle to avoid error when not found
     const { data: invite, error: inviteError } = await supabase
       .from('team_invites')
       .select('*, team:teams(*)')
       .eq('token', token)
       .eq('status', 'pending')
-      .single();
+      .maybeSingle();
 
     if (inviteError) throw inviteError;
     if (!invite) throw new Error('Invite not found or expired');
 
     const typedInvite = invite as any;
 
-    // Check if already a member
+    // Check if already a member - use maybeSingle to avoid error
     const { data: existing } = await supabase
       .from('team_members')
       .select('id')
       .eq('team_id', typedInvite.team_id)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (!existing) {
       // Add as team member
@@ -353,7 +353,7 @@ export const teamInviteService = {
         .from('profiles')
         .select('name, email')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       await supabase
         .from('notifications')
@@ -379,13 +379,13 @@ export const teamInviteService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Get invite
+    // Get invite - use maybeSingle to handle not found gracefully
     const { data: invite, error: inviteError } = await supabase
       .from('team_invites')
       .select('*, team:teams(*)')
       .eq('token', token)
       .eq('status', 'pending')
-      .single();
+      .maybeSingle();
 
     if (inviteError) throw inviteError;
     if (!invite) throw new Error('Invite not found or expired');
