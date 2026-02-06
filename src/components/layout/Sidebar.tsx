@@ -109,11 +109,6 @@ function NavItem({ icon: Icon, label, href, badge, isActive, shortcut, onClick, 
       {badge !== undefined && badge > 0 && (
         <span className="text-xs bg-primary/20 text-primary px-1.5 rounded-full">{badge}</span>
       )}
-      {shortcut && (
-        <span className="hidden group-hover:inline-flex text-xs text-muted-foreground kbd">
-          {shortcut}
-        </span>
-      )}
     </Link>
   );
 }
