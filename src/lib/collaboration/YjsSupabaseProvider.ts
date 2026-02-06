@@ -231,7 +231,7 @@ export class YjsSupabaseProvider {
     }
 
     // Status listener management
-    onStatusChange(callback: (status: SyncStatus) => void): () => void {
+    onStatus(callback: (status: SyncStatus) => void): () => void {
         this.statusListeners.add(callback);
         return () => this.statusListeners.delete(callback);
     }
