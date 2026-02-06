@@ -265,7 +265,7 @@ export function PRDDetailPage() {
     userName: user?.name || user?.email?.split('@')[0] || 'Anonymous',
     userColor: user?.id ? getUserColor(user.id) : undefined,
     avatarUrl: user?.avatarUrl,
-    enabled: !!(prdId && currentTeam?.id && user?.id && !isLoading), // Broadcast-only sync (no DB)
+    enabled: false, // DISABLED: Yjs doc sync broken (empty doc issue). Using legacy cursor-only sync.
     initialContent: content,
     onContentChange: (newContent) => {
       // Only update if content came from remote
