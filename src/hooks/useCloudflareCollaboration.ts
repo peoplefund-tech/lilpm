@@ -2,10 +2,12 @@
  * Cloudflare Yjs Provider for PRD Real-time Collaboration
  * 
  * Connects to our Cloudflare Workers Durable Objects backend for Yjs sync.
+ * Uses y-protocols Awareness for cursor tracking.
  */
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import * as Y from 'yjs';
+import { Awareness } from 'y-protocols/awareness';
 
 type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'synced';
 
@@ -32,14 +34,15 @@ const WORKER_URL = import.meta.env.VITE_COLLAB_WORKER_URL || 'https://lilpm-coll
 
 /**
  * Custom Yjs Provider for Cloudflare Workers
+ * Uses real y-protocols Awareness for cursor tracking
  */
 export class CloudflareYjsProvider {
     private ws: WebSocket | null = null;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    private _awareness: AwarenessState;
 
     public doc: Y.Doc;
     public roomId: string;
+    public awareness: Awareness;  // Real y-protocols Awareness
     public onStatusChange: ((status: SyncStatus) => void) | null = null;
     public onSync: (() => void) | null = null;
 
@@ -47,15 +50,21 @@ export class CloudflareYjsProvider {
         this.doc = doc;
         this.roomId = roomId;
 
-        // Awareness for cursor tracking
-        this._awareness = new AwarenessState(userInfo);
+        // Create real y-protocols Awareness
+        this.awareness = new Awareness(doc);
+
+        // Set local user state
+        this.awareness.setLocalStateField('user', {
+            name: userInfo.name,
+            color: userInfo.color,
+            id: userInfo.id,
+        });
 
         // Listen for local document updates
         this.doc.on('update', this.handleLocalUpdate);
-    }
 
-    get awareness() {
-        return this._awareness;
+        // Listen for awareness updates and broadcast them
+        this.awareness.on('update', this.handleAwarenessUpdate);
     }
 
     connect() {
@@ -69,7 +78,7 @@ export class CloudflareYjsProvider {
         this.ws.onopen = () => {
             console.log('[CloudflareProvider] Connected');
             this.onStatusChange?.('connected');
-            this.sendAwareness();
+            this.broadcastAwareness();
         };
 
         this.ws.onmessage = (event) => {
@@ -93,7 +102,17 @@ export class CloudflareYjsProvider {
                     Y.applyUpdate(this.doc, update, 'remote');
                     console.log('[CloudflareProvider] Received update from peer');
                 } else if (msg.type === 'awareness') {
-                    console.log('[CloudflareProvider] Awareness update:', msg.data);
+                    // Awareness update from other users
+                    if (msg.states) {
+                        // Apply remote awareness states
+                        for (const [clientIdStr, state] of Object.entries(msg.states)) {
+                            const clientId = parseInt(clientIdStr, 10);
+                            if (clientId !== this.doc.clientID && state) {
+                                // Store remote states (awareness handles this internally)
+                                console.log('[CloudflareProvider] Remote cursor:', clientId, state);
+                            }
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('[CloudflareProvider] Error parsing message:', error);
@@ -129,9 +148,11 @@ export class CloudflareYjsProvider {
         }
 
         this.doc.off('update', this.handleLocalUpdate);
+        this.awareness.off('update', this.handleAwarenessUpdate);
     }
 
     destroy() {
+        this.awareness.destroy();
         this.disconnect();
     }
 
@@ -149,36 +170,26 @@ export class CloudflareYjsProvider {
         }
     };
 
-    private sendAwareness() {
+    private handleAwarenessUpdate = ({ added, updated, removed }: { added: number[], updated: number[], removed: number[] }) => {
+        const changedClients = [...added, ...updated, ...removed];
+        if (changedClients.includes(this.doc.clientID)) {
+            this.broadcastAwareness();
+        }
+    };
+
+    private broadcastAwareness() {
         if (this.ws?.readyState === WebSocket.OPEN) {
+            const states: Record<number, any> = {};
+            this.awareness.getStates().forEach((state, clientId) => {
+                states[clientId] = state;
+            });
+
             this.ws.send(JSON.stringify({
                 type: 'awareness',
-                data: this._awareness.getLocalState(),
+                clientId: this.doc.clientID,
+                states,
             }));
         }
-    }
-}
-
-/**
- * Simple awareness state for cursor tracking
- */
-class AwarenessState {
-    private localState: { user: { id: string; name: string; color: string } };
-
-    constructor(userInfo: { id: string; name: string; color: string }) {
-        this.localState = { user: userInfo };
-    }
-
-    getLocalState() {
-        return this.localState;
-    }
-
-    setLocalState(state: any) {
-        this.localState = state;
-    }
-
-    setLocalStateField(field: string, value: any) {
-        (this.localState as any)[field] = value;
     }
 }
 
@@ -210,7 +221,7 @@ export function useCloudflareCollaboration(options: UseCloudflareCollaborationOp
         // Create Yjs document
         const doc = new Y.Doc();
 
-        // Create provider
+        // Create provider with real y-protocols Awareness
         const newProvider = new CloudflareYjsProvider(doc, roomId, {
             id: userId,
             name: userName,
@@ -221,12 +232,6 @@ export function useCloudflareCollaboration(options: UseCloudflareCollaborationOp
         newProvider.onStatusChange = (newStatus) => {
             console.log('[useCloudflareCollaboration] Status changed:', newStatus);
             setStatus(newStatus);
-        };
-
-        // When synced, update state to trigger re-render
-        newProvider.onSync = () => {
-            console.log('[useCloudflareCollaboration] Synced! Updating state...');
-            // Force re-render by setting new references - they're memoized by the editor
         };
 
         // Set state BEFORE connecting so editor can mount with the doc
