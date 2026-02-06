@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AppLayout } from '@/components/layout';
 import { prdService, type PRDWithRelations } from '@/lib/services/prdService';
+import { teamMemberService } from '@/lib/services/teamService';
+import { notificationService } from '@/lib/services/notificationService';
 import { BlockEditor } from '@/components/editor';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { Button } from '@/components/ui/button';
@@ -231,6 +233,7 @@ export function PRDDetailPage() {
   const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
   const { user } = useAuthStore();
   const { currentTeam } = useTeamStore();
+  const [teamMembers, setTeamMembers] = useState<import('@/types/database').Profile[]>([]);
 
   // Generate a consistent user color based on user ID
   const getUserColor = (userId: string) => {
@@ -275,6 +278,35 @@ export function PRDDetailPage() {
     }
     fetchProviders();
   }, [user]);
+
+  // Fetch team members for @mention
+  useEffect(() => {
+    async function fetchTeamMembers() {
+      if (currentTeam?.id) {
+        try {
+          const members = await teamMemberService.getMembers(currentTeam.id);
+          const profiles = members.map(m => m.profile).filter(Boolean);
+          setTeamMembers(profiles);
+        } catch (error) {
+          console.error('Failed to fetch team members:', error);
+        }
+      }
+    }
+    fetchTeamMembers();
+  }, [currentTeam?.id]);
+
+  // Handle @mention callback
+  const handleMention = useCallback((userId: string, userName: string) => {
+    if (!user || !prd || userId === user.id) return; // Don't notify self
+
+    notificationService.createNotification(
+      userId,
+      'issue_mentioned',
+      `${user.name || user.email} mentioned you in a PRD`,
+      `In: ${prd.title}`,
+      { prdId: prd.id, mentionedBy: user.id }
+    );
+  }, [user, prd]);
 
   // Version history for undo
   const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
@@ -850,9 +882,11 @@ Respond in the same language as the user's message.`
                 <BlockEditor
                   content={content}
                   onChange={handleContentChange}
-                  placeholder="Start writing your PRD... Type '/' for commands"
+                  placeholder="Start writing your PRD... Type '/' for commands or '@' to mention"
                   editable={true}
                   autoFocus={false}
+                  teamMembers={teamMembers}
+                  onMention={handleMention}
                   collaboration={user && currentTeam ? {
                     prdId: prdId || '',
                     teamId: currentTeam.id,
