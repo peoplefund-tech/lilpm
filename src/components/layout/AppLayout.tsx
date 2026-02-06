@@ -19,8 +19,8 @@ const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
 const DEFAULT_SIDEBAR_WIDTH = 224; // 14rem = 224px
 
-export function AppLayout({ 
-  children, 
+export function AppLayout({
+  children,
   showSidebar = true,
   enableCollaboration = true,
 }: AppLayoutProps) {
@@ -28,11 +28,11 @@ export function AppLayout({
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isSwitchingTeam, switchingToTeamName } = useTeamStore();
-  
+
   // Sidebar resize state
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
-  
+
   // Initialize real-time collaboration
   const { isConnected, onlineCount } = useRealtimeCollaboration({
     enabled: enableCollaboration,
@@ -42,22 +42,22 @@ export function AppLayout({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
-    
+
     const startX = e.clientX;
     const startWidth = sidebarWidth;
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - startX;
       const newWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, startWidth + deltaX));
       setSidebarWidth(newWidth);
     };
-    
+
     const handleMouseUp = () => {
       setIsResizing(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [sidebarWidth]);
@@ -65,19 +65,19 @@ export function AppLayout({
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
       {/* Team Switching Overlay */}
-      <TeamSwitchingOverlay 
-        isVisible={isSwitchingTeam} 
-        teamName={switchingToTeamName || ''} 
+      <TeamSwitchingOverlay
+        isVisible={isSwitchingTeam}
+        teamName={switchingToTeamName || ''}
       />
-      
+
       {/* Desktop Sidebar with Resize Handle */}
       {showSidebar && !isMobile && (
-        <div 
+        <div
           className="relative flex-shrink-0 bg-sidebar flex"
           style={{ width: sidebarWidth }}
         >
           <Sidebar style={{ width: '100%' }} />
-          
+
           {/* Resize Handle */}
           <div
             className={cn(
@@ -89,7 +89,7 @@ export function AppLayout({
           />
         </div>
       )}
-      
+
       {/* Mobile Sidebar Sheet */}
       {showSidebar && isMobile && (
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -98,10 +98,10 @@ export function AppLayout({
           </SheetContent>
         </Sheet>
       )}
-      
+
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header 
-          isCollaborating={isConnected} 
+        <Header
+          isCollaborating={isConnected}
           onlineCount={onlineCount}
           onMenuClick={() => setMobileMenuOpen(true)}
           showMenuButton={isMobile && showSidebar}
@@ -110,10 +110,10 @@ export function AppLayout({
           {children}
         </main>
       </div>
-      
-      {/* Render cursors of other users */}
-      {enableCollaboration && <CursorPresence />}
-      
+
+      {/* CursorPresence disabled - use CollaborationCursor in BlockEditor instead */}
+      {/* {enableCollaboration && <CursorPresence />} */}
+
       {/* Collaboration toast notifications */}
       {enableCollaboration && <CollaborationToast />}
     </div>

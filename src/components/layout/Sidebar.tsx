@@ -682,7 +682,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
               )}
             >
               <Sparkles className="h-4 w-4 text-violet-500" />
-              <span className="flex-1 truncate font-medium text-left">{t('lily.viewHistory', 'Chat History')}</span>
+              <span className="flex-1 truncate font-medium text-left">{t('lily.viewHistory', 'Lil PM AI')}</span>
               <MessageSquare className="h-3.5 w-3.5 text-violet-500" />
             </button>
           ) : (
