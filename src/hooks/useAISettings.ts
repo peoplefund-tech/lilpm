@@ -92,19 +92,12 @@ export function useAISettings(): UseAISettingsReturn {
             .single();
 
         if (existing) {
-            console.log('[useAISettings] Updating existing key for user:', user.id);
-            const { error: updateError } = await supabase
+            await supabase
                 .from('user_ai_settings')
                 .update(updateData)
                 .eq('user_id', user.id);
-
-            if (updateError) {
-                console.error('[useAISettings] Error updating key:', updateError);
-                throw updateError;
-            }
         } else {
-            console.log('[useAISettings] Inserting new settings for user:', user.id);
-            const { error: insertError } = await supabase
+            await supabase
                 .from('user_ai_settings')
                 .insert({
                     user_id: user.id,
@@ -112,11 +105,6 @@ export function useAISettings(): UseAISettingsReturn {
                     default_provider: 'auto',
                     auto_mode_enabled: true,
                 });
-
-            if (insertError) {
-                console.error('[useAISettings] Error inserting key:', insertError);
-                throw insertError;
-            }
         }
 
         // Reload settings

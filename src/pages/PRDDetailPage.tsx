@@ -12,9 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useCollaborationStore } from '@/stores/collaborationStore';
 import {
   Select,
   SelectContent,
@@ -59,7 +57,6 @@ import {
   X,
   Cloud,
   CloudOff,
-  Edit,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -200,11 +197,6 @@ export function PRDDetailPage() {
   const { prdId } = useParams<{ prdId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { users } = useCollaborationStore();
-  const { user } = useAuthStore();
-
-  // Get users viewing this PRD
-  const viewers = users.filter(u => u.currentPath === window.location.pathname && u.odId !== user?.id);
 
   const [prd, setPrd] = useState<PRDWithRelations | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -236,6 +228,7 @@ export function PRDDetailPage() {
   const aiMessagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>('anthropic');
   const [availableProviders, setAvailableProviders] = useState<AIProvider[]>([]);
+  const { user } = useAuthStore();
 
   // Provider display names
   const PROVIDER_LABELS: Record<AIProvider, string> = {
@@ -406,6 +399,29 @@ export function PRDDetailPage() {
       toast.success(t('prd.statusUpdated', 'Status updated'));
     } catch (error) {
       toast.error(t('common.error'));
+    }
+  };
+
+  const handleSave = async () => {
+    if (!prdId || !title.trim()) return;
+
+    setIsSaving(true);
+    try {
+      await prdService.updatePRD(prdId, {
+        title: title.trim(),
+        content,
+        status,
+      });
+      setLastSaved(new Date());
+      setSavedTitle(title.trim());
+      setSavedContent(content);
+      setSavedStatus(status);
+      setHasChanges(false);
+      toast.success(t('settings.saved'));
+    } catch (error) {
+      toast.error(t('common.error'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -658,36 +674,6 @@ Respond in the same language as the user's message.`
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Presence Avatars */}
-              {viewers.length > 0 && (
-                <div className="flex items-center mr-4">
-                  <span className="text-xs text-muted-foreground mr-2 hidden sm:inline-block">
-                    Viewers:
-                  </span>
-                  <div className="flex -space-x-2">
-                    {viewers.map(viewer => (
-                      <Tooltip key={viewer.odId}>
-                        <TooltipTrigger asChild>
-                          <div
-                            className="w-8 h-8 rounded-full border-2 border-background flex items-center justify-center text-xs text-white font-medium shadow-sm transition-transform hover:z-10 hover:scale-110 cursor-help"
-                            style={{ backgroundColor: viewer.color }}
-                          >
-                            {viewer.avatarUrl ? (
-                              <img src={viewer.avatarUrl} alt={viewer.name} className="w-full h-full rounded-full object-cover" />
-                            ) : (
-                              viewer.name.charAt(0).toUpperCase()
-                            )}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{viewer.name}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Save Status Indicator (Google Docs style - matching Issue pattern) */}
               <div className="hidden sm:flex items-center gap-1.5 text-xs">
                 {(isSavingTitle || isSavingContent) ? (
@@ -844,191 +830,312 @@ Respond in the same language as the user's message.`
                 </div>
               </div>
 
-              {/* Editor */}
-              <div className="prose prose-sm dark:prose-invert max-w-none pb-20">
+              {/* Block Editor */}
+              <div className="min-h-[500px]">
                 <BlockEditor
                   content={content}
                   onChange={handleContentChange}
+                  placeholder="Start writing your PRD... Type '/' for commands"
                   editable={true}
+                  autoFocus={false}
                 />
+              </div>
+
+              {/* Footer actions */}
+              <div className="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  <span>Last updated {format(new Date(prd.updated_at), 'MMM d, yyyy h:mm a')}</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" onClick={() => setShowAIPanel(true)} className="gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Edit with AI
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* AI Panel */}
           {showAIPanel && (
-            <div className="w-[40%] bg-muted/30 border-l border-border flex flex-col animate-in slide-in-from-right-10 duration-300">
-              <div className="h-14 border-b px-4 flex items-center justify-between shrink-0 bg-background/50">
-                <h3 className="font-semibold flex items-center gap-2">
+            <div className="w-[40%] border-l border-border flex flex-col bg-muted/30">
+              {/* AI Panel Header */}
+              <div className="p-3 border-b border-border flex items-center justify-between bg-background">
+                <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  AI Assistant
-                </h3>
-
-                {/* AI Provider Selector */}
-                <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as AIProvider)}>
-                  <SelectTrigger className="w-[110px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProviders.map(p => (
-                      <SelectItem key={p} value={p}>
-                        {PROVIDER_LABELS[p]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <span className="font-medium text-sm">AI Assistant</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Model Selector */}
+                  <Select value={selectedProvider} onValueChange={(v: AIProvider) => setSelectedProvider(v)}>
+                    <SelectTrigger className="h-7 w-[100px] text-[10px]">
+                      <SelectValue placeholder="Model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableProviders.length > 0 ? (
+                        availableProviders.map(provider => (
+                          <SelectItem key={provider} value={provider} className="text-xs">
+                            {PROVIDER_LABELS[provider] || provider}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="anthropic" className="text-xs">Claude</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setShowAIPanel(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
-                  {aiMessages.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                      <Bot className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                      <p>Ask me to help write, review, or improve your PRD.</p>
-                      <p className="text-xs mt-2">Try: "Create a user story for login"</p>
-                    </div>
-                  ) : (
-                    aiMessages.map((msg) => (
-                      <div key={msg.id} className={cn("flex gap-3", msg.role === 'user' ? "flex-row-reverse" : "")}>
-                        <div className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                          msg.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted"
-                        )}>
-                          {msg.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                        </div>
-                        <div className={cn(
-                          "flex-1 rounded-lg p-3 text-sm",
-                          msg.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted"
-                        )}>
-                          {msg.role === 'assistant' ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content}
-                            </ReactMarkdown>
-                          ) : (
-                            msg.content
+              {/* Pending Suggestion Alert */}
+              {pendingSuggestion && (
+                <div className="p-3 bg-yellow-500/10 border-b border-yellow-500/30">
+                  <p className="text-xs font-medium text-yellow-600 mb-2">
+                    📝 Pending change: {pendingSuggestion.description}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="flex-1 gap-1 h-7 text-xs bg-green-600 hover:bg-green-700"
+                      onClick={() => handleAcceptSuggestion(pendingSuggestion)}
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      Allow
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-1 h-7 text-xs"
+                      onClick={() => handleRejectSuggestion(pendingSuggestion)}
+                    >
+                      <XCircle className="h-3 w-3" />
+                      Deny
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Messages */}
+              <ScrollArea className="flex-1 p-3">
+                {aiMessages.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">Ask AI to edit your PRD</p>
+                    <p className="text-xs mt-1">Try: "Add a section about security requirements"</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {aiMessages.map((msg) => {
+                      // Extract thinking content
+                      let thinkingContent = '';
+                      let cleanContent = msg.content;
+                      const thinkingMatch = cleanContent.match(/<thinking>([\s\S]*?)<\/thinking>/);
+                      if (thinkingMatch) {
+                        thinkingContent = thinkingMatch[1];
+                        cleanContent = cleanContent.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+                      }
+
+                      return (
+                        <div key={msg.id}>
+                          {/* Timeline Thinking Block */}
+                          {msg.role === 'assistant' && thinkingContent && (
+                            <TimelineThinkingBlock content={thinkingContent} />
                           )}
 
-                          {/* AI Suggestion Actions */}
-                          {msg.suggestion && (
-                            <div className="mt-3 pt-3 border-t border-border/50">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-medium text-xs opacity-70">Suggested Change</span>
-                                {msg.suggestion.status === 'accepted' ? (
-                                  <Badge variant="secondary" className="bg-green-500/20 text-green-700 hover:bg-green-500/20">Accepted</Badge>
-                                ) : msg.suggestion.status === 'rejected' ? (
-                                  <Badge variant="secondary" className="bg-red-500/20 text-red-700 hover:bg-red-500/20">Rejected</Badge>
-                                ) : null}
-                              </div>
-                              <div className="text-xs bg-background/50 p-2 rounded mb-2 font-mono">
-                                {msg.suggestion.description}
-                              </div>
-                              {msg.suggestion.status === 'pending' && (
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700 text-white border-none"
-                                    onClick={() => handleAcceptSuggestion(msg.suggestion!)}
-                                  >
-                                    <Check className="h-3 w-3 mr-1" /> Apply
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs flex-1"
-                                    onClick={() => handleRejectSuggestion(msg.suggestion!)}
-                                  >
-                                    <X className="h-3 w-3 mr-1" /> Reject
-                                  </Button>
+                          <div className={cn(
+                            "flex gap-2",
+                            msg.role === 'user' && "flex-row-reverse"
+                          )}>
+                            <Avatar className="h-6 w-6 flex-shrink-0">
+                              <AvatarFallback className={cn(
+                                "text-[10px]",
+                                msg.role === 'assistant' && "bg-primary text-primary-foreground"
+                              )}>
+                                {msg.role === 'assistant' ? <Bot className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className={cn(
+                              "rounded-lg px-2.5 py-1.5 max-w-[85%]",
+                              msg.role === 'user'
+                                ? "bg-primary text-primary-foreground text-xs"
+                                : "bg-background border"
+                            )}>
+                              {msg.role === 'assistant' ? (
+                                <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed
+                                  [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
+                                  [&_p]:my-2 [&_p]:leading-6
+                                  [&_ul]:my-2 [&_ul]:pl-4 [&_ul]:list-disc
+                                  [&_ol]:my-2 [&_ol]:pl-4 [&_ol]:list-decimal
+                                  [&_li]:leading-6
+                                  [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+                                  [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1
+                                  [&_h3]:text-xs [&_h3]:font-medium [&_h3]:mt-2 [&_h3]:mb-1
+                                  [&_code]:text-[10px] [&_code]:bg-muted/70 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded
+                                  [&_pre]:my-2 [&_pre]:bg-zinc-900 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-[10px]
+                                  [&_blockquote]:border-l-2 [&_blockquote]:border-primary/40 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic
+                                  [&_table]:my-2 [&_table]:text-[10px] [&_table]:border-collapse
+                                  [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-muted/50
+                                  [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1
+                                ">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {cleanContent || 'Thinking...'}
+                                  </ReactMarkdown>
+                                </div>
+                              ) : (
+                                <p className="whitespace-pre-wrap text-xs">{cleanContent}</p>
+                              )}
+                              {msg.suggestion && (
+                                <div className="mt-2 pt-2 border-t border-border/50">
+                                  {msg.suggestion.status === 'pending' ? (
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        className="flex-1 gap-1 h-6 text-[10px] bg-green-600 hover:bg-green-700"
+                                        onClick={() => handleAcceptSuggestion(msg.suggestion!)}
+                                      >
+                                        <CheckCircle2 className="h-2.5 w-2.5" />
+                                        Allow
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 gap-1 h-6 text-[10px]"
+                                        onClick={() => handleRejectSuggestion(msg.suggestion!)}
+                                      >
+                                        <XCircle className="h-2.5 w-2.5" />
+                                        Deny
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Badge variant={msg.suggestion.status === 'accepted' ? 'default' : 'secondary'} className="text-[10px]">
+                                      {msg.suggestion.status === 'accepted' ? '✓ Applied' : '✗ Rejected'}
+                                    </Badge>
+                                  )}
                                 </div>
                               )}
+                              <span className="text-[9px] opacity-50 mt-1 block">
+                                {format(msg.timestamp, 'h:mm a')}
+                              </span>
                             </div>
-                          )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {isAILoading && (
+                      <div className="flex gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="bg-primary text-primary-foreground text-[10px]">
+                            <Bot className="h-3 w-3" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="bg-background border rounded-lg px-2.5 py-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span className="text-xs text-muted-foreground">Thinking...</span>
+                          </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                  <div ref={aiMessagesEndRef} />
-                </div>
+                    )}
+                    <div ref={aiMessagesEndRef} />
+                  </div>
+                )}
               </ScrollArea>
 
-              <div className="p-4 border-t bg-background/50">
-                <div className="relative">
+              {/* Input */}
+              <div className="p-3 border-t border-border bg-background">
+                <div className="flex gap-2">
                   <Textarea
                     value={aiInput}
                     onChange={(e) => setAiInput(e.target.value)}
+                    placeholder="Ask AI to edit your PRD..."
+                    className="min-h-[60px] max-h-[120px] text-xs resize-none"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         handleAISend();
                       }
                     }}
-                    placeholder={t('prd.aiPlaceholder', 'Ask AI to help...')}
-                    className="pr-10 min-h-[80px] resize-none"
-                    disabled={isAILoading}
                   />
                   <Button
                     size="icon"
-                    className="absolute bottom-2 right-2 h-8 w-8"
+                    className="h-[60px] w-10"
                     onClick={handleAISend}
-                    disabled={!aiInput.trim() || isAILoading}
+                    disabled={isAILoading || !aiInput.trim()}
                   >
-                    {isAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="mt-2 text-[10px] text-muted-foreground flex justify-between">
-                  <span>Using: {PROVIDER_LABELS[selectedProvider]}</span>
-                  <span>Shift + Enter for new line</span>
-                </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5">
+                  Press Enter to send • Shift+Enter for new line
+                </p>
               </div>
+            </div>
+          )}
+
+          {/* Version History Panel */}
+          {showVersionHistory && (
+            <div className="absolute right-0 top-0 bottom-0 w-80 bg-background border-l border-border shadow-lg z-20">
+              <div className="p-3 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  <span className="font-medium text-sm">Version History</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setShowVersionHistory(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="h-[calc(100%-48px)]">
+                <div className="p-2 space-y-1">
+                  {versionHistory.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No history yet. Changes will appear here.
+                    </p>
+                  ) : (
+                    versionHistory.slice().reverse().map((version, idx) => {
+                      const actualIdx = versionHistory.length - 1 - idx;
+                      return (
+                        <button
+                          key={version.id}
+                          onClick={() => {
+                            setContent(version.content);
+                            setCurrentVersionIndex(actualIdx);
+                            toast.success(`Restored: ${version.description}`);
+                          }}
+                          className={cn(
+                            "w-full text-left p-2 rounded text-xs hover:bg-muted transition-colors",
+                            actualIdx === currentVersionIndex && "bg-primary/10 border border-primary/30"
+                          )}
+                        >
+                          <p className="font-medium truncate">{version.description}</p>
+                          <p className="text-muted-foreground text-[10px] mt-0.5">
+                            {format(version.timestamp, 'MMM d, h:mm a')}
+                          </p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
             </div>
           )}
         </div>
       </div>
-
-      {/* Version History Drawer */}
-      {showVersionHistory && (
-        <div className="fixed inset-y-0 right-0 w-80 bg-background border-l shadow-xl transform transition-transform duration-300 z-50 flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="font-semibold flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Version History
-            </h3>
-            <Button variant="ghost" size="icon" onClick={() => setShowVersionHistory(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <ScrollArea className="flex-1">
-            <div className="p-4 space-y-4">
-              {versionHistory.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  No history yet. Make some changes!
-                </div>
-              ) : (
-                versionHistory.slice().reverse().map((version) => (
-                  <div key={version.id} className="border rounded-lg p-3 text-sm hover:bg-muted/50 transition-colors">
-                    <div className="font-medium mb-1">{version.description}</div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      {format(version.timestamp, 'MMM d, h:mm a')}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs h-7"
-                      onClick={() => {
-                        setContent(version.content);
-                        addToHistory(content, `Reverted to version from ${format(version.timestamp, 'h:mm a')}`);
-                        toast.success('Restored previous version');
-                      }}
-                    >
-                      <Undo2 className="h-3 w-3 mr-1" /> Restore
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
     </AppLayout>
   );
 }
