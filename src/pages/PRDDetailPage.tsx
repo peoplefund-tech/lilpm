@@ -11,7 +11,7 @@ import { prdVersionService } from '@/lib/services/prdVersionService';
 import { BlockEditor } from '@/components/editor';
 import { VersionHistoryPanel } from '@/components/prd/VersionHistoryPanel';
 import { useAutoSave } from '@/hooks/useAutoSave';
-import { useYjsCollaboration } from '@/hooks/useYjsCollaboration';
+import { useLiveblocksCollaboration } from '@/hooks/useLiveblocksCollaboration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -252,28 +252,20 @@ export function PRDDetailPage() {
   };
 
   // Yjs CRDT Real-time Collaboration
+  // Liveblocks real-time collaboration (Yjs over Liveblocks)
   const {
     yjsDoc,
     provider: yjsProvider,
     isConnected: isYjsConnected,
     isSynced: isYjsSynced,
-  } = useYjsCollaboration({
+  } = useLiveblocksCollaboration({
     documentId: prdId || '',
-    documentType: 'prd',
     teamId: currentTeam?.id || '',
     userId: user?.id || '',
     userName: user?.name || user?.email?.split('@')[0] || 'Anonymous',
     userColor: user?.id ? getUserColor(user.id) : undefined,
     avatarUrl: user?.avatarUrl,
-    enabled: false, // DISABLED: Yjs doc sync broken (empty doc issue). Using legacy cursor-only sync.
-    initialContent: content,
-    onContentChange: (newContent) => {
-      // Only update if content came from remote
-      if (newContent && newContent !== content) {
-        setContent(newContent);
-        setHasChanges(true);
-      }
-    },
+    enabled: !!(prdId && currentTeam?.id && user?.id && !isLoading && import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY),
   });
 
   // Provider display names

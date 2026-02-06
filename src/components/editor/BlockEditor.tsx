@@ -187,12 +187,10 @@ interface BlockEditorProps {
   // Mention props
   teamMembers?: Profile[];
   onMention?: (userId: string, userName: string) => void;
-  // Yjs collaboration props
+  // Yjs collaboration props (works with YPartyKitProvider or any awareness-based provider)
   yjsDoc?: Y.Doc;
   yjsProvider?: {
     awareness: any;
-    userName: string;
-    userColor?: string;
   };
   // Legacy collaboration props (cursor only, no doc sync)
   collaboration?: {
@@ -581,9 +579,9 @@ export function BlockEditor({
       ...(yjsDoc && yjsProvider ? [
         TiptapCollaborationCursor.configure({
           provider: yjsProvider,
-          user: {
-            name: yjsProvider.userName,
-            color: yjsProvider.userColor || '#F87171',
+          user: yjsProvider.awareness.getLocalState()?.user || {
+            name: collaboration?.userName || 'Anonymous',
+            color: collaboration?.userColor || '#F87171',
           },
         }),
       ] : []),
