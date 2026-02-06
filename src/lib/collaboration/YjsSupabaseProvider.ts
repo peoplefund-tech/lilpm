@@ -23,7 +23,7 @@ type SyncStatus = 'connecting' | 'connected' | 'disconnected' | 'synced';
 
 export class YjsSupabaseProvider {
     private doc: Y.Doc;
-    private awareness: Awareness;
+    private _awareness: Awareness;
     private channel: ReturnType<typeof supabase.channel> | null = null;
     private options: YjsSupabaseProviderOptions;
     private synced = false;
@@ -34,10 +34,10 @@ export class YjsSupabaseProvider {
     constructor(doc: Y.Doc, options: YjsSupabaseProviderOptions) {
         this.doc = doc;
         this.options = options;
-        this.awareness = new Awareness(doc);
+        this._awareness = new Awareness(doc);
 
         // Set local awareness state
-        this.awareness.setLocalState({
+        this._awareness.setLocalState({
             user: {
                 id: options.userId,
                 name: options.userName,
@@ -271,8 +271,20 @@ export class YjsSupabaseProvider {
         return this.synced;
     }
 
+    get userName(): string {
+        return this.options.userName;
+    }
+
+    get userColor(): string | undefined {
+        return this.options.userColor;
+    }
+
+    get awareness(): Awareness {
+        return this._awareness;
+    }
+
     getAwareness(): Awareness {
-        return this.awareness;
+        return this._awareness;
     }
 
     onStatus(callback: (status: SyncStatus) => void): () => void {
@@ -281,7 +293,7 @@ export class YjsSupabaseProvider {
     }
 
     updateAwareness(field: string, value: any): void {
-        this.awareness.setLocalStateField(field, value);
+        this._awareness.setLocalStateField(field, value);
 
         // Broadcast awareness update
         if (this.channel) {
@@ -289,7 +301,7 @@ export class YjsSupabaseProvider {
                 type: 'broadcast',
                 event: 'awareness',
                 payload: {
-                    states: { [this.doc.clientID]: this.awareness.getLocalState() }
+                    states: { [this.doc.clientID]: this._awareness.getLocalState() }
                 }
             });
         }
@@ -306,7 +318,7 @@ export class YjsSupabaseProvider {
         this.saveState();
 
         this.doc.off('update', this.handleDocUpdate);
-        this.awareness.destroy();
+        this._awareness.destroy();
 
         if (this.channel) {
             this.channel.unsubscribe();

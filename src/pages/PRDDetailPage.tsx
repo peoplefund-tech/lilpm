@@ -11,6 +11,7 @@ import { prdVersionService } from '@/lib/services/prdVersionService';
 import { BlockEditor } from '@/components/editor';
 import { VersionHistoryPanel } from '@/components/prd/VersionHistoryPanel';
 import { useAutoSave } from '@/hooks/useAutoSave';
+import { useYjsCollaboration } from '@/hooks/useYjsCollaboration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -249,6 +250,31 @@ export function PRDDetailPage() {
     }
     return colors[Math.abs(hash) % colors.length];
   };
+
+  // Yjs CRDT Real-time Collaboration
+  const {
+    yjsDoc,
+    provider: yjsProvider,
+    isConnected: isYjsConnected,
+    isSynced: isYjsSynced,
+  } = useYjsCollaboration({
+    documentId: prdId || '',
+    documentType: 'prd',
+    teamId: currentTeam?.id || '',
+    userId: user?.id || '',
+    userName: user?.name || user?.email?.split('@')[0] || 'Anonymous',
+    userColor: user?.id ? getUserColor(user.id) : undefined,
+    avatarUrl: user?.avatarUrl,
+    enabled: !!(prdId && currentTeam?.id && user?.id && !isLoading),
+    initialContent: content,
+    onContentChange: (newContent) => {
+      // Only update if content came from remote
+      if (newContent && newContent !== content) {
+        setContent(newContent);
+        setHasChanges(true);
+      }
+    },
+  });
 
   // Provider display names
   const PROVIDER_LABELS: Record<AIProvider, string> = {
@@ -904,6 +930,8 @@ Respond in the same language as the user's message.`
                   autoFocus={false}
                   teamMembers={teamMembers}
                   onMention={handleMention}
+                  yjsDoc={yjsDoc || undefined}
+                  yjsProvider={yjsProvider || undefined}
                   collaboration={user && currentTeam ? {
                     prdId: prdId || '',
                     teamId: currentTeam.id,
