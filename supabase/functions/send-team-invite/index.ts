@@ -1,7 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
-const FUNCTION_VERSION = '2026-02-06.2';
+const FUNCTION_VERSION = '2026-02-06.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,6 +94,42 @@ function generateEmailHtml(inviterName: string, teamName: string, role: string, 
 `;
 }
 
+// Send email via Gmail SMTP
+async function sendGmailEmail(
+  gmailUser: string,
+  gmailPassword: string,
+  to: string,
+  subject: string,
+  htmlContent: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = new SMTPClient({
+      connection: {
+        hostname: 'smtp.gmail.com',
+        port: 465,
+        tls: true,
+        auth: {
+          username: gmailUser,
+          password: gmailPassword,
+        },
+      },
+    });
+
+    await client.send({
+      from: `Lil PM <${gmailUser}>`,
+      to: to,
+      subject: subject,
+      html: htmlContent,
+    });
+
+    await client.close();
+    return { success: true };
+  } catch (error) {
+    console.error('Gmail SMTP error:', error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -102,9 +139,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const siteUrl = Deno.env.get('SITE_URL') || 'https://lilpmaiai.vercel.app';
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    // Use verified domain email, fallback to Resend sandbox
-    const senderEmail = Deno.env.get('SENDER_EMAIL') || 'Lil PM <onboarding@resend.dev>';
+    const gmailUser = Deno.env.get('GMAIL_USER');
+    const gmailPassword = Deno.env.get('GMAIL_APP_PASSWORD');
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
@@ -151,44 +187,27 @@ serve(async (req) => {
 
     // STEP 2: Send email
     if (targetUserId) {
-      // Existing user: Send custom email via Resend
-      if (resendApiKey) {
-        console.log(`Sending custom email to existing user ${email} via Resend`);
+      // Existing user: Send via Gmail SMTP
+      if (gmailUser && gmailPassword) {
+        console.log(`Sending email to existing user ${email} via Gmail SMTP`);
 
         const emailHtml = generateEmailHtml(inviterName, teamName, role, inviteLink, email);
+        const subject = `${inviterName} invited you to join ${teamName} on Lil PM`;
 
-        try {
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: senderEmail,
-              to: [email],
-              subject: `${inviterName} invited you to join ${teamName} on Lil PM`,
-              html: emailHtml,
-            }),
-          });
+        const result = await sendGmailEmail(gmailUser, gmailPassword, email, subject, emailHtml);
 
-          if (resendResponse.ok) {
-            emailSent = true;
-            console.log(`Email sent successfully to ${email}`);
-          } else {
-            const errorText = await resendResponse.text();
-            console.error('Resend API error:', errorText);
-            // Don't fail - we still have the notification
-          }
-        } catch (resendErr) {
-          console.error('Resend fetch error:', resendErr);
+        if (result.success) {
+          emailSent = true;
+          console.log(`Email sent successfully to ${email} via Gmail`);
+        } else {
+          console.error('Gmail send failed:', result.error);
         }
       } else {
-        console.log('No RESEND_API_KEY - skipping email for existing user');
+        console.log('Gmail credentials not configured - skipping email');
       }
     } else {
       // New user: Use Supabase Auth invite
-      console.log(`Sending Supabase Auth invite email to new user ${email}`);
+      console.log(`Sending Supabase Auth invite to new user ${email}`);
 
       const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email, {
         data: {
@@ -203,9 +222,16 @@ serve(async (req) => {
       if (emailError) {
         console.error('Supabase Auth invite error:', emailError);
 
-        // If already registered, create notification-style message
-        if (emailError.message?.includes('already been registered')) {
-          console.log('User already registered - this should have been caught as existing user');
+        // If already registered, try Gmail as fallback
+        if (emailError.message?.includes('already been registered') && gmailUser && gmailPassword) {
+          console.log('User already registered - sending via Gmail instead');
+          const emailHtml = generateEmailHtml(inviterName, teamName, role, inviteLink, email);
+          const subject = `${inviterName} invited you to join ${teamName} on Lil PM`;
+
+          const result = await sendGmailEmail(gmailUser, gmailPassword, email, subject, emailHtml);
+          if (result.success) {
+            emailSent = true;
+          }
         }
       } else {
         emailSent = true;
