@@ -13,10 +13,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Bell, 
-  User, 
-  MessageSquare, 
+import {
+  Bell,
+  User,
+  MessageSquare,
   AlertCircle,
   Clock,
   Check,
@@ -45,12 +45,12 @@ export function NotificationDropdown() {
   const { user } = useAuthStore();
   const { currentTeam } = useTeamStore();
   const { issues } = useIssueStore();
-  const { 
-    notifications, 
-    unreadCount, 
-    loadNotifications, 
+  const {
+    notifications,
+    unreadCount,
+    loadNotifications,
     addNotification,
-    markAsRead, 
+    markAsRead,
     markAllAsRead,
     deleteNotification,
   } = useNotificationStore();
@@ -66,7 +66,7 @@ export function NotificationDropdown() {
   useEffect(() => {
     const checkReminders = async () => {
       if (!user?.id || issues.length === 0) return;
-      
+
       // Convert frontend issues to database format for the service
       const dbIssues = issues.map(issue => ({
         id: issue.id,
@@ -87,11 +87,11 @@ export function NotificationDropdown() {
         created_at: issue.createdAt,
         updated_at: issue.updatedAt,
       }));
-      
+
       const newNotifications = await notificationService.checkDueDateReminders(user.id, dbIssues as any);
       newNotifications.forEach(n => addNotification(n));
     };
-    
+
     checkReminders();
   }, [user?.id, issues, addNotification]);
 
@@ -140,8 +140,8 @@ export function NotificationDropdown() {
         <Button variant="ghost" size="icon" className="relative h-8 w-8">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -164,7 +164,7 @@ export function NotificationDropdown() {
             </Button>
           )}
         </div>
-        
+
         <ScrollArea className="h-[300px]">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -175,7 +175,7 @@ export function NotificationDropdown() {
             <div className="py-1">
               {notifications.map((notification) => {
                 const Icon = NOTIFICATION_ICONS[notification.type] || Bell;
-                
+
                 return (
                   <div
                     key={notification.id}
@@ -194,7 +194,7 @@ export function NotificationDropdown() {
                     )}>
                       <Icon className="h-4 w-4" />
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <p className={cn(
@@ -205,7 +205,7 @@ export function NotificationDropdown() {
                         </p>
                         <button
                           onClick={(e) => handleDeleteNotification(e, notification.id)}
-                          className="opacity-0 group-hover:opacity-100 hover:text-destructive p-0.5"
+                          className="hover:text-destructive p-0.5 transition-colors"
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -214,13 +214,13 @@ export function NotificationDropdown() {
                         {notification.body}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(new Date(notification.created_at), { 
+                        {formatDistanceToNow(new Date(notification.created_at), {
                           addSuffix: true,
-                          locale 
+                          locale
                         })}
                       </p>
                     </div>
-                    
+
                     {!notification.read && (
                       <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
                     )}
@@ -235,9 +235,9 @@ export function NotificationDropdown() {
           <>
             <DropdownMenuSeparator />
             <div className="p-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="w-full text-xs"
                 onClick={() => navigate('/notifications')}
               >

@@ -13,8 +13,16 @@ export function CursorPresence({ containerRef }: CursorPresenceProps) {
     return null;
   }
 
+  // Get current path to filter users
+  const currentPath = window.location.pathname;
+
+  // Only show cursors from users on the same page
   const visibleUsers = users.filter(
-    (user) => user.cursor && user.cursor.x > 0 && user.cursor.y > 0
+    (user) =>
+      user.cursor &&
+      user.cursor.x > 0 &&
+      user.cursor.y > 0 &&
+      user.currentPath === currentPath
   );
 
   return (
@@ -32,14 +40,14 @@ function Cursor({ user }: { user: Presence }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.5 }}
-      animate={{ 
-        opacity: 1, 
+      animate={{
+        opacity: 1,
         scale: 1,
         x: user.cursor.x,
         y: user.cursor.y,
       }}
       exit={{ opacity: 0, scale: 0.5 }}
-      transition={{ 
+      transition={{
         type: 'spring',
         damping: 30,
         stiffness: 500,
@@ -65,7 +73,7 @@ function Cursor({ user }: { user: Presence }) {
           strokeLinejoin="round"
         />
       </svg>
-      
+
       {/* Name tag */}
       <motion.div
         initial={{ opacity: 0, y: 5 }}
@@ -82,9 +90,9 @@ function Cursor({ user }: { user: Presence }) {
 // Component to show who is viewing/editing the same issue
 export function IssueFocusIndicator({ issueId }: { issueId: string }) {
   const { users } = useCollaborationStore();
-  
+
   const focusedUsers = users.filter((u) => u.focusedIssueId === issueId);
-  
+
   if (focusedUsers.length === 0) return null;
 
   return (

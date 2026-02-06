@@ -28,6 +28,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useTeamStore } from '@/stores/teamStore';
 import { useLilyStore } from '@/stores/lilyStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { projectService } from '@/lib/services/projectService';
 import { formatDistanceToNow } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
@@ -62,9 +64,10 @@ interface NavItemProps {
   isActive?: boolean;
   shortcut?: string;
   onClick?: () => void;
+  presenceUsers?: Array<{ odId: string; name: string; avatarUrl?: string; color: string }>;
 }
 
-function NavItem({ icon: Icon, label, href, badge, isActive, shortcut, onClick }: NavItemProps) {
+function NavItem({ icon: Icon, label, href, badge, isActive, shortcut, onClick, presenceUsers = [] }: NavItemProps) {
   return (
     <Link
       to={href}
@@ -77,6 +80,32 @@ function NavItem({ icon: Icon, label, href, badge, isActive, shortcut, onClick }
     >
       <Icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
       <span className="flex-1 truncate">{label}</span>
+
+      {/* Presence avatars for users on this page */}
+      {presenceUsers.length > 0 && (
+        <div className="flex -space-x-1 mr-1">
+          {presenceUsers.slice(0, 2).map((user) => (
+            <div
+              key={user.odId}
+              className="w-4 h-4 rounded-full border border-background flex items-center justify-center text-[8px] font-medium text-white"
+              style={{ backgroundColor: user.color }}
+              title={user.name}
+            >
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name} className="w-full h-full rounded-full object-cover" />
+              ) : (
+                user.name.charAt(0).toUpperCase()
+              )}
+            </div>
+          ))}
+          {presenceUsers.length > 2 && (
+            <div className="w-4 h-4 rounded-full border border-background bg-muted flex items-center justify-center text-[8px] font-medium">
+              +{presenceUsers.length - 2}
+            </div>
+          )}
+        </div>
+      )}
+
       {badge !== undefined && badge > 0 && (
         <span className="text-xs bg-primary/20 text-primary px-1.5 rounded-full">{badge}</span>
       )}
@@ -217,6 +246,8 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
   const { currentTeam, teams, selectTeam } = useTeamStore();
+  const { users } = useCollaborationStore();
+  const { unreadCount } = useNotificationStore();
   const {
     conversations,
     currentConversationId,
@@ -331,7 +362,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
 
   const mainNav = [
     { icon: Home, label: t('nav.dashboard', 'Dashboard'), href: '/dashboard', shortcut: 'G D' },
-    { icon: Inbox, label: t('nav.inbox'), href: '/inbox', shortcut: 'I' },
+    { icon: Inbox, label: t('nav.inbox'), href: '/inbox', shortcut: 'I', badge: unreadCount },
     { icon: Layers, label: t('nav.myIssues'), href: '/my-issues', shortcut: 'G M' },
   ];
 
@@ -346,6 +377,18 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
     { icon: Folder, label: t('nav.projects'), href: '/projects' },
     { icon: BarChart3, label: t('nav.insights'), href: '/insights' },
   ];
+
+  // Helper function to get presence users for a given path
+  const getPresenceForPath = (path: string) => {
+    return users
+      .filter(user => user.currentPath === path)
+      .map(user => ({
+        odId: user.odId,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        color: user.color
+      }));
+  };
 
   const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -595,6 +638,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
               {...item}
               isActive={location.pathname === item.href}
               onClick={onNavigate}
+              presenceUsers={getPresenceForPath(item.href)}
             />
           ))}
         </div>
@@ -698,6 +742,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
               {...item}
               isActive={location.pathname === item.href}
               onClick={onNavigate}
+              presenceUsers={getPresenceForPath(item.href)}
             />
           ))}
         </div>
