@@ -12,6 +12,7 @@ export interface Presence {
   isTyping?: boolean;
   lastActivity?: number;
   color: string;
+  currentPath?: string;
 }
 
 interface CollaborationStore {
@@ -30,6 +31,7 @@ interface CollaborationStore {
   setIsTyping: (isTyping: boolean) => void;
   updateCursor: (position: { x: number; y: number }) => void;
   broadcastIssueUpdate: (issueId: string, changes: Record<string, unknown>) => void;
+  setCurrentPath: (path: string) => void;
 }
 
 const PRESENCE_COLORS = [
@@ -59,6 +61,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       name: userInfo.name,
       avatarUrl: userInfo.avatarUrl,
       color: get().myPresence.color || getRandomColor(),
+      currentPath: window.location.pathname,
     };
 
     // Create Supabase Realtime channel with Presence
@@ -74,13 +77,13 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState<Presence>();
       const users: Presence[] = [];
-      
+
       Object.entries(state).forEach(([key, presences]) => {
         if (key !== userInfo.id && presences.length > 0) {
           users.push(presences[0] as unknown as Presence);
         }
       });
-      
+
       set({ users });
     });
 
@@ -91,10 +94,10 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         set((state) => ({
           users: [...state.users.filter((u) => u.odId !== presence.odId), presence],
         }));
-        
+
         // Emit join event for toast notification
-        window.dispatchEvent(new CustomEvent('collaboration:user:joined', { 
-          detail: { name: presence.name } 
+        window.dispatchEvent(new CustomEvent('collaboration:user:joined', {
+          detail: { name: presence.name }
         }));
       }
     });
@@ -105,11 +108,11 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       set((state) => ({
         users: state.users.filter((u) => u.odId !== key),
       }));
-      
+
       // Emit leave event for toast notification
       if (leavingUser) {
-        window.dispatchEvent(new CustomEvent('collaboration:user:left', { 
-          detail: { name: leavingUser.name } 
+        window.dispatchEvent(new CustomEvent('collaboration:user:left', {
+          detail: { name: leavingUser.name }
         }));
       }
     });
@@ -153,7 +156,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     const { channel, myPresence } = get();
     const newPresence = { ...myPresence, ...presence };
     set({ myPresence: newPresence });
-    
+
     if (channel) {
       channel.track(newPresence);
     }
@@ -173,7 +176,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
 
   updateCursor: (position: { x: number; y: number }) => {
     const { channel, myPresence } = get();
-    
+
     // Use broadcast for cursor (more efficient than presence for high-frequency updates)
     if (channel) {
       channel.send({
@@ -182,7 +185,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         payload: { odId: myPresence.odId, cursor: position },
       });
     }
-    
+
     // Also update local state
     set((state) => ({
       myPresence: { ...state.myPresence, cursor: position },
@@ -191,7 +194,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
 
   broadcastIssueUpdate: (issueId: string, changes: Record<string, unknown>) => {
     const { channel, myPresence } = get();
-    
+
     if (channel) {
       channel.send({
         type: 'broadcast',
@@ -199,5 +202,8 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         payload: { issueId, changes, updatedBy: myPresence.odId },
       });
     }
+  },
+  setCurrentPath: (path: string) => {
+    get().updatePresence({ currentPath: path });
   },
 }));

@@ -2,13 +2,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 import { useTeamStore } from "@/stores/teamStore";
 import { useMCPStore } from "@/stores/mcpStore";
 import { useThemeStore } from "@/stores/themeStore";
+import { useCollaborationStore } from "@/stores/collaborationStore";
 import { useEffect } from "react";
-import { useUserTeamsRealtime, useTeamMemberRealtime } from "@/hooks/useTeamRealtime";
+import { useUserTeamsRealtime } from "@/hooks/useTeamRealtime";
 
 // Pages
 import { LoginPage, SignupPage, AcceptInvitePage, CancelledInvitePage, EmailVerificationPage } from "./pages/auth";
@@ -32,6 +33,20 @@ import { MyIssuesPage } from "./pages/MyIssuesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Component to track route changes and update presence
+function RouteTracker() {
+  const location = useLocation();
+  const { setCurrentPath, isConnected } = useCollaborationStore();
+
+  useEffect(() => {
+    if (isConnected) {
+      setCurrentPath(location.pathname);
+    }
+  }, [location.pathname, isConnected, setCurrentPath]);
+
+  return null;
+}
 
 // Protected Route wrapper with onboarding check
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -157,60 +172,60 @@ function AppRoutes() {
 
   // Subscribe to realtime team changes (only for user being removed from teams)
   useUserTeamsRealtime();
-  // NOTE: useTeamMemberRealtime is NOT used globally because each page
-  // (like TeamMembersPage) handles its own member subscriptions with proper
-  // dialog state awareness. Using it globally causes conflicts.
 
   return (
-    <Routes>
-      {/* Root redirect - unauthenticated users go to landing */}
-      <Route path="/" element={<RootRedirect />} />
+    <>
+      <RouteTracker />
+      <Routes>
+        {/* Root redirect - unauthenticated users go to landing */}
+        <Route path="/" element={<RootRedirect />} />
 
-      {/* Public Routes */}
-      <Route path="/welcome" element={<LandingPage />} />
-      <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
-      <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
-      <Route path="/invite/accept" element={<AcceptInvitePage />} />
-      <Route path="/invite/cancelled" element={<CancelledInvitePage />} />
-      <Route path="/auth/verify-email" element={<ProtectedRoute><EmailVerificationPage /></ProtectedRoute>} />
+        {/* Public Routes */}
+        <Route path="/welcome" element={<LandingPage />} />
+        <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
+        <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
+        <Route path="/invite/accept" element={<AcceptInvitePage />} />
+        <Route path="/invite/cancelled" element={<CancelledInvitePage />} />
+        <Route path="/auth/verify-email" element={<ProtectedRoute><EmailVerificationPage /></ProtectedRoute>} />
 
-      {/* Onboarding Routes */}
-      <Route path="/onboarding/create-team" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
-      <Route path="/onboarding/create-project" element={<ProtectedRoute><CreateProjectPage /></ProtectedRoute>} />
-      <Route path="/onboarding/ai-setup" element={<ProtectedRoute><AISetupPage /></ProtectedRoute>} />
+        {/* Onboarding Routes */}
+        <Route path="/onboarding/create-team" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
+        <Route path="/onboarding/create-project" element={<ProtectedRoute><CreateProjectPage /></ProtectedRoute>} />
+        <Route path="/onboarding/ai-setup" element={<ProtectedRoute><AISetupPage /></ProtectedRoute>} />
 
 
-      {/* Protected Routes with Onboarding Check */}
-      <Route path="/dashboard" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
-      <Route path="/inbox" element={<OnboardingCheck><InboxPage /></OnboardingCheck>} />
-      <Route path="/my-issues" element={<OnboardingCheck><MyIssuesPage /></OnboardingCheck>} />
-      <Route path="/issues" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
-      <Route path="/lily" element={<OnboardingCheck><LilyPage /></OnboardingCheck>} />
-      <Route path="/team/members" element={<OnboardingCheck><TeamMembersPage /></OnboardingCheck>} />
-      <Route path="/team/settings" element={<OnboardingCheck><TeamSettingsPage /></OnboardingCheck>} />
-      <Route path="/projects" element={<OnboardingCheck><ProjectsPage /></OnboardingCheck>} />
-      <Route path="/cycles" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
-      <Route path="/prd" element={<OnboardingCheck><PRDPage /></OnboardingCheck>} />
-      <Route path="/prd/:prdId" element={<OnboardingCheck><PRDDetailPage /></OnboardingCheck>} />
-      <Route path="/cycle/active" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
-      <Route path="/cycle/:cycleId" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
-      <Route path="/insights" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
-      <Route path="/project/:projectId" element={<OnboardingCheck><ProjectDetailPage /></OnboardingCheck>} />
-      <Route path="/issue/:issueId" element={<OnboardingCheck><IssueDetailPage /></OnboardingCheck>} />
-      <Route path="/settings" element={<OnboardingCheck><GeneralSettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/ai" element={<OnboardingCheck><AISettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/mcp" element={<OnboardingCheck><MCPSettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/llm" element={<OnboardingCheck><LLMSettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/github" element={<OnboardingCheck><GitHubSettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/slack" element={<OnboardingCheck><SlackSettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/notifications" element={<OnboardingCheck><NotificationSettingsPage /></OnboardingCheck>} />
-      <Route path="/settings/security" element={<OnboardingCheck><SecuritySettingsPage /></OnboardingCheck>} />
-      <Route path="/notifications" element={<OnboardingCheck><NotificationsPage /></OnboardingCheck>} />
-      <Route path="/profile" element={<OnboardingCheck><ProfilePage /></OnboardingCheck>} />
+        {/* Protected Routes with Onboarding Check */}
+        <Route path="/dashboard" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
+        <Route path="/inbox" element={<OnboardingCheck><InboxPage /></OnboardingCheck>} />
+        <Route path="/my-issues" element={<OnboardingCheck><MyIssuesPage /></OnboardingCheck>} />
+        <Route path="/issues" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
+        <Route path="/lily" element={<OnboardingCheck><LilyPage /></OnboardingCheck>} />
+        <Route path="/team/members" element={<OnboardingCheck><TeamMembersPage /></OnboardingCheck>} />
+        <Route path="/team/settings" element={<OnboardingCheck><TeamSettingsPage /></OnboardingCheck>} />
+        <Route path="/projects" element={<OnboardingCheck><ProjectsPage /></OnboardingCheck>} />
+        <Route path="/cycles" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
+        <Route path="/prd" element={<OnboardingCheck><PRDPage /></OnboardingCheck>} />
+        <Route path="/prd/:prdId" element={<OnboardingCheck><PRDDetailPage /></OnboardingCheck>} />
+        <Route path="/cycle/active" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
+        <Route path="/cycle/:cycleId" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
+        <Route path="/insights" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
+        <Route path="/project/:projectId" element={<OnboardingCheck><ProjectDetailPage /></OnboardingCheck>} />
+        <Route path="/issue/:issueId" element={<OnboardingCheck><IssueDetailPage /></OnboardingCheck>} />
+        <Route path="/settings" element={<OnboardingCheck><GeneralSettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/ai" element={<OnboardingCheck><AISettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/mcp" element={<OnboardingCheck><MCPSettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/llm" element={<OnboardingCheck><LLMSettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/github" element={<OnboardingCheck><GitHubSettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/slack" element={<OnboardingCheck><SlackSettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/notifications" element={<OnboardingCheck><NotificationSettingsPage /></OnboardingCheck>} />
+        <Route path="/settings/security" element={<OnboardingCheck><SecuritySettingsPage /></OnboardingCheck>} />
+        <Route path="/notifications" element={<OnboardingCheck><NotificationsPage /></OnboardingCheck>} />
+        <Route path="/profile" element={<OnboardingCheck><ProfilePage /></OnboardingCheck>} />
 
-      {/* Catch-all */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* Catch-all */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
 
