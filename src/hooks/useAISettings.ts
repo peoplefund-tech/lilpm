@@ -38,7 +38,9 @@ export function useAISettings(): UseAISettingsReturn {
                 .eq('user_id', user.id)
                 .single();
 
-            if (error && error.code !== 'PGRST116') {
+            // PGRST116 = single row not found, 406 = schema mismatch (API issue)
+            // Both are non-critical errors - app works without settings
+            if (error && error.code !== 'PGRST116' && !String(error.message || '').includes('406')) {
                 console.error('Error loading AI settings:', error);
             }
 

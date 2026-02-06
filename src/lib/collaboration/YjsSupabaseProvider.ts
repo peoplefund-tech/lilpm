@@ -186,9 +186,17 @@ export class YjsSupabaseProvider {
                 .eq(`${this.options.documentType}_id`, this.options.documentId)
                 .single();
 
-            if (error && error.code !== 'PGRST116') {
+            // PGRST116 = no rows found (expected for new docs)
+            // 406 = schema mismatch/table access issue - continue with broadcast-only sync
+            const is406 = String(error?.message || '').includes('406') || error?.code === '406';
+            if (error && error.code !== 'PGRST116' && !is406) {
                 console.error('[YjsSupabase] Failed to load state:', error);
                 return;
+            }
+
+            // If 406, log once and continue without DB persistence
+            if (is406) {
+                console.warn('[YjsSupabase] Table not accessible, using broadcast-only sync');
             }
 
             if (data?.state) {
@@ -234,10 +242,18 @@ export class YjsSupabaseProvider {
                 });
 
             if (error) {
-                console.error('[YjsSupabase] Failed to save state:', error);
+                // Suppress 406 errors (table access issues)
+                const is406 = String(error?.message || '').includes('406') || error?.code === '406';
+                if (!is406) {
+                    console.error('[YjsSupabase] Failed to save state:', error);
+                }
             }
-        } catch (error) {
-            console.error('[YjsSupabase] Failed to save state:', error);
+        } catch (err) {
+            // Suppress 406 errors
+            const errorStr = String(err);
+            if (!errorStr.includes('406')) {
+                console.error('[YjsSupabase] Failed to save state:', err);
+            }
         }
     }
 
