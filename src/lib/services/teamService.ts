@@ -36,13 +36,28 @@ export const profileService = {
 
 export const teamService = {
   async getTeams(): Promise<Team[]> {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // First get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
 
-    if (error) throw error;
-    return (data || []) as Team[];
+    // Query teams through team_members to respect RLS
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('team:teams(*)')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to load teams:', error);
+      throw error;
+    }
+
+    // Extract teams from the joined result
+    const teams = (data || [])
+      .map(row => row.team)
+      .filter((team): team is Team => team !== null);
+
+    return teams;
   },
 
   async getTeam(teamId: string): Promise<Team | null> {
