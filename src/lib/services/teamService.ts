@@ -247,6 +247,17 @@ export const teamInviteService = {
 
     // Call Edge Function to send email
     try {
+      const payload = {
+        inviteId: data.id,
+        email: email,
+        teamName: teamName,
+        inviterName: inviterName,
+        role: role,
+        token: token,
+        isExistingUser: isExistingUser,
+        targetUserId: existingProfile?.id,
+      };
+
       console.log('Sending invitation payload to edge function:', payload);
 
       // Use supabase.functions.invoke for handled auth (auto-refresh, headers)
