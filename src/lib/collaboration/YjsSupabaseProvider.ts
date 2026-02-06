@@ -113,19 +113,25 @@ export class YjsSupabaseProvider {
         });
 
         // Subscribe to channel
-        this.channel.subscribe(async (status) => {
+        this.channel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 this.notifyStatus('connected');
 
-                // Load initial state from database
-                await this.loadInitialState();
-
-                // Request sync from other clients
+                // Skip DB load - use broadcast-only sync to avoid 406 errors
+                // Request sync from other clients (they will send their full state)
                 this.channel?.send({
                     type: 'broadcast',
                     event: 'sync-request',
                     payload: { clientId: this.doc.clientID }
                 });
+
+                // Mark as synced after a short delay (other clients will send state if they have it)
+                setTimeout(() => {
+                    if (!this.synced) {
+                        this.synced = true;
+                        this.notifyStatus('synced');
+                    }
+                }, 500);
             } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
                 this.notifyStatus('disconnected');
                 // Attempt reconnect after delay
@@ -139,11 +145,8 @@ export class YjsSupabaseProvider {
     private handleDocUpdate = (update: Uint8Array, origin: any): void => {
         if (origin === 'remote') return; // Don't broadcast remote updates
 
-        // Broadcast update to other clients
+        // Broadcast update to other clients (no DB save - broadcast only)
         this.broadcastUpdate(update);
-
-        // Debounced save to database
-        this.scheduleSave();
     };
 
     private broadcastUpdate(update: Uint8Array): void {
