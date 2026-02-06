@@ -81,9 +81,9 @@ import { IssueTypeIcon, issueTypeConfig, allIssueTypes } from '@/components/issu
 // Timeline Thinking Block Component (like Gemini/Claude)
 const TimelineThinkingBlock = ({ content, isExpanded = false }: { content: string; isExpanded?: boolean }) => {
   const [expanded, setExpanded] = useState(isExpanded);
-  
+
   if (!content) return null;
-  
+
   return (
     <div className="flex gap-2 mb-3">
       <div className="flex flex-col items-center">
@@ -93,7 +93,7 @@ const TimelineThinkingBlock = ({ content, isExpanded = false }: { content: strin
         <div className="w-px flex-1 bg-border" />
       </div>
       <div className="flex-1 pb-2">
-        <button 
+        <button
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-2 text-xs text-amber-600 hover:text-amber-500 font-medium mb-1"
         >
@@ -117,14 +117,15 @@ export function IssueDetailPage() {
   const { user } = useAuthStore();
   const { currentTeam } = useTeamStore();
   const { broadcastIssueUpdate, setIsEditing: setCollabIsEditing, setIsTyping } = useCollaborationStore();
-  
+
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
-  
+
   const STATUS_OPTIONS: { value: IssueStatus; label: string }[] = [
     { value: 'backlog', label: t('status.backlog') },
     { value: 'todo', label: t('status.todo') },
     { value: 'in_progress', label: t('status.in_progress') },
     { value: 'in_review', label: t('status.in_review') },
+    { value: 'blocked', label: t('status.blocked') },
     { value: 'done', label: t('status.done') },
     { value: 'cancelled', label: t('status.cancelled') },
   ];
@@ -136,10 +137,10 @@ export function IssueDetailPage() {
     { value: 'low', label: t('priority.low') },
     { value: 'none', label: t('priority.none') },
   ];
-  
+
   const [issue, setIssue] = useState<Issue | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Inline editing states
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -149,14 +150,14 @@ export function IssueDetailPage() {
   const [isSavingDescription, setIsSavingDescription] = useState(false);
   const [titleSaved, setTitleSaved] = useState(false);
   const [descriptionSaved, setDescriptionSaved] = useState(false);
-  
+
   const [comments, setComments] = useState<CommentWithUser[]>([]);
   const [activities, setActivities] = useState<ActivityWithUser[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSendingComment, setIsSendingComment] = useState(false);
   const [members, setMembers] = useState<Profile[]>([]);
   const [showMobileProperties, setShowMobileProperties] = useState(false);
-  
+
   // AI Assistant Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiMessages, setAiMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: Date }[]>([]);
@@ -235,7 +236,7 @@ export function IssueDetailPage() {
   // Load issue data
   const loadIssue = useCallback(async () => {
     if (!issueId) return;
-    
+
     setIsLoading(true);
     try {
       const issueData = await issueService.getIssue(issueId);
@@ -255,7 +256,7 @@ export function IssueDetailPage() {
   // Load comments and activities
   const loadCommentsAndActivities = useCallback(async () => {
     if (!issueId) return;
-    
+
     try {
       const [commentsData, activitiesData] = await Promise.all([
         commentService.getComments(issueId),
@@ -271,7 +272,7 @@ export function IssueDetailPage() {
   // Load team members for assignee selection
   const loadMembers = useCallback(async () => {
     if (!currentTeam?.id) return;
-    
+
     try {
       const membersData = await teamMemberService.getMembers(currentTeam.id);
       setMembers(membersData.map(m => m.profile));
@@ -295,11 +296,11 @@ export function IssueDetailPage() {
 
   const handleUpdateIssue = async (updates: Partial<Issue>) => {
     if (!issue) return;
-    
+
     try {
       const updated = await issueService.updateIssue(issue.id, updates);
       setIssue(updated);
-      
+
       // Broadcast to other users
       broadcastIssueUpdate(issue.id, updates);
     } catch (error) {
@@ -320,7 +321,7 @@ export function IssueDetailPage() {
 
   const handleSendComment = async () => {
     if (!issueId || !newComment.trim()) return;
-    
+
     setIsSendingComment(true);
     try {
       await commentService.createComment(issueId, newComment.trim());
@@ -352,7 +353,7 @@ export function IssueDetailPage() {
   // AI Assistant handler
   const handleAISend = async () => {
     if (!aiInput.trim() || isAILoading || !issue) return;
-    
+
     const userMessage = {
       id: Date.now().toString(),
       role: 'user' as const,
@@ -363,7 +364,7 @@ export function IssueDetailPage() {
     const userQuery = aiInput.trim();
     setAiInput('');
     setIsAILoading(true);
-    
+
     const assistantMessageId = (Date.now() + 1).toString();
     setAiMessages(prev => [...prev, {
       id: assistantMessageId,
@@ -371,7 +372,7 @@ export function IssueDetailPage() {
       content: '',
       timestamp: new Date(),
     }]);
-    
+
     try {
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
       const response = await fetch(`${SUPABASE_URL}/functions/v1/lily-chat`, {
@@ -379,8 +380,8 @@ export function IssueDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
-            { 
-              role: 'system', 
+            {
+              role: 'system',
               content: `You are an issue editing assistant. Help the user with their issue.
               
 Current Issue:
@@ -400,42 +401,42 @@ Respond in the same language as the user's message.`
           stream: true,
         }),
       });
-      
+
       if (!response.ok) throw new Error(`API error: ${response.status}`);
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
-      
+
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = line.slice(6);
               if (data === '[DONE]') continue;
-              
+
               try {
                 const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta?.content || 
-                             parsed.delta?.text || 
-                             parsed.content || 
-                             parsed.text || '';
+                const delta = parsed.choices?.[0]?.delta?.content ||
+                  parsed.delta?.text ||
+                  parsed.content ||
+                  parsed.text || '';
                 if (delta) {
                   fullContent += delta;
-                  setAiMessages(prev => prev.map(m => 
+                  setAiMessages(prev => prev.map(m =>
                     m.id === assistantMessageId ? { ...m, content: fullContent } : m
                   ));
                 }
               } catch {
                 if (line.trim() && !line.startsWith(':')) {
                   fullContent += data;
-                  setAiMessages(prev => prev.map(m => 
+                  setAiMessages(prev => prev.map(m =>
                     m.id === assistantMessageId ? { ...m, content: fullContent } : m
                   ));
                 }
@@ -446,10 +447,10 @@ Respond in the same language as the user's message.`
       }
     } catch (error) {
       console.error('AI request failed:', error);
-      setAiMessages(prev => prev.map(m => 
-        m.id === assistantMessageId ? { 
-          ...m, 
-          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      setAiMessages(prev => prev.map(m =>
+        m.id === assistantMessageId ? {
+          ...m,
+          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
         } : m
       ));
     } finally {
@@ -490,16 +491,16 @@ Respond in the same language as the user's message.`
           <div className="sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border px-3 sm:px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-3">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
                     if (window.history.length > 1) {
                       navigate(-1);
                     } else {
                       navigate('/issues');
                     }
-                  }} 
+                  }}
                   className="h-8 w-8 sm:h-9 sm:w-9"
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -514,8 +515,8 @@ Respond in the same language as the user's message.`
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="z-[100]">
                     {allIssueTypes.map((type) => (
-                      <DropdownMenuItem 
-                        key={type} 
+                      <DropdownMenuItem
+                        key={type}
                         onClick={() => {
                           const typeField = issueTypeConfig[type]?.typeField;
                           if (typeField) {
@@ -550,12 +551,12 @@ Respond in the same language as the user's message.`
                   {issueId && <EditingIndicator issueId={issueId} />}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-1 sm:gap-2">
                 {/* Mobile Properties Toggle */}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="lg:hidden h-8"
                   onClick={() => setShowMobileProperties(!showMobileProperties)}
                 >
@@ -565,9 +566,9 @@ Respond in the same language as the user's message.`
                   <Copy className="h-4 w-4 mr-1" />
                   Link
                 </Button>
-                <Button 
-                  variant={showAIPanel ? "secondary" : "ghost"} 
-                  size="sm" 
+                <Button
+                  variant={showAIPanel ? "secondary" : "ghost"}
+                  size="sm"
                   onClick={() => setShowAIPanel(!showAIPanel)}
                   className="gap-1.5"
                 >
@@ -602,8 +603,8 @@ Respond in the same language as the user's message.`
             <div className="lg:hidden p-4 border-b border-border bg-muted/30 grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">{t('issues.status')}</label>
-                <Select 
-                  value={issue.status} 
+                <Select
+                  value={issue.status}
                   onValueChange={(v) => handleUpdateIssue({ status: v as IssueStatus })}
                 >
                   <SelectTrigger className="mt-1 h-9">
@@ -628,8 +629,8 @@ Respond in the same language as the user's message.`
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">{t('issues.priority')}</label>
-                <Select 
-                  value={issue.priority} 
+                <Select
+                  value={issue.priority}
                   onValueChange={(v) => handleUpdateIssue({ priority: v as IssuePriority })}
                 >
                   <SelectTrigger className="mt-1 h-9">
@@ -675,7 +676,7 @@ Respond in the same language as the user's message.`
                   </div>
                 </div>
               ) : (
-                <h1 
+                <h1
                   className="text-2xl font-semibold cursor-text hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors"
                   onClick={() => {
                     setIsEditingTitle(true);
@@ -694,9 +695,9 @@ Respond in the same language as the user's message.`
                   <div className="absolute right-3 top-3 flex items-center gap-2 z-10">
                     {isSavingDescription && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     {descriptionSaved && <Check className="h-4 w-4 text-green-500" />}
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-7"
                       onClick={() => {
                         setIsEditingDescription(false);
@@ -717,7 +718,7 @@ Respond in the same language as the user's message.`
                   </div>
                 </div>
               ) : issue.description ? (
-                <div 
+                <div
                   className="cursor-text hover:bg-muted/30 rounded-lg px-3 py-3 -mx-2 transition-colors border border-transparent hover:border-border"
                   onClick={() => {
                     setIsEditingDescription(true);
@@ -784,7 +785,7 @@ Respond in the same language as the user's message.`
               <TabsContent value="comments" className="mt-4 space-y-4">
                 {/* Typing Indicator */}
                 {issueId && <TypingIndicator issueId={issueId} />}
-                
+
                 {/* New Comment */}
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8">
@@ -803,8 +804,8 @@ Respond in the same language as the user's message.`
                       rows={2}
                       className="flex-1"
                     />
-                    <Button 
-                      onClick={handleSendComment} 
+                    <Button
+                      onClick={handleSendComment}
                       disabled={!newComment.trim() || isSendingComment}
                       size="icon"
                     >
@@ -889,8 +890,8 @@ Respond in the same language as the user's message.`
           {/* Issue Type */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.type', 'Type')}</label>
-            <Select 
-              value={issueType} 
+            <Select
+              value={issueType}
               onValueChange={async (v) => {
                 // Update local state immediately for responsiveness
                 setIssue(prev => prev ? { ...prev, type: v as IssueType } as Issue : null);
@@ -924,8 +925,8 @@ Respond in the same language as the user's message.`
           {/* Status */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.status')}</label>
-            <Select 
-              value={issue.status} 
+            <Select
+              value={issue.status}
               onValueChange={(v) => handleUpdateIssue({ status: v as IssueStatus })}
             >
               <SelectTrigger>
@@ -952,8 +953,8 @@ Respond in the same language as the user's message.`
           {/* Priority */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.priority')}</label>
-            <Select 
-              value={issue.priority} 
+            <Select
+              value={issue.priority}
               onValueChange={(v) => handleUpdateIssue({ priority: v as IssuePriority })}
             >
               <SelectTrigger>
@@ -980,8 +981,8 @@ Respond in the same language as the user's message.`
           {/* Assignee */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.assignee')}</label>
-            <Select 
-              value={issue.assignee_id || 'unassigned'} 
+            <Select
+              value={issue.assignee_id || 'unassigned'}
               onValueChange={(v) => handleUpdateIssue({ assignee_id: v === 'unassigned' ? null : v })}
             >
               <SelectTrigger>
@@ -1035,8 +1036,8 @@ Respond in the same language as the user's message.`
           {/* Reporter */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.reporter', 'Reporter')}</label>
-            <Select 
-              value={(issue as any).reporter_id || issue.created_by || 'unassigned'} 
+            <Select
+              value={(issue as any).reporter_id || issue.created_by || 'unassigned'}
               onValueChange={(v) => handleUpdateIssue({ reporter_id: v === 'unassigned' ? null : v } as any)}
             >
               <SelectTrigger>
@@ -1151,8 +1152,8 @@ Respond in the same language as the user's message.`
                   mode="single"
                   selected={issue.due_date ? new Date(issue.due_date) : undefined}
                   onSelect={(date) => {
-                    handleUpdateIssue({ 
-                      due_date: date ? format(date, 'yyyy-MM-dd') : null 
+                    handleUpdateIssue({
+                      due_date: date ? format(date, 'yyyy-MM-dd') : null
                     });
                   }}
                   initialFocus
@@ -1160,9 +1161,9 @@ Respond in the same language as the user's message.`
                 />
                 {issue.due_date && (
                   <div className="p-3 border-t">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="w-full"
                       onClick={() => handleUpdateIssue({ due_date: null })}
                     >
@@ -1177,8 +1178,8 @@ Respond in the same language as the user's message.`
           {/* Estimate */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase">{t('issues.estimate')}</label>
-            <Select 
-              value={issue.estimate?.toString() || 'none'} 
+            <Select
+              value={issue.estimate?.toString() || 'none'}
               onValueChange={(v) => handleUpdateIssue({ estimate: v === 'none' ? null : parseInt(v) })}
             >
               <SelectTrigger>
@@ -1274,14 +1275,14 @@ Respond in the same language as the user's message.`
                     thinkingContent = thinkingMatch[1];
                     cleanContent = cleanContent.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
                   }
-                  
+
                   return (
                     <div key={msg.id}>
                       {/* Timeline Thinking Block */}
                       {msg.role === 'assistant' && thinkingContent && (
                         <TimelineThinkingBlock content={thinkingContent} />
                       )}
-                      
+
                       <div className={cn(
                         "flex gap-2",
                         msg.role === 'user' && "flex-row-reverse"
@@ -1296,8 +1297,8 @@ Respond in the same language as the user's message.`
                         </Avatar>
                         <div className={cn(
                           "rounded-lg px-2.5 py-1.5 max-w-[85%]",
-                          msg.role === 'user' 
-                            ? "bg-primary text-primary-foreground text-xs" 
+                          msg.role === 'user'
+                            ? "bg-primary text-primary-foreground text-xs"
                             : "bg-background border"
                         )}>
                           {msg.role === 'assistant' ? (

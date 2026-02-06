@@ -100,6 +100,7 @@ export function InboxPage() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread' | 'mentions'>('all');
+  const [inviteValidity, setInviteValidity] = useState<Record<string, { valid: boolean; status: string }>>({});
 
   const loadInboxItems = useCallback(async () => {
     if (!user?.id) return;
@@ -148,6 +149,22 @@ export function InboxPage() {
         }));
 
         setItems(enriched);
+
+        // Check validity of team invites
+        const teamInviteItems = enriched.filter(item => item.type === 'team_invite' && item.data?.token);
+        if (teamInviteItems.length > 0) {
+          const validityChecks = await Promise.all(
+            teamInviteItems.map(async (item) => {
+              const result = await teamInviteService.checkInviteValidity(item.data.token);
+              return { id: item.id, ...result };
+            })
+          );
+          const validityMap = validityChecks.reduce((acc, check) => {
+            acc[check.id] = { valid: check.valid, status: check.status };
+            return acc;
+          }, {} as Record<string, { valid: boolean; status: string }>);
+          setInviteValidity(validityMap);
+        }
       } else {
         setItems([]);
       }
@@ -477,29 +494,55 @@ export function InboxPage() {
                                 {/* Team Invite Actions */}
                                 {item.type === 'team_invite' && (
                                   <div className="flex items-center gap-2 mt-3">
-                                    <Button
-                                      size="sm"
-                                      className="gap-2"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAcceptInvite(item);
-                                      }}
-                                    >
-                                      <Check className="h-3.5 w-3.5" />
-                                      Accept
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-2"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRejectInvite(item);
-                                      }}
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                      Decline
-                                    </Button>
+                                    {inviteValidity[item.id]?.valid === false ? (
+                                      <>
+                                        <Badge variant="secondary" className="bg-red-500/10 text-red-500">
+                                          {inviteValidity[item.id]?.status === 'expired' ? 'Expired' :
+                                            inviteValidity[item.id]?.status === 'cancelled' ? 'Cancelled' :
+                                              inviteValidity[item.id]?.status === 'accepted' ? 'Already Accepted' :
+                                                inviteValidity[item.id]?.status === 'rejected' ? 'Already Declined' :
+                                                  'Unavailable'}
+                                        </Badge>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="gap-2 text-muted-foreground hover:text-destructive"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteItem(item.id);
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                          Delete
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          className="gap-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAcceptInvite(item);
+                                          }}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                          Accept
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRejectInvite(item);
+                                          }}
+                                        >
+                                          <X className="h-3.5 w-3.5" />
+                                          Decline
+                                        </Button>
+                                      </>
+                                    )}
                                   </div>
                                 )}
                               </div>

@@ -208,6 +208,7 @@
     "todo": "할 일",
     "in_progress": "진행 중",
     "in_review": "검토 중",
+    "blocked": "차단됨",
     "done": "완료",
     "cancelled": "취소됨"
   },

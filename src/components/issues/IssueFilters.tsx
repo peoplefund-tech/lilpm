@@ -11,9 +11,9 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Filter, 
-  X, 
+import {
+  Filter,
+  X,
   Search,
   Circle,
   AlertCircle,
@@ -49,6 +49,7 @@ const STATUS_OPTIONS: { value: IssueStatus; icon: React.ElementType; color: stri
   { value: 'todo', icon: Circle, color: 'text-blue-500' },
   { value: 'in_progress', icon: Clock, color: 'text-yellow-500' },
   { value: 'in_review', icon: AlertCircle, color: 'text-purple-500' },
+  { value: 'blocked', icon: XCircle, color: 'text-orange-500' },
   { value: 'done', icon: CheckCircle2, color: 'text-green-500' },
   { value: 'cancelled', icon: XCircle, color: 'text-red-500' },
 ];
@@ -126,10 +127,10 @@ export function IssueFilters({ filters, onFiltersChange }: IssueFiltersProps) {
     });
   };
 
-  const activeFilterCount = 
-    filters.status.length + 
-    filters.priority.length + 
-    filters.assigneeId.length + 
+  const activeFilterCount =
+    filters.status.length +
+    filters.priority.length +
+    filters.assigneeId.length +
     filters.projectId.length +
     (filters.search ? 1 : 0);
 
@@ -296,8 +297,8 @@ export function IssueFilters({ filters, onFiltersChange }: IssueFiltersProps) {
                         checked={filters.projectId.includes(project.id)}
                         onCheckedChange={() => toggleProject(project.id)}
                       />
-                      <div 
-                        className="h-3 w-3 rounded-full" 
+                      <div
+                        className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: project.color }}
                       />
                       <span className="text-sm truncate">{project.name}</span>

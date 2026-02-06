@@ -554,4 +554,38 @@ export const teamInviteService = {
       console.error('Failed to create rejection notification:', notifError);
     }
   },
+
+  async checkInviteValidity(token: string): Promise<{ valid: boolean; status: 'pending' | 'expired' | 'cancelled' | 'accepted' | 'rejected' | 'not_found' }> {
+    try {
+      const { data: invite, error } = await supabase
+        .from('team_invites')
+        .select('status, expires_at')
+        .eq('token', token)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Failed to check invite validity:', error);
+        return { valid: false, status: 'not_found' };
+      }
+
+      if (!invite) {
+        return { valid: false, status: 'not_found' };
+      }
+
+      // Check if expired
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        return { valid: false, status: 'expired' };
+      }
+
+      // Check status
+      if (invite.status !== 'pending') {
+        return { valid: false, status: invite.status as any };
+      }
+
+      return { valid: true, status: 'pending' };
+    } catch (error) {
+      console.error('Failed to check invite validity:', error);
+      return { valid: false, status: 'not_found' };
+    }
+  },
 };

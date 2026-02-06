@@ -12,12 +12,12 @@ export type Json =
 export type TeamRole = 'owner' | 'admin' | 'member' | 'guest';
 export type AppRole = 'super_admin' | 'admin' | 'user';
 export type ProjectStatus = 'planned' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
-export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
+export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done' | 'cancelled';
 export type IssuePriority = 'urgent' | 'high' | 'medium' | 'low' | 'none';
 export type IssueType = 'epic' | 'user_story' | 'task' | 'subtask' | 'bug';
 export type CycleStatus = 'upcoming' | 'active' | 'completed';
 export type InviteStatus = 'pending' | 'accepted' | 'expired' | 'cancelled';
-export type ActivityType = 
+export type ActivityType =
   | 'issue_created'
   | 'issue_updated'
   | 'status_changed'

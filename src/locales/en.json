@@ -210,6 +210,7 @@
     "todo": "To Do",
     "in_progress": "In Progress",
     "in_review": "In Review",
+    "blocked": "Blocked",
     "done": "Done",
     "cancelled": "Cancelled"
   },

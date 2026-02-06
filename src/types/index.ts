@@ -130,7 +130,7 @@ export interface IssueDependency {
   targetIssue?: Issue;
 }
 
-export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
+export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done' | 'cancelled';
 
 export type IssuePriority = 'urgent' | 'high' | 'medium' | 'low' | 'none';
 
