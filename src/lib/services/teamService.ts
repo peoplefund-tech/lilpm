@@ -307,18 +307,33 @@ export const teamInviteService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Get invite - use maybeSingle to avoid error when not found
-    const { data: invite, error: inviteError } = await supabase
+    // First check if invite exists at all (any status)
+    const { data: anyInvite, error: anyInviteError } = await supabase
       .from('team_invites')
       .select('*, team:teams(*)')
       .eq('token', token)
-      .eq('status', 'pending')
       .maybeSingle();
 
-    if (inviteError) throw inviteError;
-    if (!invite) throw new Error('Invite not found or expired');
+    if (anyInviteError) throw anyInviteError;
 
-    const typedInvite = invite as any;
+    // Check invite status
+    if (!anyInvite) {
+      throw new Error('Invite not found or expired');
+    }
+
+    if (anyInvite.status === 'cancelled') {
+      throw new Error('This invitation has been cancelled');
+    }
+
+    if (anyInvite.status === 'accepted') {
+      throw new Error('This invitation has already been accepted');
+    }
+
+    if (anyInvite.status !== 'pending') {
+      throw new Error('Invite not found or expired');
+    }
+
+    const typedInvite = anyInvite as any;
 
     // Check if already a member - use maybeSingle to avoid error
     const { data: existing } = await supabase

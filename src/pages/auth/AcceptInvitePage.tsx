@@ -13,17 +13,17 @@ export function AcceptInvitePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-  
+
   const { isAuthenticated, isLoading: authLoading } = useAuthStore();
   const { teams, loadTeams, selectTeam } = useTeamStore();
-  
+
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'not_authenticated' | 'cancelled'>('loading');
   const [teamName, setTeamName] = useState<string>('');
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
     if (authLoading) return;
-    
+
     if (!isAuthenticated) {
       setStatus('not_authenticated');
       return;
@@ -40,7 +40,7 @@ export function AcceptInvitePage() {
 
   const acceptInvite = async () => {
     if (!token) return;
-    
+
     try {
       const team = await teamInviteService.acceptInvite(token);
       setTeamName(team.name);
@@ -49,9 +49,13 @@ export function AcceptInvitePage() {
       await selectTeam(team.id);
       setStatus('success');
     } catch (err: any) {
+      console.error('Accept invite error:', err.message);
       // Check if it's a cancelled invite
-      if (err.message.includes('cancelled') || err.message.includes('Invite not found')) {
+      if (err.message.includes('cancelled')) {
         setStatus('cancelled');
+      } else if (err.message.includes('not found') || err.message.includes('expired')) {
+        setError(t('team.inviteExpired', 'This invitation has expired or is no longer valid.'));
+        setStatus('error');
       } else {
         setError(err.message || t('team.inviteError'));
         setStatus('error');
