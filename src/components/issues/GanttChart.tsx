@@ -578,17 +578,19 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
           // Don't re-calculate sort order independently, as that caused mismatches.
 
           // Create map: IssueID -> EffectiveSortOrder based on RENDER POSITION
+          // Use large positive values based on render position to ensure gaps
           const effectiveOrderMap = new Map<string, number>();
           allIssues.forEach((issue, index) => {
-            // Use the issue's actual sortOrder if defined, otherwise use render position * gap
-            // The key insight is we need BOUNDS from adjacent items, not from a re-sorted array
-            const effectiveOrder = issue.sortOrder ?? ((index + 1) * BASE_GAP);
+            // Always use render position * BASE_GAP as the effective order
+            // This ensures consistent ordering based on visual position
+            const effectiveOrder = (index + 1) * BASE_GAP;
             effectiveOrderMap.set(issue.id, effectiveOrder);
           });
 
-          // Helper to safely get order from issuesWithoutDragged
-          const getOrder = (index: number) => {
-            if (index < 0 || index >= issuesWithoutDragged.length) return null;
+          // Helper to safely get order from issuesWithoutDragged (which excludes dragged item)
+          const getOrderForPosition = (index: number): number => {
+            if (index < 0) return BASE_GAP / 2; // Before first item
+            if (index >= issuesWithoutDragged.length) return (issuesWithoutDragged.length + 2) * BASE_GAP; // After last
             const targetId = issuesWithoutDragged[index].id;
             return effectiveOrderMap.get(targetId) ?? ((index + 1) * BASE_GAP);
           };
@@ -598,18 +600,21 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
           if (rowDropPosition === 'above') {
             // Insert BEFORE the target
-            const targetOrder = getOrder(adjustedTargetIndex);
-            const prevOrder = getOrder(adjustedTargetIndex - 1);
-
-            upperBound = targetOrder ?? ((adjustedTargetIndex + 1) * BASE_GAP);
-            lowerBound = prevOrder ?? (upperBound - BASE_GAP);
+            upperBound = getOrderForPosition(adjustedTargetIndex);
+            lowerBound = adjustedTargetIndex > 0
+              ? getOrderForPosition(adjustedTargetIndex - 1)
+              : BASE_GAP / 2;
           } else {
             // Insert AFTER the target (below)
-            const targetOrder = getOrder(adjustedTargetIndex);
-            const nextOrder = getOrder(adjustedTargetIndex + 1);
+            lowerBound = getOrderForPosition(adjustedTargetIndex);
+            upperBound = adjustedTargetIndex < issuesWithoutDragged.length - 1
+              ? getOrderForPosition(adjustedTargetIndex + 1)
+              : lowerBound + BASE_GAP;
+          }
 
-            lowerBound = targetOrder ?? ((adjustedTargetIndex + 1) * BASE_GAP);
-            upperBound = nextOrder ?? (lowerBound + BASE_GAP);
+          // Ensure we have a valid gap (minimum 2)
+          if (upperBound <= lowerBound) {
+            upperBound = lowerBound + BASE_GAP;
           }
 
           console.log('[Gantt Reorder Debug]', {
@@ -618,7 +623,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
             lowerBound,
             upperBound,
             dragging: issueId,
-            targetEffective: getOrder(adjustedTargetIndex)
+            targetEffective: getOrderForPosition(adjustedTargetIndex),
+            issuesWithoutDraggedLength: issuesWithoutDragged.length
           });
 
 
@@ -631,12 +637,16 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
             newSortOrder = lowerBound + (Date.now() % 1000) + 1;
           }
 
-          // Ensure the new value is strictly between bounds
+          // Ensure the new value is strictly between bounds and positive
           if (newSortOrder <= lowerBound) {
             newSortOrder = lowerBound + 1;
           }
           if (newSortOrder >= upperBound) {
             newSortOrder = upperBound - 1;
+          }
+          // Final safety: ensure positive
+          if (newSortOrder < 1) {
+            newSortOrder = Math.round(Date.now() / 1000);
           }
 
           console.log('[Gantt Reorder]', {
