@@ -247,43 +247,17 @@ export const teamInviteService = {
 
     // Call Edge Function to send email
     try {
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
-
-      const payload = {
-        inviteId: data.id,
-        email: email,
-        teamName: teamName,
-        inviterName: inviterName,
-        role: role,
-        token: token,
-        isExistingUser: isExistingUser,
-        targetUserId: existingProfile?.id,
-      };
-
       console.log('Sending invitation payload to edge function:', payload);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const authToken = session?.access_token;
-
-      console.log('[TeamInvite] Auth verification:', {
-        hasSession: !!session,
-        hasToken: !!authToken,
-        tokenPrefix: authToken ? authToken.substring(0, 10) + '...' : 'none'
+      // Use supabase.functions.invoke for handled auth (auto-refresh, headers)
+      const { data: funcData, error: funcError } = await supabase.functions.invoke('send-team-invite', {
+        body: payload,
       });
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-team-invite`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        console.error('Failed to send invitation email:', await response.text());
+      if (funcError) {
+        console.error('Failed to send invitation email:', funcError);
       } else {
-        console.log('Invitation email sent successfully');
+        console.log('Invitation email sent successfully', funcData);
       }
     } catch (emailError) {
       console.error('Failed to send invitation email:', emailError);
