@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Mail, Loader2, RefreshCw, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,16 +9,23 @@ import { toast } from 'sonner';
 export function EmailVerificationPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { user, isEmailVerified, resendVerificationEmail, logout } = useAuthStore();
     const [isResending, setIsResending] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
 
-    // If email is verified, redirect to team creation
+    // Get returnUrl from query params (e.g., for team invite flow)
+    const returnUrl = searchParams.get('returnUrl');
+
+    // If email is verified, redirect to returnUrl or onboarding
     React.useEffect(() => {
         if (isEmailVerified) {
-            navigate('/onboarding/create-team', { replace: true });
+            // If there's a returnUrl (e.g., invite acceptance), go there
+            // Otherwise, go to team creation for new users
+            const redirectTo = returnUrl || '/onboarding/create-team';
+            navigate(redirectTo, { replace: true });
         }
-    }, [isEmailVerified, navigate]);
+    }, [isEmailVerified, navigate, returnUrl]);
 
     const handleResend = async () => {
         setIsResending(true);

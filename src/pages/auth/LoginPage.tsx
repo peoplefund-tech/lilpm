@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -20,9 +20,13 @@ import { toast } from 'sonner';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const { login, isLoading } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
+
+  // Get returnUrl from query params for redirect after login
+  const returnUrl = searchParams.get('returnUrl') || '/';
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.invalidEmail')),
@@ -44,7 +48,7 @@ export function LoginPage() {
       setError(null);
       await login(data.email, data.password);
       toast.success(t('auth.loginSuccess'));
-      navigate('/');
+      navigate(returnUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.loginError'));
     }
@@ -164,8 +168,8 @@ export function LoginPage() {
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground">
           {t('auth.noAccount')}{' '}
-          <Link 
-            to="/signup" 
+          <Link
+            to={returnUrl !== '/' ? `/signup?returnUrl=${encodeURIComponent(returnUrl)}` : '/signup'}
             className="font-medium text-primary hover:underline"
           >
             {t('auth.signup')}

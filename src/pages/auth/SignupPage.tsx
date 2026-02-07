@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,8 +21,12 @@ import { toast } from 'sonner';
 export function SignupPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signup, isLoading } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
+
+  // Get returnUrl from query params for redirect after signup
+  const returnUrl = searchParams.get('returnUrl');
 
   const signupSchema = z.object({
     name: z.string().min(2, t('auth.nameTooShort')),
@@ -51,7 +55,11 @@ export function SignupPage() {
       setError(null);
       await signup(data.email, data.password, data.name);
       toast.success(t('auth.signupSuccess'));
-      navigate('/auth/verify-email');
+      // Pass returnUrl to email verification page
+      const verifyUrl = returnUrl
+        ? `/auth/verify-email?returnUrl=${encodeURIComponent(returnUrl)}`
+        : '/auth/verify-email';
+      navigate(verifyUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.signupError'));
     }
@@ -205,11 +213,10 @@ export function SignupPage() {
           </Button>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-sm text-muted-foreground">
           {t('auth.hasAccount')}{' '}
           <Link
-            to="/login"
+            to={returnUrl ? `/login?returnUrl=${encodeURIComponent(returnUrl)}` : '/login'}
             className="font-medium text-primary hover:underline"
           >
             {t('auth.login')}
