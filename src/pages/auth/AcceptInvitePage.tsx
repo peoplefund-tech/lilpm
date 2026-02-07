@@ -101,7 +101,10 @@ export function AcceptInvitePage() {
 
     try {
       const team = await teamInviteService.acceptInvite(token);
-      setTeamName(team.name);
+      if (!team) {
+        throw new Error('Team not found');
+      }
+      setTeamName(team.name || 'Team');
       await loadTeams();
       await selectTeam(team.id);
       setStatus('success');
@@ -171,7 +174,7 @@ export function AcceptInvitePage() {
         setStatus('success');
         setError(''); // Clear any errors
         // Show confirmation message
-        navigate(`/verify-email?email=${encodeURIComponent(signupForm.email)}&returnUrl=${encodeURIComponent(`/accept-invite?token=${token}`)}`);
+        navigate(`/auth/verify-email?email=${encodeURIComponent(signupForm.email)}&returnUrl=${encodeURIComponent(`/invite/accept?token=${token}`)}`);
       } else if (data.user) {
         // Auto-confirmed (dev mode), accept invite immediately
         await acceptInvite();

@@ -503,6 +503,18 @@ export const teamInviteService = {
     // Log activity
     logInviteAccepted(typedInvite.team_id, typedInvite.id, user.id);
 
+    // Ensure team data exists (handle case where join didn't fetch team)
+    if (!typedInvite.team) {
+      const { data: teamData, error: teamError } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', typedInvite.team_id)
+        .single();
+
+      if (teamError) throw teamError;
+      return teamData as Team;
+    }
+
     return typedInvite.team as Team;
   },
 
