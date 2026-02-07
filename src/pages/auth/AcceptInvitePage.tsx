@@ -141,7 +141,7 @@ export function AcceptInvitePage() {
           setTimeout(() => navigate('/dashboard'), 1500);
           break;
 
-        case 'needs_auth':
+        case 'needs_auth': {
           // Existing user - Magic Link was sent or needs to login
           if (result.magicLinkSent) {
             setStatus('magic_link_sent');
@@ -152,12 +152,14 @@ export function AcceptInvitePage() {
             navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
           }
           break;
+        }
 
-        case 'needs_signup':
+        case 'needs_signup': {
           // New user - redirect to signup
           const signupUrl = `/signup?email=${encodeURIComponent(result.email || '')}&returnUrl=${encodeURIComponent(`/invite/accept?token=${token}&auto=true`)}`;
           navigate(signupUrl);
           break;
+        }
 
         default:
           setError(t('team.inviteError', 'Unexpected error'));
