@@ -679,10 +679,6 @@
     "unreadCount": "{{count}} unread item(s)",
     "allRead": "All items read"
   },
-  "notifications": {
-    "today": "Today",
-    "yesterday": "Yesterday"
-  },
   "myIssues": {
     "title": "My Issues",
     "assigned": "Assigned to Me",
