@@ -4,7 +4,17 @@ description: 파일 변경/커밋 자동 실행 설정
 
 // turbo-all
 
-이 워크플로우는 LilPM 프로젝트에서 모든 명령어를 자동 실행합니다.
+# 자동 개발 워크플로우
+
+> [!CAUTION]
+> ## 🚨 필수: 일괄 커밋 규칙
+> **사용자가 2개 이상의 요청을 한 경우:**
+> 1. **모든 수정을 먼저 완료**
+> 2. TypeScript 체크 (npx tsc --noEmit)
+> 3. **한 번에** 빌드/커밋/푸시
+>
+> ❌ 하나 수정 → 커밋 → 다른 거 수정 → 커밋 (금지)
+> ✅ 전부 수정 → 한 번에 커밋 (올바름)
 
 ## 자동 실행 대상
 - git add
@@ -13,6 +23,25 @@ description: 파일 변경/커밋 자동 실행 설정
 - npm 명령어
 - supabase 명령어
 - 파일 생성/수정/삭제
+
+## 커밋 시점 결정
+| 상황 | 커밋 시점 |
+|------|----------|
+| 단일 요청 | 수정 완료 후 즉시 |
+| **다중 요청** | **모든 수정 완료 후 한 번** |
+| 에러 발생 | 에러 수정 완료 후 |
+
+## 커밋 메시지 예시 (다중 요청)
+```
+fix: Modal animation and invite page UI
+
+## Changes
+- alert-dialog: Remove slide animations
+- AcceptInvitePage: Fix button order for new users
+- vercel.json: Add CSP headers
+
+Build: 4.5s ✓
+```
 
 ## 사용 방법
 이 파일이 존재하면 Antigravity가 모든 안전한 명령어를 자동으로 실행합니다.
