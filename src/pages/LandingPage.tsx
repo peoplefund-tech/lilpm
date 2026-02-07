@@ -130,11 +130,11 @@ export function LandingPage() {
                   </div>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-muted-foreground">
                     <Zap className="h-4 w-4" />
-                    <span>이슈</span>
+                    <span>Issues</span>
                   </div>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-muted-foreground">
                     <GitBranch className="h-4 w-4" />
-                    <span>간트 차트</span>
+                    <span>Gantt Chart</span>
                   </div>
                 </div>
               </div>
@@ -145,7 +145,7 @@ export function LandingPage() {
                   {/* User Message */}
                   <div className="flex gap-3 justify-end">
                     <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%] text-sm">
-                      쇼핑몰 앱의 리뷰 시스템 기능을 기획해줘
+                      Plan a review system feature for a shopping mall app
                     </div>
                     <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
                   </div>
@@ -156,15 +156,15 @@ export function LandingPage() {
                       <Sparkles className="h-4 w-4 text-primary" />
                     </div>
                     <div className="bg-muted rounded-lg px-4 py-3 max-w-[80%] text-sm space-y-3">
-                      <p className="font-medium">📋 리뷰 시스템 PRD를 생성했습니다!</p>
+                      <p className="font-medium">📋 Created Review System PRD!</p>
                       <div className="border border-border rounded-lg p-3 bg-background/50">
-                        <p className="text-xs text-muted-foreground mb-1">PRD 미리보기</p>
-                        <p className="font-medium text-sm">쇼핑몰 리뷰 시스템</p>
-                        <p className="text-xs text-muted-foreground mt-1">사용자 스토리 5개 · 기능 요구사항 12개</p>
+                        <p className="text-xs text-muted-foreground mb-1">PRD Preview</p>
+                        <p className="font-medium text-sm">Shopping Mall Review System</p>
+                        <p className="text-xs text-muted-foreground mt-1">5 User Stories · 12 Requirements</p>
                       </div>
                       <div className="flex gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-xs">티켓 자동 생성</span>
-                        <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-xs">AI 분석 완료</span>
+                        <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-xs">Auto-generated tickets</span>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-xs">AI Analysis Complete</span>
                       </div>
                     </div>
                   </div>
@@ -173,7 +173,7 @@ export function LandingPage() {
                 {/* Input Area */}
                 <div className="mt-4 flex gap-2">
                   <div className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                    Lily에게 질문하세요...
+                    Ask Lily anything...
                   </div>
                   <button className="h-11 w-11 rounded-lg bg-primary flex items-center justify-center">
                     <ArrowRight className="h-5 w-5 text-primary-foreground" />

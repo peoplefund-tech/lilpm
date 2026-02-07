@@ -65,6 +65,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Input } from '@/components/ui/input';
 import {
   Popover,
@@ -406,6 +413,8 @@ export function BlockEditor({
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkPopover, setShowLinkPopover] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [tableContextMenuOpen, setTableContextMenuOpen] = useState(false);
+  const [tableContextMenuPosition, setTableContextMenuPosition] = useState({ x: 0, y: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const mentionCallbackRef = useRef(onMention);
@@ -1094,9 +1103,109 @@ export function BlockEditor({
       )}
 
 
-      {/* Editor Content with Cursor Overlay */}
+      {/* Editor Content with Cursor Overlay and Table Context Menu */}
       <div style={{ position: 'relative' }}>
-        <EditorContent editor={editor} />
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              onContextMenu={(e) => {
+                // Only show context menu if inside a table
+                const target = e.target as HTMLElement;
+                const isInTable = target.closest('table') !== null;
+                if (!isInTable || !editor?.can().deleteRow()) {
+                  // Allow default context menu for non-table elements
+                  e.stopPropagation();
+                }
+              }}
+            >
+              <EditorContent editor={editor} />
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-56">
+            {/* Row Operations */}
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().addRowBefore().run()}
+              disabled={!editor?.can().addRowBefore()}
+            >
+              Add Row Above
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().addRowAfter().run()}
+              disabled={!editor?.can().addRowAfter()}
+            >
+              Add Row Below
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().deleteRow().run()}
+              disabled={!editor?.can().deleteRow()}
+              className="text-red-500"
+            >
+              Delete Row
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+
+            {/* Column Operations */}
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().addColumnBefore().run()}
+              disabled={!editor?.can().addColumnBefore()}
+            >
+              Add Column Left
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().addColumnAfter().run()}
+              disabled={!editor?.can().addColumnAfter()}
+            >
+              Add Column Right
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().deleteColumn().run()}
+              disabled={!editor?.can().deleteColumn()}
+              className="text-red-500"
+            >
+              Delete Column
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+
+            {/* Cell Operations */}
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().mergeCells().run()}
+              disabled={!editor?.can().mergeCells()}
+            >
+              Merge Cells
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().splitCell().run()}
+              disabled={!editor?.can().splitCell()}
+            >
+              Split Cell
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+
+            {/* Header Operations */}
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().toggleHeaderRow().run()}
+              disabled={!editor?.can().toggleHeaderRow()}
+            >
+              Toggle Header Row
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().toggleHeaderColumn().run()}
+              disabled={!editor?.can().toggleHeaderColumn()}
+            >
+              Toggle Header Column
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+
+            {/* Delete Table */}
+            <ContextMenuItem
+              onClick={() => editor?.chain().focus().deleteTable().run()}
+              disabled={!editor?.can().deleteTable()}
+              className="text-red-500"
+            >
+              Delete Table
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         <CursorOverlay editor={editor} cursors={remoteCursors || new Map()} />
       </div>
 
