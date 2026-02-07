@@ -545,6 +545,8 @@ export function LilyChat() {
         toast.success(t('lily.prdCreated', 'PRD가 생성되었습니다'));
         // Store the PRD id for this message (enables "View PRD" button)
         setSavedPRDMap(prev => ({ ...prev, [messageId]: prd.id }));
+        // Show PRD content in right panel
+        setSelectedPRDContent({ title, content });
       }
     } catch (error) {
       console.error('Failed to save as PRD:', error);
@@ -1213,8 +1215,8 @@ export function LilyChat() {
           </ScrollArea>
 
           {/* Floating Navigation Buttons */}
-          {messages.length > 2 && (
-            <div className="absolute right-6 bottom-24 flex flex-col gap-1.5 z-10">
+          {messages.length >= 1 && (
+            <div className="absolute right-6 bottom-24 flex flex-row gap-1.5 z-10">
               <Button
                 variant="secondary"
                 size="icon"
@@ -1422,8 +1424,8 @@ export function LilyChat() {
           </div>
         </div>
 
-        {/* Unified Right Panel - Shows for canvas mode OR suggested issues */}
-        {(canvasMode || suggestedIssues.length > 0 || (showArtifact && artifact)) ? (
+        {/* Unified Right Panel - Shows for canvas mode OR suggested issues OR PRD viewer */}
+        {(canvasMode || suggestedIssues.length > 0 || selectedPRDContent || (showArtifact && artifact)) ? (
           <div className="w-[450px] border-l border-border flex flex-col bg-background">
             {/* Artifact Header */}
             <div className="h-12 flex items-center justify-between px-4 border-b border-border">
@@ -1804,6 +1806,41 @@ export function LilyChat() {
                       </div>
                     </div>
                   )
+                ) : selectedPRDContent ? (
+                  /* PRD Viewer Panel */
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => setSelectedPRDContent(null)}
+                      >
+                        <ChevronRight className="h-4 w-4 rotate-180 mr-1" />
+                        {t('common.close', 'Close')}
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-purple-500" />
+                        <h3 className="font-semibold text-base">{selectedPRDContent.title}</h3>
+                      </div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none
+                        [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
+                        [&_p]:my-3 [&_p]:leading-7
+                        [&_ul]:my-3 [&_ul]:pl-6 [&_ul]:list-disc
+                        [&_ol]:my-3 [&_ol]:pl-6 [&_ol]:list-decimal
+                        [&_li]:leading-7
+                        [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-3
+                        [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-5 [&_h2]:mb-2
+                        [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mt-4 [&_h3]:mb-2
+                      ">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {selectedPRDContent.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
                 ) : artifact?.type === 'code' ? (
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                     <code>{artifact.content}</code>
