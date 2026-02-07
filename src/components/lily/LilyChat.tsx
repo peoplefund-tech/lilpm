@@ -305,6 +305,10 @@ export function LilyChat() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareConversationData, setShareConversationData] = useState<{ id: string; title: string | null } | null>(null);
 
+  // Panel detail view states (for issue detail / PRD viewer in right panel)
+  const [selectedIssueIndex, setSelectedIssueIndex] = useState<number | null>(null);
+  const [selectedPRDContent, setSelectedPRDContent] = useState<{ title: string; content: string } | null>(null);
+
   // Drag-and-drop sensors for conversation reordering
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1622,100 +1626,184 @@ export function LilyChat() {
                     </div>
                   )
                 ) : suggestedIssues.length > 0 && !showCanvasPanel ? (
-                  /* Issues Panel Content */
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-sm flex items-center gap-2">
-                        <Ticket className="h-4 w-4 text-green-500" />
-                        {t('lily.suggestedIssues', 'Suggested Issues')} ({suggestedIssues.length})
-                      </h3>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          if (currentTeam) {
-                            for (let i = suggestedIssues.length - 1; i >= 0; i--) {
-                              const issue = suggestedIssues[i];
-                              try {
-                                await createIssue(currentTeam.id, {
-                                  title: issue.title || 'Untitled Issue',
-                                  description: issue.description,
-                                  priority: issue.priority || 'medium',
-                                  status: 'backlog',
-                                });
-                                acceptSuggestedIssue(i);
-                              } catch (error) {
-                                console.error('Failed to create issue:', error);
+                  /* Issues Panel Content - Detail or List View */
+                  selectedIssueIndex !== null && suggestedIssues[selectedIssueIndex] ? (
+                    /* Issue Detail View */
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2"
+                          onClick={() => setSelectedIssueIndex(null)}
+                        >
+                          <ChevronRight className="h-4 w-4 rotate-180 mr-1" />
+                          {t('common.back', 'Back')}
+                        </Button>
+                      </div>
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-base">
+                          {suggestedIssues[selectedIssueIndex].title || 'Untitled Issue'}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-xs px-2 py-1 rounded font-medium",
+                            suggestedIssues[selectedIssueIndex].priority === 'urgent' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                            suggestedIssues[selectedIssueIndex].priority === 'high' && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                            suggestedIssues[selectedIssueIndex].priority === 'medium' && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+                            suggestedIssues[selectedIssueIndex].priority === 'low' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                            !suggestedIssues[selectedIssueIndex].priority && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+                          )}>
+                            {t(`priority.${suggestedIssues[selectedIssueIndex].priority || 'none'}`)}
+                          </span>
+                        </div>
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                            {suggestedIssues[selectedIssueIndex].description || t('issues.noDescription', 'No description')}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 pt-4 border-t">
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            onClick={async () => {
+                              if (currentTeam && selectedIssueIndex !== null) {
+                                const issue = suggestedIssues[selectedIssueIndex];
+                                try {
+                                  await createIssue(currentTeam.id, {
+                                    title: issue.title || 'Untitled Issue',
+                                    description: issue.description,
+                                    priority: issue.priority || 'medium',
+                                    status: 'backlog',
+                                  });
+                                  acceptSuggestedIssue(selectedIssueIndex);
+                                  setSelectedIssueIndex(null);
+                                  toast.success(t('issues.issueCreated'));
+                                } catch (error) {
+                                  toast.error(t('common.error'));
+                                }
                               }
-                            }
-                            toast.success(t('lily.allIssuesCreated', 'All issues created'));
-                          }
-                        }}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        {t('lily.acceptAll', 'Accept All')}
-                      </Button>
+                            }}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            {t('lily.createIssue', 'Create Issue')}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (selectedIssueIndex !== null) {
+                                rejectSuggestedIssue(selectedIssueIndex);
+                                setSelectedIssueIndex(null);
+                              }
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            {t('lily.reject', 'Reject')}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {suggestedIssues.map((issue, index) => (
-                        <div key={index} className="p-3 border rounded-lg bg-card hover:bg-accent/5 transition-colors">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm truncate">{issue.title || 'Untitled Issue'}</h4>
-                              {issue.description && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{issue.description}</p>
-                              )}
-                              <div className="flex items-center gap-2 mt-2">
-                                <span className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                                  issue.priority === 'urgent' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                                  issue.priority === 'high' && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-                                  issue.priority === 'medium' && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-                                  issue.priority === 'low' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                                  !issue.priority && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-                                )}>
-                                  {issue.priority || 'none'}
-                                </span>
+                  ) : (
+                    /* Issue List View */
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm flex items-center gap-2">
+                          <Ticket className="h-4 w-4 text-green-500" />
+                          {t('lily.suggestedIssues', 'Suggested Issues')} ({suggestedIssues.length})
+                        </h3>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            if (currentTeam) {
+                              for (let i = suggestedIssues.length - 1; i >= 0; i--) {
+                                const issue = suggestedIssues[i];
+                                try {
+                                  await createIssue(currentTeam.id, {
+                                    title: issue.title || 'Untitled Issue',
+                                    description: issue.description,
+                                    priority: issue.priority || 'medium',
+                                    status: 'backlog',
+                                  });
+                                  acceptSuggestedIssue(i);
+                                } catch (error) {
+                                  console.error('Failed to create issue:', error);
+                                }
+                              }
+                              toast.success(t('lily.allIssuesCreated', 'All issues created'));
+                            }
+                          }}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          {t('lily.acceptAll', 'Accept All')}
+                        </Button>
+                      </div>
+                      <div className="space-y-3">
+                        {suggestedIssues.map((issue, index) => (
+                          <div
+                            key={index}
+                            className="p-3 border rounded-lg bg-card hover:bg-accent/5 transition-colors cursor-pointer"
+                            onClick={() => setSelectedIssueIndex(index)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm truncate">{issue.title || 'Untitled Issue'}</h4>
+                                {issue.description && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{issue.description}</p>
+                                )}
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className={cn(
+                                    "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                                    issue.priority === 'urgent' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                                    issue.priority === 'high' && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                                    issue.priority === 'medium' && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+                                    issue.priority === 'low' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                                    !issue.priority && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+                                  )}>
+                                    {issue.priority || 'none'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={async () => {
+                                    if (currentTeam) {
+                                      try {
+                                        await createIssue(currentTeam.id, {
+                                          title: issue.title || 'Untitled Issue',
+                                          description: issue.description,
+                                          priority: issue.priority || 'medium',
+                                          status: 'backlog',
+                                        });
+                                        acceptSuggestedIssue(index);
+                                        toast.success(t('issues.issueCreated'));
+                                      } catch (error) {
+                                        toast.error(t('common.error'));
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => rejectSuggestedIssue(index)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                onClick={async () => {
-                                  if (currentTeam) {
-                                    try {
-                                      await createIssue(currentTeam.id, {
-                                        title: issue.title || 'Untitled Issue',
-                                        description: issue.description,
-                                        priority: issue.priority || 'medium',
-                                        status: 'backlog',
-                                      });
-                                      acceptSuggestedIssue(index);
-                                      toast.success(t('issues.issueCreated'));
-                                    } catch (error) {
-                                      toast.error(t('common.error'));
-                                    }
-                                  }
-                                }}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => rejectSuggestedIssue(index)}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : artifact?.type === 'code' ? (
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                     <code>{artifact.content}</code>
