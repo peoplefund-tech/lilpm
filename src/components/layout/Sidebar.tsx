@@ -274,6 +274,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
     if (isOnLilyPage && !showLilySidebar) {
       setShowLilySidebar(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnLilyPage]);
 
   // Determine if Lily sidebar should be shown

@@ -86,6 +86,7 @@ export function IssueFilters({ filters, onFiltersChange }: IssueFiltersProps) {
       }
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   const toggleStatus = (status: IssueStatus) => {

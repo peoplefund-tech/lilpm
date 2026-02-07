@@ -35,6 +35,7 @@ const TocComponent: React.FC<any> = ({ editor, selected }) => {
         const handleUpdate = () => extractHeadings();
         // Note: In a real implementation, you'd subscribe to editor updates
         return () => { };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editor.state.doc]);
 
     const getLevelPadding = (level: number) => {

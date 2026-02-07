@@ -210,7 +210,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
     const days = eachDayOfInterval({ start, end });
 
     return { start, end, days };
-  }, [currentDate, dateLocale]);
+  }, [currentDate]);
 
   const totalWidth = dateRange.days.length * cellWidth;
 
