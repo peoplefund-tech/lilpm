@@ -32,8 +32,10 @@ serve(async (req) => {
             try {
                 console.log(`Starting deletion for user: ${userId}`)
 
-                // Get user email
+                // Get user email and find a replacement user for NOT NULL fields
                 let userEmail = ''
+                let replacementUserId: string | null = null
+
                 try {
                     const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
                     userEmail = userData?.user?.email || ''
@@ -42,11 +44,25 @@ serve(async (req) => {
                     details.push(`Could not get user: ${e.message}`)
                 }
 
+                // Find a replacement user for NOT NULL creator_id fields
+                try {
+                    const { data: otherUser } = await supabaseAdmin
+                        .from('profiles')
+                        .select('id')
+                        .neq('id', userId)
+                        .limit(1)
+                        .single()
+                    replacementUserId = otherUser?.id || null
+                    details.push(`Replacement user: ${replacementUserId || 'none'}`)
+                } catch (e) {
+                    details.push(`No replacement user found`)
+                }
+
                 // 1. DELETE user_ai_settings
                 const { error: e1 } = await supabaseAdmin.from('user_ai_settings').delete().eq('user_id', userId)
                 details.push(`user_ai_settings: ${e1 ? e1.message : 'ok'}`)
 
-                // 2. DELETE prd_documents (not update to null - has NOT NULL constraint)
+                // 2. DELETE prd_documents created by user
                 const { error: e2 } = await supabaseAdmin.from('prd_documents').delete().eq('created_by', userId)
                 details.push(`prd_documents: ${e2 ? e2.message : 'ok'}`)
 
@@ -58,7 +74,7 @@ serve(async (req) => {
                 const { error: e4 } = await supabaseAdmin.from('team_members').delete().eq('user_id', userId)
                 details.push(`team_members: ${e4 ? e4.message : 'ok'}`)
 
-                // 5. UPDATE team_invites (invited_by)
+                // 5. UPDATE team_invites (invited_by) - nullable
                 const { error: e5 } = await supabaseAdmin.from('team_invites').update({ invited_by: null }).eq('invited_by', userId)
                 details.push(`team_invites: ${e5 ? e5.message : 'ok'}`)
 
@@ -68,21 +84,27 @@ serve(async (req) => {
                     details.push(`team_invites (email): ${e6 ? e6.message : 'ok'}`)
                 }
 
-                // 7. UPDATE issues (assignee_id)
+                // 7. UPDATE issues (assignee_id) - nullable
                 const { error: e7 } = await supabaseAdmin.from('issues').update({ assignee_id: null }).eq('assignee_id', userId)
-                details.push(`issues: ${e7 ? e7.message : 'ok'}`)
+                details.push(`issues (assignee): ${e7 ? e7.message : 'ok'}`)
 
-                // 8. DELETE activity_logs
-                const { error: e8 } = await supabaseAdmin.from('activity_logs').delete().eq('user_id', userId)
-                details.push(`activity_logs: ${e8 ? e8.message : 'ok'}`)
+                // 8. UPDATE issues (creator_id) - NOT NULL, must reassign to another user
+                if (replacementUserId) {
+                    const { error: e8 } = await supabaseAdmin.from('issues').update({ creator_id: replacementUserId }).eq('creator_id', userId)
+                    details.push(`issues (creator): ${e8 ? e8.message : 'ok'}`)
+                } else {
+                    // If no replacement user, delete the issues
+                    const { error: e8 } = await supabaseAdmin.from('issues').delete().eq('creator_id', userId)
+                    details.push(`issues (creator-delete): ${e8 ? e8.message : 'ok'}`)
+                }
 
-                // 9. DELETE notifications
-                const { error: e9 } = await supabaseAdmin.from('notifications').delete().eq('user_id', userId)
-                details.push(`notifications: ${e9 ? e9.message : 'ok'}`)
+                // 9. DELETE activity_logs
+                const { error: e9 } = await supabaseAdmin.from('activity_logs').delete().eq('user_id', userId)
+                details.push(`activity_logs: ${e9 ? e9.message : 'ok'}`)
 
-                // 10. DELETE projects created by user
-                const { error: e10 } = await supabaseAdmin.from('projects').delete().eq('created_by', userId)
-                details.push(`projects: ${e10 ? e10.message : 'ok'}`)
+                // 10. DELETE notifications
+                const { error: e10 } = await supabaseAdmin.from('notifications').delete().eq('user_id', userId)
+                details.push(`notifications: ${e10 ? e10.message : 'ok'}`)
 
                 // 11. DELETE profiles
                 const { error: e11 } = await supabaseAdmin.from('profiles').delete().eq('id', userId)
