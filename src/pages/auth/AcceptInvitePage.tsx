@@ -298,8 +298,8 @@ export function AcceptInvitePage() {
           <CardContent className="space-y-4">
             {!signupMode ? (
               <>
-                <Button onClick={handleLoginRedirect} className="w-full">
-                  {t('auth.loginToAccept', 'Log in to accept')}
+                <Button onClick={acceptInvite} className="w-full">
+                  {t('auth.createAccountToAccept', 'Create account to accept')}
                 </Button>
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -314,9 +314,17 @@ export function AcceptInvitePage() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => setSignupMode(true)}
+                  onClick={handleLoginRedirect}
                 >
-                  {t('auth.createAccount', 'Create a new account')}
+                  {t('auth.alreadyHaveAccount', 'Already have an account? Log in')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                  onClick={declineInvite}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  {t('team.declineInvite', 'Decline invitation')}
                 </Button>
               </>
             ) : (
