@@ -46,6 +46,27 @@ export function AcceptInvitePage() {
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupError, setSignupError] = useState('');
 
+  // Verify actual Supabase session (not just authStore state)
+  const [hasValidSession, setHasValidSession] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const verifySession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setHasValidSession(!!user);
+      } catch {
+        setHasValidSession(false);
+      }
+    };
+
+    // Only verify if authStore thinks we're authenticated
+    if (isAuthenticated && !authLoading) {
+      verifySession();
+    } else if (!authLoading) {
+      setHasValidSession(false);
+    }
+  }, [isAuthenticated, authLoading]);
+
   // Load invite preview first (before auth check)
   useEffect(() => {
     if (!token) {
@@ -98,8 +119,8 @@ export function AcceptInvitePage() {
   const acceptInvite = async () => {
     if (!token || isAccepting) return;
 
-    // Check if user is authenticated before calling service
-    if (!isAuthenticated) {
+    // Check if user has valid Supabase session before calling service
+    if (!hasValidSession) {
       // Redirect to login with return URL
       const returnUrl = `/invite/accept?token=${token}`;
       navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
@@ -120,6 +141,13 @@ export function AcceptInvitePage() {
     } catch (err: any) {
       console.error('Accept invite error:', err.message);
       const msg = err.message || '';
+
+      // Handle authentication errors - redirect to login
+      if (msg.toLowerCase().includes('authenticated') || msg.toLowerCase().includes('auth')) {
+        const returnUrl = `/invite/accept?token=${token}`;
+        navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+        return;
+      }
 
       if (msg.includes('cancelled')) {
         setStatus('cancelled');
@@ -201,8 +229,8 @@ export function AcceptInvitePage() {
     navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
   };
 
-  // Loading state
-  if (authLoading || status === 'loading') {
+  // Loading state (including session verification)
+  if (authLoading || status === 'loading' || hasValidSession === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -216,7 +244,8 @@ export function AcceptInvitePage() {
   }
 
   // Pending state for unauthenticated users - Show invite info + signup/login options
-  if (status === 'pending' && !isAuthenticated) {
+  // Use hasValidSession to check actual Supabase session, not just authStore state
+  if (status === 'pending' && !hasValidSession) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -356,7 +385,8 @@ export function AcceptInvitePage() {
   }
 
   // Pending state for authenticated users - Show accept/decline buttons
-  if (status === 'pending' && isAuthenticated) {
+  // Only show if we have a verified valid Supabase session
+  if (status === 'pending' && hasValidSession) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
