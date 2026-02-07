@@ -47,7 +47,16 @@ import {
   CodeSquare,
   Upload,
   Link2,
+  // Notion-style block icons
+  Info,
+  ChevronRight,
+  Play,
+  Calculator,
+  List as ListIcon,
+  Link2 as BookmarkIcon,
+  Paperclip,
 } from 'lucide-react';
+import { CalloutNode, ToggleNode, VideoNode, EquationNode, TableOfContentsNode, BookmarkNode, FileNode } from './extensions';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -305,6 +314,49 @@ const SlashCommandsMenu = ({
       label: 'Table',
       description: 'Insert a table',
       action: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+    },
+    // Notion-style blocks
+    {
+      icon: <Info className="h-4 w-4" />,
+      label: 'Callout',
+      description: 'Info, warning, or tip box',
+      action: () => editor.chain().focus().insertContent({ type: 'callout', attrs: { type: 'info' }, content: [{ type: 'paragraph' }] }).run()
+    },
+    {
+      icon: <ChevronRight className="h-4 w-4" />,
+      label: 'Toggle',
+      description: 'Collapsible content section',
+      action: () => editor.chain().focus().insertContent({ type: 'toggle', attrs: { title: '' }, content: [{ type: 'paragraph' }] }).run()
+    },
+    {
+      icon: <Play className="h-4 w-4" />,
+      label: 'Video',
+      description: 'Embed YouTube or Vimeo video',
+      action: () => editor.chain().focus().insertContent({ type: 'video', attrs: { src: '', caption: '' } }).run()
+    },
+    {
+      icon: <Calculator className="h-4 w-4" />,
+      label: 'Equation',
+      description: 'LaTeX math equation',
+      action: () => editor.chain().focus().insertContent({ type: 'equation', attrs: { latex: '', display: true } }).run()
+    },
+    {
+      icon: <ListIcon className="h-4 w-4" />,
+      label: 'Table of Contents',
+      description: 'Auto-generated from headings',
+      action: () => editor.chain().focus().insertContent({ type: 'tableOfContents' }).run()
+    },
+    {
+      icon: <BookmarkIcon className="h-4 w-4" />,
+      label: 'Bookmark',
+      description: 'Add a web link preview',
+      action: () => editor.chain().focus().insertContent({ type: 'bookmark', attrs: { url: '', title: '', description: '' } }).run()
+    },
+    {
+      icon: <Paperclip className="h-4 w-4" />,
+      label: 'File',
+      description: 'Attach a file',
+      action: () => editor.chain().focus().insertContent({ type: 'file', attrs: { fileName: '', fileSize: 0, fileType: '', fileUrl: '' } }).run()
     },
   ];
 
@@ -596,6 +648,14 @@ export function BlockEditor({
           onSelectionChange: onCursorPositionChange,
         }),
       ] : []),
+      // Notion-style block extensions
+      CalloutNode,
+      ToggleNode,
+      VideoNode,
+      EquationNode,
+      TableOfContentsNode,
+      BookmarkNode,
+      FileNode,
     ],
     content: yjsDoc ? undefined : content, // Don't set content when using Yjs (doc is the source of truth)
     editable,

@@ -13,6 +13,7 @@ import {
   Bot,
   User,
   Check,
+  CheckCircle,
   X,
   Trash2,
   MessageSquare,
@@ -38,6 +39,10 @@ import {
   FileCode,
   FileSpreadsheet,
   Film,
+  RotateCcw,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -67,6 +72,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plug, ExternalLink, Eye, Save } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAISettings } from '@/hooks/useAISettings';
+import { prdService } from '@/lib/services/prdService';
 
 const MIN_HISTORY_WIDTH = 200;
 const MAX_HISTORY_WIDTH = 400;
@@ -298,6 +304,46 @@ function getFileTypeIcon(type: UploadedFile['type']) {
     case 'code': return <FileCode className="h-4 w-4" />;
     default: return <File className="h-4 w-4" />;
   }
+}
+
+// Detect if content looks like a PRD (Product Requirements Document)
+function isPRDLikeContent(content: string): boolean {
+  if (!content || content.length < 300) return false;
+
+  // Count indicators of PRD-like content
+  let score = 0;
+
+  // Check for H1/H2/H3 headings
+  const headingCount = (content.match(/^#{1,3}\s+.+$/gm) || []).length;
+  if (headingCount >= 3) score += 2;
+  if (headingCount >= 5) score += 1;
+
+  // Check for PRD-related keywords
+  const prdKeywords = [
+    /\b(요구사항|requirements?|기능|features?|목표|goals?|objectives?)\b/gi,
+    /\b(overview|개요|summary|요약|배경|background|context)\b/gi,
+    /\b(user\s*stor(y|ies)|사용자\s*스토리|유스\s*케이스|use\s*cases?)\b/gi,
+    /\b(scope|범위|constraints?|제약|assumptions?|가정)\b/gi,
+    /\b(acceptance\s*criteria|인수\s*기준|테스트\s*케이스|test\s*cases?)\b/gi,
+    /\b(milestone|마일스톤|timeline|일정|deliverables?|산출물)\b/gi,
+  ];
+
+  for (const pattern of prdKeywords) {
+    if (pattern.test(content)) score += 1;
+  }
+
+  // Check for numbered lists or bullet points
+  const listItemCount = (content.match(/^[\s]*[-*•]\s+.+$|^[\s]*\d+\.\s+.+$/gm) || []).length;
+  if (listItemCount >= 5) score += 1;
+  if (listItemCount >= 10) score += 1;
+
+  // Check for tables
+  if (content.includes('|') && (content.match(/\|.*\|/g) || []).length >= 3) {
+    score += 1;
+  }
+
+  // Threshold: score >= 4 means it's likely a PRD
+  return score >= 4;
 }
 
 export function LilyChat() {
@@ -584,6 +630,36 @@ export function LilyChat() {
     await generatePRD();
   };
 
+  // Save message content as a new PRD
+  const saveAsPRD = useCallback(async (content: string, title: string) => {
+    if (!currentTeam) {
+      toast.error(t('lily.noTeamSelected', '팀을 선택해주세요'));
+      return;
+    }
+
+    try {
+      // Extract first paragraph as overview
+      const overviewMatch = content.match(/^(?!#)(.+?)(?:\n|$)/m);
+      const overview = overviewMatch?.[1]?.trim() || '';
+
+      // Create PRD with title and overview
+      const prd = await prdService.createPRD(currentTeam.id, {
+        title,
+        overview,
+      });
+
+      // Update PRD with full content
+      if (prd) {
+        await prdService.updatePRD(prd.id, { content });
+        toast.success(t('lily.prdCreated', 'PRD가 생성되었습니다'));
+        navigate(`/prd/${prd.id}`);
+      }
+    } catch (error) {
+      console.error('Failed to save as PRD:', error);
+      toast.error(t('lily.prdCreateFailed', 'PRD 생성에 실패했습니다'));
+    }
+  }, [currentTeam, t, navigate]);
+
   const handleGenerateTickets = async () => {
     if (currentTeam) {
       await generateTickets(currentTeam.id);
@@ -609,6 +685,80 @@ export function LilyChat() {
       await analyzeProject(currentTeam.id);
     }
   };
+
+  // User message action callbacks
+  const handleEditMessage = useCallback((messageContent: string, messageId: string) => {
+    // Put the message content back in the input for editing
+    setInput(messageContent);
+    // Focus the input
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea');
+      textarea?.focus();
+    }, 100);
+  }, []);
+
+  const handleCopyMessage = useCallback(async (messageContent: string) => {
+    try {
+      await navigator.clipboard.writeText(messageContent);
+      toast.success(t('lily.copied', '복사되었습니다'));
+    } catch {
+      toast.error(t('lily.copyFailed', '복사에 실패했습니다'));
+    }
+  }, [t]);
+
+  const handleRetryMessage = useCallback(async (messageContent: string, messageIndex: number) => {
+    // Remove this message and all following messages, then resend
+    const messagesToKeep = messages.slice(0, messageIndex);
+    // Clear and resend
+    clearChat();
+    // Restore previous messages
+    for (const msg of messagesToKeep) {
+      // Just set the input and send
+    }
+    // Send the message again
+    await sendMessage(messageContent, {
+      teamId: currentTeam?.id,
+      mcpConnectors: connectors,
+      canvasMode: canvasMode,
+    });
+  }, [messages, clearChat, sendMessage, currentTeam?.id, connectors, canvasMode]);
+
+  // Scroll navigation
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const scrollToMessage = useCallback((direction: 'prev' | 'next') => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const messageElements = Array.from(container.querySelectorAll('[data-message-id]'));
+    const containerRect = container.getBoundingClientRect();
+    const containerTop = container.scrollTop;
+
+    // Find the currently visible message
+    let currentIndex = 0;
+    for (let i = 0; i < messageElements.length; i++) {
+      const el = messageElements[i] as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      if (rect.top >= containerRect.top && rect.top <= containerRect.bottom) {
+        currentIndex = i;
+        break;
+      }
+    }
+
+    const targetIndex = direction === 'prev'
+      ? Math.max(0, currentIndex - 1)
+      : Math.min(messageElements.length - 1, currentIndex + 1);
+
+    const targetElement = messageElements[targetIndex] as HTMLElement;
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const quickSuggestions = [
     t('lily.suggestion1', 'Plan a new feature'),
@@ -953,7 +1103,7 @@ export function LilyChat() {
                 }
 
                 return (
-                  <div key={message.id}>
+                  <div key={message.id} data-message-id={message.id}>
                     {/* Timeline Thinking Block - OUTSIDE the speech bubble */}
                     {message.role === 'assistant' && thinkingContent && (
                       <TimelineThinkingBlock content={thinkingContent} t={t} />
@@ -978,7 +1128,7 @@ export function LilyChat() {
                       </Avatar>
                       <div
                         className={cn(
-                          "rounded-lg px-3 py-1.5 max-w-[85%]",
+                          "group rounded-lg px-3 py-1.5 max-w-[85%]",
                           message.role === 'user'
                             ? "bg-primary text-primary-foreground text-[13px]"
                             : "bg-muted"
@@ -1022,6 +1172,59 @@ export function LilyChat() {
                         <span className="text-[9px] opacity-60 mt-0.5 block">
                           {new Date(message.timestamp).toLocaleTimeString()}
                         </span>
+
+                        {/* User Message Actions - Edit, Copy, Retry */}
+                        {message.role === 'user' && (
+                          <div className="flex items-center gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
+                              onClick={() => handleEditMessage(cleanContent, message.id)}
+                              title={t('lily.edit', '수정')}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
+                              onClick={() => handleCopyMessage(cleanContent)}
+                              title={t('lily.copy', '복사')}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
+                              onClick={() => handleRetryMessage(cleanContent, messages.indexOf(message))}
+                              title={t('lily.retry', '다시 시도')}
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* PRD Save Button - appears for PRD-like content */}
+                        {message.role === 'assistant' && isPRDLikeContent(cleanContent || '') && (
+                          <div className="mt-2 pt-2 border-t border-border/50">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 h-7 text-xs"
+                              onClick={() => {
+                                // Extract a title from the first heading or use default
+                                const titleMatch = (cleanContent || '').match(/^#+\s+(.+)$/m);
+                                const title = titleMatch?.[1] || t('lily.untitledPRD', 'Untitled PRD');
+                                saveAsPRD(cleanContent || '', title);
+                              }}
+                            >
+                              <FileText className="h-3 w-3" />
+                              {t('lily.saveAsPRD', 'PRD로 저장')}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1044,50 +1247,43 @@ export function LilyChat() {
                 </div>
               )}
 
-              {/* Suggested Issues - Enhanced */}
-              {suggestedIssues.length > 0 && (
-                <SuggestedIssuesList
-                  issues={suggestedIssues}
-                  onAcceptIssue={async (index, issue) => {
-                    if (currentTeam) {
-                      try {
-                        await createIssue(currentTeam.id, {
-                          title: issue.title || 'Untitled Issue',
-                          description: issue.description,
-                          priority: issue.priority || 'medium',
-                          status: 'backlog',
-                        });
-                        acceptSuggestedIssue(index);
-                        toast.success(t('issues.issueCreated'));
-                      } catch (error) {
-                        toast.error(t('common.error'));
-                      }
-                    }
-                  }}
-                  onRejectIssue={rejectSuggestedIssue}
-                  onAcceptAll={async () => {
-                    if (currentTeam) {
-                      for (let i = suggestedIssues.length - 1; i >= 0; i--) {
-                        const issue = suggestedIssues[i];
-                        try {
-                          await createIssue(currentTeam.id, {
-                            title: issue.title || 'Untitled Issue',
-                            description: issue.description,
-                            priority: issue.priority || 'medium',
-                            status: 'backlog',
-                          });
-                          acceptSuggestedIssue(i);
-                        } catch (error) {
-                          console.error('Failed to create issue:', error);
-                        }
-                      }
-                      toast.success(t('lily.allIssuesCreated', 'All issues created'));
-                    }
-                  }}
-                />
-              )}
+              {/* Suggested Issues - Now shown in right panel, not here */}
+              {/* SuggestedIssuesList moved to right panel */}
             </div>
           </ScrollArea>
+
+          {/* Floating Navigation Buttons */}
+          {messages.length > 2 && (
+            <div className="absolute right-6 bottom-24 flex flex-col gap-1.5 z-10">
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm border"
+                onClick={scrollToTop}
+                title={t('lily.scrollToTop', '맨 위로')}
+              >
+                <ChevronsUp className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm border"
+                onClick={() => scrollToMessage('prev')}
+                title={t('lily.prevMessage', '이전 대화')}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm border"
+                onClick={() => scrollToMessage('next')}
+                title={t('lily.nextMessage', '다음 대화')}
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
           {/* Input */}
           <div className="border-t border-border p-3 sm:p-4">
@@ -1266,8 +1462,8 @@ export function LilyChat() {
           </div>
         </div>
 
-        {/* Artifact Panel - Real-time Preview (only show when code detected or artifact exists) */}
-        {(showArtifact && artifact) || showCanvasPanel ? (
+        {/* Unified Right Panel - Shows for canvas mode OR suggested issues */}
+        {(canvasMode || suggestedIssues.length > 0 || (showArtifact && artifact)) ? (
           <div className="w-[450px] border-l border-border flex flex-col bg-background">
             {/* Artifact Header */}
             <div className="h-12 flex items-center justify-between px-4 border-b border-border">
@@ -1291,6 +1487,29 @@ export function LilyChat() {
                   </>
                 )}
               </div>
+              {/* Tab Selector for Code/Issues when both exist */}
+              {(canvasMode && suggestedIssues.length > 0) && (
+                <div className="flex gap-1 rounded-md border border-border ml-2">
+                  <Button
+                    variant={showCanvasPanel ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowCanvasPanel(true)}
+                  >
+                    <Code className="h-3 w-3 mr-1" />
+                    Code
+                  </Button>
+                  <Button
+                    variant={!showCanvasPanel ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowCanvasPanel(false)}
+                  >
+                    <Ticket className="h-3 w-3 mr-1" />
+                    Issues ({suggestedIssues.length})
+                  </Button>
+                </div>
+              )}
               <div className="flex items-center gap-1">
                 {showCanvasPanel && (
                   <div className="flex rounded-md border border-border mr-2">
@@ -1446,6 +1665,101 @@ export function LilyChat() {
                       )}
                     </div>
                   )
+                ) : suggestedIssues.length > 0 && !showCanvasPanel ? (
+                  /* Issues Panel Content */
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-sm flex items-center gap-2">
+                        <Ticket className="h-4 w-4 text-green-500" />
+                        {t('lily.suggestedIssues', 'Suggested Issues')} ({suggestedIssues.length})
+                      </h3>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          if (currentTeam) {
+                            for (let i = suggestedIssues.length - 1; i >= 0; i--) {
+                              const issue = suggestedIssues[i];
+                              try {
+                                await createIssue(currentTeam.id, {
+                                  title: issue.title || 'Untitled Issue',
+                                  description: issue.description,
+                                  priority: issue.priority || 'medium',
+                                  status: 'backlog',
+                                });
+                                acceptSuggestedIssue(i);
+                              } catch (error) {
+                                console.error('Failed to create issue:', error);
+                              }
+                            }
+                            toast.success(t('lily.allIssuesCreated', 'All issues created'));
+                          }
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        {t('lily.acceptAll', 'Accept All')}
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {suggestedIssues.map((issue, index) => (
+                        <div key={index} className="p-3 border rounded-lg bg-card hover:bg-accent/5 transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm truncate">{issue.title || 'Untitled Issue'}</h4>
+                              {issue.description && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{issue.description}</p>
+                              )}
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className={cn(
+                                  "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                                  issue.priority === 'urgent' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                                  issue.priority === 'high' && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                                  issue.priority === 'medium' && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+                                  issue.priority === 'low' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                                  !issue.priority && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+                                )}>
+                                  {issue.priority || 'none'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={async () => {
+                                  if (currentTeam) {
+                                    try {
+                                      await createIssue(currentTeam.id, {
+                                        title: issue.title || 'Untitled Issue',
+                                        description: issue.description,
+                                        priority: issue.priority || 'medium',
+                                        status: 'backlog',
+                                      });
+                                      acceptSuggestedIssue(index);
+                                      toast.success(t('issues.issueCreated'));
+                                    } catch (error) {
+                                      toast.error(t('common.error'));
+                                    }
+                                  }
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => rejectSuggestedIssue(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : artifact?.type === 'code' ? (
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                     <code>{artifact.content}</code>

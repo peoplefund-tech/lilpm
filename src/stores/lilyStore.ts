@@ -36,22 +36,22 @@ interface LilyStore {
   dataSources: { id: string; name: string; type: string }[];
   selectedProvider: AIProvider;
   abortController: AbortController | null;
-  
+
   // Artifact state for real-time preview
   artifact: Artifact | null;
   showArtifact: boolean;
-  
+
   // Memory/compression state
   conversationMemory: ConversationMemory | null;
-  
+
   // File attachment type
   uploadedFiles?: { name: string; type: string; size: number; base64?: string; category: string }[];
-  
+
   // Actions
-  sendMessage: (message: string, context?: { 
-    teamId?: string; 
-    projectId?: string; 
-    mcpConnectors?: MCPConnector[]; 
+  sendMessage: (message: string, context?: {
+    teamId?: string;
+    projectId?: string;
+    mcpConnectors?: MCPConnector[];
     canvasMode?: boolean;
     files?: { name: string; type: string; size: number; base64?: string; category: string }[];
   }) => Promise<void>;
@@ -72,7 +72,7 @@ interface LilyStore {
   rejectSuggestedIssue: (index: number) => void;
   setProvider: (provider: AIProvider) => void;
   compressConversation: () => Promise<void>;
-  
+
   // Artifact actions
   setArtifact: (artifact: Artifact | null) => void;
   updateArtifactContent: (content: string) => void;
@@ -90,13 +90,13 @@ function parseMCPToolCalls(content: string): MCPToolCall[] {
   const toolCalls: MCPToolCall[] = [];
   const regex = /\[MCP_TOOL_CALL\]([\s\S]*?)\[\/MCP_TOOL_CALL\]/g;
   let match;
-  
+
   while ((match = regex.exec(content)) !== null) {
     const block = match[1];
     const tool = block.match(/tool:\s*(.+)/)?.[1]?.trim();
     const action = block.match(/action:\s*(.+)/)?.[1]?.trim();
     const paramsMatch = block.match(/params:\s*(\{[\s\S]*\}|\{\})/);
-    
+
     let params = {};
     if (paramsMatch) {
       try {
@@ -105,12 +105,12 @@ function parseMCPToolCalls(content: string): MCPToolCall[] {
         params = {};
       }
     }
-    
+
     if (tool && action) {
       toolCalls.push({ tool, action, params });
     }
   }
-  
+
   return toolCalls;
 }
 
@@ -119,7 +119,7 @@ function extractMCPConfig(connector: MCPConnector): { endpoint: string; apiKey: 
   let endpoint = connector.apiEndpoint || '';
   let apiKey = connector.apiKey || '';
   const mcpConfig = connector.mcpConfig as any;
-  
+
   if (mcpConfig) {
     // Format 1: { url: "...", headers: { Authorization: "Bearer ..." } }
     if (mcpConfig.url) {
@@ -132,7 +132,7 @@ function extractMCPConfig(connector: MCPConnector): { endpoint: string; apiKey: 
     else if (mcpConfig.args) {
       const urlArg = mcpConfig.args.find((arg: string) => arg.startsWith('http'));
       if (urlArg) endpoint = urlArg;
-      
+
       const authIndex = mcpConfig.args.findIndex((arg: string) => arg === '--header');
       if (authIndex !== -1 && mcpConfig.args[authIndex + 1]) {
         const authHeader = mcpConfig.args[authIndex + 1];
@@ -156,7 +156,7 @@ function extractMCPConfig(connector: MCPConnector): { endpoint: string; apiKey: 
       }
     }
   }
-  
+
   return { endpoint, apiKey };
 }
 
@@ -168,16 +168,16 @@ async function callMCPServer(
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     const { endpoint, apiKey } = extractMCPConfig(connector);
-    
+
     if (!endpoint) {
       return { success: false, error: 'No API endpoint configured' };
     }
-    
+
     console.log('[MCP] Calling via proxy:', endpoint, action);
-    
+
     // Get auth token for Edge Function
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     // Call through Edge Function proxy to avoid CORS
     const response = await fetch(MCP_PROXY_URL, {
       method: 'POST',
@@ -192,24 +192,24 @@ async function callMCPServer(
         params,
       }),
     });
-    
+
     const result = await response.json();
     console.log('[MCP] Proxy response:', result);
-    
+
     if (result.success) {
       return { success: true, data: result.data };
     } else {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: result.error || 'MCP call failed',
         data: result.attempts,
       };
     }
   } catch (error) {
     console.error('[MCP] Call failed:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'MCP call failed' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'MCP call failed'
     };
   }
 }
@@ -219,17 +219,17 @@ function parseIssueSuggestions(content: string): Partial<Issue>[] {
   const issues: Partial<Issue>[] = [];
   const regex = /\[ISSUE_SUGGESTION\]([\s\S]*?)\[\/ISSUE_SUGGESTION\]/g;
   let match;
-  
+
   while ((match = regex.exec(content)) !== null) {
     const block = match[1];
-    
+
     // Parse title
     const title = block.match(/- title:\s*(.+)/)?.[1]?.trim();
-    
+
     // Parse type (new field)
     const typeMatch = block.match(/- type:\s*(\w+)/)?.[1]?.trim();
     const type = typeMatch as Issue['type'] || 'task';
-    
+
     // Parse multiline description (supports | for multiline)
     let description = '';
     const descMatch = block.match(/- description:\s*\|?\s*([\s\S]*?)(?=\n- (?:priority|estimate|acceptance_criteria|type)|$)/);
@@ -239,14 +239,14 @@ function parseIssueSuggestions(content: string): Partial<Issue>[] {
       // Fallback to single line
       description = block.match(/- description:\s*(.+)/)?.[1]?.trim() || '';
     }
-    
+
     // Parse priority
     const priority = block.match(/- priority:\s*(\w+)/)?.[1]?.trim() as Issue['priority'] || 'medium';
-    
+
     // Parse estimate (new field)
     const estimateMatch = block.match(/- estimate:\s*(\d+)/)?.[1];
     const estimate = estimateMatch ? parseInt(estimateMatch, 10) : undefined;
-    
+
     // Parse acceptance criteria (new field for user stories)
     let acceptanceCriteria: string[] | undefined;
     const acMatch = block.match(/- acceptance_criteria:\s*\|?\s*([\s\S]*?)(?=\n- (?!.*\[)|$)/);
@@ -257,11 +257,11 @@ function parseIssueSuggestions(content: string): Partial<Issue>[] {
         .map(line => line.replace(/^[\s-]*\[[ x]?\]\s*/, '').trim())
         .filter(line => line.length > 0);
     }
-    
+
     if (title) {
-      issues.push({ 
-        title, 
-        description, 
+      issues.push({
+        title,
+        description,
         priority,
         type,
         estimate,
@@ -269,7 +269,7 @@ function parseIssueSuggestions(content: string): Partial<Issue>[] {
       });
     }
   }
-  
+
   return issues;
 }
 
@@ -329,9 +329,9 @@ async function streamChat({
       'Content-Type': 'application/json',
       ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
-    body: JSON.stringify({ 
-      messages, 
-      provider, 
+    body: JSON.stringify({
+      messages,
+      provider,
       stream: true,
       mcpTools: activeMcpTools,
       canvasMode: canvasMode || false,
@@ -384,7 +384,7 @@ async function streamChat({
   while (!streamDone) {
     const { done, value } = await reader.read();
     if (done) break;
-    
+
     textBuffer += decoder.decode(value, { stream: true });
 
     let newlineIndex: number;
@@ -405,9 +405,9 @@ async function streamChat({
       try {
         const parsed = JSON.parse(jsonStr);
         // Handle different response formats
-        const content = parsed.choices?.[0]?.delta?.content || 
-                       parsed.delta?.text ||
-                       parsed.content?.[0]?.text || '';
+        const content = parsed.choices?.[0]?.delta?.content ||
+          parsed.delta?.text ||
+          parsed.content?.[0]?.text || '';
         if (content) {
           fullContent += content;
           onDelta(content);
@@ -464,16 +464,16 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
   // Compress conversation when it gets too long
   compressConversation: async () => {
     const { messages, selectedProvider } = get();
-    
+
     if (messages.length < MESSAGES_BEFORE_COMPRESSION) return;
-    
+
     // Get messages to summarize (all except the most recent ones)
     const messagesToSummarize = messages.slice(0, -MESSAGES_TO_KEEP_FULL);
     if (messagesToSummarize.length === 0) return;
-    
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       // Create summary prompt
       const summaryMessages = [
         {
@@ -490,7 +490,7 @@ ${messagesToSummarize.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m
 Provide a summary in 2-3 paragraphs.`
         }
       ];
-      
+
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
@@ -503,31 +503,31 @@ Provide a summary in 2-3 paragraphs.`
           stream: false,
         }),
       });
-      
+
       if (!resp.ok) {
         console.error('Failed to compress conversation');
         return;
       }
-      
+
       const data = await resp.json();
       const summary = data.content || data.message || '';
-      
+
       if (summary) {
         // Store memory and keep only recent messages
         const recentMessages = messages.slice(-MESSAGES_TO_KEEP_FULL);
-        
+
         const newMemory: ConversationMemory = {
           summary,
           keyPoints: [],
           lastUpdated: new Date().toISOString(),
           messageCount: messages.length,
         };
-        
+
         set({
           conversationMemory: newMemory,
           messages: recentMessages,
         });
-        
+
         console.log('[Memory] Conversation compressed:', {
           originalCount: messages.length,
           keptCount: recentMessages.length,
@@ -550,7 +550,7 @@ Provide a summary in 2-3 paragraphs.`
   loadConversations: async (teamId?: string) => {
     try {
       const conversations = await conversationService.getConversations(teamId);
-      set({ 
+      set({
         conversations: conversations.map(c => ({
           id: c.id,
           title: c.title,
@@ -592,7 +592,7 @@ Provide a summary in 2-3 paragraphs.`
         undefined,
         get().selectedProvider === 'auto' ? 'anthropic' : get().selectedProvider
       );
-      
+
       set((state) => ({
         currentConversationId: conversation.id,
         messages: [],
@@ -601,7 +601,7 @@ Provide a summary in 2-3 paragraphs.`
           ...state.conversations,
         ],
       }));
-      
+
       return conversation.id;
     } catch (error) {
       console.error('Failed to create conversation:', error);
@@ -614,8 +614,8 @@ Provide a summary in 2-3 paragraphs.`
       await conversationService.deleteConversation(conversationId);
       set((state) => ({
         conversations: state.conversations.filter(c => c.id !== conversationId),
-        currentConversationId: state.currentConversationId === conversationId 
-          ? null 
+        currentConversationId: state.currentConversationId === conversationId
+          ? null
           : state.currentConversationId,
         messages: state.currentConversationId === conversationId ? [] : state.messages,
       }));
@@ -628,7 +628,7 @@ Provide a summary in 2-3 paragraphs.`
     try {
       await conversationService.updateConversation(conversationId, { title });
       set((state) => ({
-        conversations: state.conversations.map(c => 
+        conversations: state.conversations.map(c =>
           c.id === conversationId ? { ...c, title } : c
         ),
       }));
@@ -641,16 +641,16 @@ Provide a summary in 2-3 paragraphs.`
     try {
       // Store pinned state in localStorage since we don't have a DB field for it
       const pinnedConversations = JSON.parse(localStorage.getItem('pinnedConversations') || '[]') as string[];
-      
+
       if (pinned && !pinnedConversations.includes(conversationId)) {
         pinnedConversations.push(conversationId);
       } else if (!pinned) {
         const index = pinnedConversations.indexOf(conversationId);
         if (index > -1) pinnedConversations.splice(index, 1);
       }
-      
+
       localStorage.setItem('pinnedConversations', JSON.stringify(pinnedConversations));
-      
+
       // Sort conversations to put pinned ones first
       set((state) => ({
         conversations: [...state.conversations].sort((a, b) => {
@@ -671,18 +671,18 @@ Provide a summary in 2-3 paragraphs.`
       const conversations = [...state.conversations];
       const currentIndex = conversations.findIndex(c => c.id === conversationId);
       if (currentIndex === -1) return state;
-      
+
       const [removed] = conversations.splice(currentIndex, 1);
       conversations.splice(newIndex, 0, removed);
-      
+
       return { conversations };
     });
   },
 
-  sendMessage: async (message: string, context?: { 
-    teamId?: string; 
-    projectId?: string; 
-    mcpConnectors?: MCPConnector[]; 
+  sendMessage: async (message: string, context?: {
+    teamId?: string;
+    projectId?: string;
+    mcpConnectors?: MCPConnector[];
     canvasMode?: boolean;
     files?: { name: string; type: string; size: number; base64?: string; category: string }[];
   }) => {
@@ -692,7 +692,7 @@ Provide a summary in 2-3 paragraphs.`
       const fileDescriptions = context.files.map(f => `[File: ${f.name} (${f.category})]`).join(' ');
       userContent = message ? `${message}\n\n${fileDescriptions}` : fileDescriptions;
     }
-    
+
     const userMessage: LilyMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -722,7 +722,7 @@ Provide a summary in 2-3 paragraphs.`
     // Prepare messages for API with memory context
     const { messages, conversationMemory } = get();
     const apiMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
-    
+
     // If we have memory from compressed conversation, include it first
     if (conversationMemory?.summary) {
       apiMessages.push({
@@ -730,7 +730,7 @@ Provide a summary in 2-3 paragraphs.`
         content: `[Previous Conversation Summary]\n${conversationMemory.summary}\n\n[Continue from here with the recent messages below]`,
       });
     }
-    
+
     // Add current messages
     messages.forEach(m => {
       apiMessages.push({
@@ -739,7 +739,7 @@ Provide a summary in 2-3 paragraphs.`
       });
     });
     apiMessages.push({ role: 'user', content: message });
-    
+
     // Check if we need to compress after this message
     const totalMessages = messages.length + 1;
     if (totalMessages >= MESSAGES_BEFORE_COMPRESSION && !conversationMemory) {
@@ -748,35 +748,78 @@ Provide a summary in 2-3 paragraphs.`
     }
 
     let assistantContent = '';
-    
+    let lineBuffer = ''; // Buffer for line-by-line output
+
     const updateAssistantMessage = (chunk: string) => {
-      assistantContent += chunk;
-      set((state) => {
-        const lastMsg = state.messages[state.messages.length - 1];
-        if (lastMsg?.role === 'assistant') {
+      // Accumulate in line buffer
+      lineBuffer += chunk;
+
+      // Check for complete lines
+      const lines = lineBuffer.split('\n');
+
+      // If we have more than one part, the last one is incomplete
+      if (lines.length > 1) {
+        // Add complete lines to content
+        const completeLines = lines.slice(0, -1).join('\n');
+        assistantContent += completeLines + '\n';
+        lineBuffer = lines[lines.length - 1]; // Keep incomplete part
+
+        // Update state with complete lines
+        set((state) => {
+          const lastMsg = state.messages[state.messages.length - 1];
+          if (lastMsg?.role === 'assistant') {
+            return {
+              messages: state.messages.map((m, i) =>
+                i === state.messages.length - 1
+                  ? { ...m, content: assistantContent }
+                  : m
+              ),
+            };
+          }
+          // Create new assistant message
           return {
-            messages: state.messages.map((m, i) => 
-              i === state.messages.length - 1 
-                ? { ...m, content: assistantContent }
-                : m
-            ),
+            messages: [...state.messages, {
+              id: Date.now().toString(),
+              role: 'assistant' as const,
+              content: assistantContent,
+              timestamp: new Date().toISOString(),
+            }],
           };
-        }
-        // Create new assistant message
-        return {
-          messages: [...state.messages, {
-            id: Date.now().toString(),
-            role: 'assistant' as const,
-            content: assistantContent,
-            timestamp: new Date().toISOString(),
-          }],
-        };
-      });
+        });
+      }
+    };
+
+    // Flush remaining buffer when done
+    const flushBuffer = () => {
+      if (lineBuffer) {
+        assistantContent += lineBuffer;
+        lineBuffer = '';
+        set((state) => {
+          const lastMsg = state.messages[state.messages.length - 1];
+          if (lastMsg?.role === 'assistant') {
+            return {
+              messages: state.messages.map((m, i) =>
+                i === state.messages.length - 1
+                  ? { ...m, content: assistantContent }
+                  : m
+              ),
+            };
+          }
+          return {
+            messages: [...state.messages, {
+              id: Date.now().toString(),
+              role: 'assistant' as const,
+              content: assistantContent,
+              timestamp: new Date().toISOString(),
+            }],
+          };
+        });
+      }
     };
 
     try {
       await streamChat({
-        messages: apiMessages,
+        messages: apiMessages as { role: 'user' | 'assistant'; content: string }[],
         provider: get().selectedProvider,
         mcpConnectors: context?.mcpConnectors,
         canvasMode: context?.canvasMode,
@@ -784,9 +827,12 @@ Provide a summary in 2-3 paragraphs.`
         signal: abortController.signal,
         onDelta: (chunk) => updateAssistantMessage(chunk),
         onDone: async (fullContent) => {
+          // Flush remaining buffered content first
+          flushBuffer();
+
           const issues = parseIssueSuggestions(fullContent);
           const mcpCalls = parseMCPToolCalls(fullContent);
-          
+
           // Process MCP tool calls
           if (mcpCalls.length > 0 && context?.mcpConnectors) {
             for (const call of mcpCalls) {
@@ -797,15 +843,15 @@ Provide a summary in 2-3 paragraphs.`
                   call.tool.toLowerCase().includes(c.name.toLowerCase())
                 )
               );
-              
+
               if (connector) {
                 // Update message to show we're calling MCP
                 const mcpStatusMsg = `\n\n⏳ **MCP 호출 중**: ${connector.name} - ${call.action}...`;
                 updateAssistantMessage(mcpStatusMsg);
-                
+
                 // Call MCP server
                 const result = await callMCPServer(connector, call.action, call.params);
-                
+
                 // Add result to conversation
                 let resultMsg = '';
                 if (result.success) {
@@ -820,7 +866,7 @@ Provide a summary in 2-3 paragraphs.`
               }
             }
           }
-          
+
           // Save assistant message to database if we have a conversation
           const convId = get().currentConversationId;
           if (convId && fullContent) {
@@ -848,7 +894,7 @@ Provide a summary in 2-3 paragraphs.`
                   }
                   await conversationService.updateConversation(convId, { title });
                   set(state => ({
-                    conversations: state.conversations.map(c => 
+                    conversations: state.conversations.map(c =>
                       c.id === convId ? { ...c, title } : c
                     ),
                   }));
@@ -937,7 +983,7 @@ Provide a summary in 2-3 paragraphs.`
   generateTickets: async (teamId: string) => {
     const prd = get().suggestedPRD;
     const messages = get().messages;
-    
+
     if (messages.length === 0) return [];
 
     const ticketPrompt = `지금까지의 대화와 PRD를 바탕으로 개발 이슈/티켓을 생성해주세요. 각 티켓은 다음 형식으로 제안해주세요:
@@ -951,7 +997,7 @@ Provide a summary in 2-3 paragraphs.`
 최소 3개 이상의 구체적인 개발 태스크를 제안해주세요.`;
 
     await get().sendMessage(ticketPrompt);
-    
+
     return [];
   },
 

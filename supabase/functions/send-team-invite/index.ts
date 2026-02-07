@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
-const FUNCTION_VERSION = '2026-02-06.3';
+const FUNCTION_VERSION = '2026-02-07.1'; // Fixed: Gmail SMTP for all users, no auto-registration
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -206,36 +206,33 @@ serve(async (req) => {
         console.log('Gmail credentials not configured - skipping email');
       }
     } else {
-      // New user: Use Supabase Auth invite
-      console.log(`Sending Supabase Auth invite to new user ${email}`);
+      // New user: Send invite via Gmail SMTP (NO auto-registration)
+      // IMPORTANT: Do NOT use supabase.auth.admin.inviteUserByEmail() as it auto-creates users
+      console.log(`Sending invite email to new user ${email} via Gmail SMTP`);
 
-      const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          team_name: teamName,
-          inviter_name: inviterName,
-          role: role,
-          invite_link: inviteLink,
-        },
-        redirectTo: inviteLink,
-      });
+      if (gmailUser && gmailPassword) {
+        const emailHtml = generateEmailHtml(inviterName, teamName, role, inviteLink, email);
+        const subject = `${inviterName} invited you to join ${teamName} on Lil PM`;
 
-      if (emailError) {
-        console.error('Supabase Auth invite error:', emailError);
-
-        // If already registered, try Gmail as fallback
-        if (emailError.message?.includes('already been registered') && gmailUser && gmailPassword) {
-          console.log('User already registered - sending via Gmail instead');
-          const emailHtml = generateEmailHtml(inviterName, teamName, role, inviteLink, email);
-          const subject = `${inviterName} invited you to join ${teamName} on Lil PM`;
-
-          const result = await sendGmailEmail(gmailUser, gmailPassword, email, subject, emailHtml);
-          if (result.success) {
-            emailSent = true;
-          }
+        const result = await sendGmailEmail(gmailUser, gmailPassword, email, subject, emailHtml);
+        if (result.success) {
+          emailSent = true;
+          console.log(`Invite email sent successfully to new user ${email}`);
+        } else {
+          console.error('Gmail send failed for new user:', result.error);
         }
       } else {
-        emailSent = true;
-        console.log(`Supabase Auth invite sent to ${email}`);
+        console.error('Gmail credentials not configured - cannot send invite to new user');
+        return new Response(
+          JSON.stringify({
+            error: 'Email service not configured. Please configure Gmail credentials.',
+            version: FUNCTION_VERSION
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
       }
     }
 
