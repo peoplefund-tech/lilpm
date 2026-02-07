@@ -135,7 +135,22 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           // Get initial session
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session }, error } = await supabase.auth.getSession();
+
+          // Handle auth errors (like 403) by clearing corrupted session
+          if (error) {
+            console.warn('Auth session error, clearing local auth state:', error.message);
+            // Clear any corrupted auth state from localStorage
+            localStorage.removeItem('sb-lbzjnhlribtfwnoydpdv-auth-token');
+            localStorage.removeItem('auth-storage');
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+              isEmailVerified: false,
+            });
+            return;
+          }
 
           if (session?.user) {
             const emailVerified = !!session.user.email_confirmed_at;
@@ -153,8 +168,11 @@ export const useAuthStore = create<AuthStore>()(
               isEmailVerified: false,
             });
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to load user:', error);
+          // On any error, clear auth state to prevent loops
+          localStorage.removeItem('sb-lbzjnhlribtfwnoydpdv-auth-token');
+          localStorage.removeItem('auth-storage');
           set({
             user: null,
             isAuthenticated: false,
