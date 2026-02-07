@@ -7,31 +7,54 @@ import { useAuthStore } from "@/stores/authStore";
 import { useTeamStore } from "@/stores/teamStore";
 import { useMCPStore } from "@/stores/mcpStore";
 import { useThemeStore } from "@/stores/themeStore";
-import { useEffect } from "react";
+import React, { useEffect, Suspense } from "react";
 import { useUserTeamsRealtime, useTeamMemberRealtime } from "@/hooks/useTeamRealtime";
 import { useCollaborationStore } from "@/stores/collaborationStore";
 
-// Pages
+// Auth pages - loaded immediately
 import { LoginPage, SignupPage, AcceptInvitePage, CancelledInvitePage, EmailVerificationPage } from "./pages/auth";
 import { LandingPage } from "./pages/LandingPage";
+
+// Onboarding pages - loaded immediately
 import { CreateTeamPage, CreateProjectPage, AISetupPage } from "./pages/onboarding";
-import { AISettingsPage, GeneralSettingsPage, NotificationSettingsPage, SecuritySettingsPage, ProfilePage, MCPSettingsPage, LLMSettingsPage, GitHubSettingsPage, SlackSettingsPage } from "./pages/settings";
-import { DashboardPage } from "./pages/DashboardPage";
-import { IssuesPage } from "./pages/IssuesPage";
-import { LilyPage } from "./pages/LilyPage";
-import { TeamMembersPage } from "./pages/TeamMembersPage";
-import { TeamSettingsPage } from "./pages/TeamSettingsPage";
-import { ProjectsPage } from "./pages/ProjectsPage";
-import { ProjectDetailPage } from "./pages/ProjectDetailPage";
-import { IssueDetailPage } from "./pages/IssueDetailPage";
-import { CyclesPage } from "./pages/CyclesPage";
-import { NotificationsPage } from "./pages/NotificationsPage";
-import { PRDPage } from "./pages/PRDPage";
-import { PRDDetailPage } from "./pages/PRDDetailPage";
-import { InboxPage } from "./pages/InboxPage";
-import { MyIssuesPage } from "./pages/MyIssuesPage";
+
+// Settings pages - lazy loaded
+const AISettingsPage = React.lazy(() => import("./pages/settings/AISettingsPage").then(m => ({ default: m.AISettingsPage })));
+const GeneralSettingsPage = React.lazy(() => import("./pages/settings/GeneralSettingsPage").then(m => ({ default: m.GeneralSettingsPage })));
+const NotificationSettingsPage = React.lazy(() => import("./pages/settings/NotificationSettingsPage").then(m => ({ default: m.NotificationSettingsPage })));
+const SecuritySettingsPage = React.lazy(() => import("./pages/settings/SecuritySettingsPage").then(m => ({ default: m.SecuritySettingsPage })));
+const ProfilePage = React.lazy(() => import("./pages/settings/ProfilePage").then(m => ({ default: m.ProfilePage })));
+const MCPSettingsPage = React.lazy(() => import("./pages/settings/MCPSettingsPage").then(m => ({ default: m.MCPSettingsPage })));
+const LLMSettingsPage = React.lazy(() => import("./pages/settings/LLMSettingsPage").then(m => ({ default: m.LLMSettingsPage })));
+const GitHubSettingsPage = React.lazy(() => import("./pages/settings/GitHubSettingsPage").then(m => ({ default: m.GitHubSettingsPage })));
+const SlackSettingsPage = React.lazy(() => import("./pages/settings/SlackSettingsPage").then(m => ({ default: m.SlackSettingsPage })));
+
+// Core pages - lazy loaded for performance
+const DashboardPage = React.lazy(() => import("./pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
+const IssuesPage = React.lazy(() => import("./pages/IssuesPage").then(m => ({ default: m.IssuesPage })));
+const LilyPage = React.lazy(() => import("./pages/LilyPage").then(m => ({ default: m.LilyPage })));
+const TeamMembersPage = React.lazy(() => import("./pages/TeamMembersPage").then(m => ({ default: m.TeamMembersPage })));
+const TeamSettingsPage = React.lazy(() => import("./pages/TeamSettingsPage").then(m => ({ default: m.TeamSettingsPage })));
+const ProjectsPage = React.lazy(() => import("./pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
+const ProjectDetailPage = React.lazy(() => import("./pages/ProjectDetailPage").then(m => ({ default: m.ProjectDetailPage })));
+const IssueDetailPage = React.lazy(() => import("./pages/IssueDetailPage").then(m => ({ default: m.IssueDetailPage })));
+const CyclesPage = React.lazy(() => import("./pages/CyclesPage").then(m => ({ default: m.CyclesPage })));
+const NotificationsPage = React.lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
+const PRDPage = React.lazy(() => import("./pages/PRDPage").then(m => ({ default: m.PRDPage })));
+const PRDDetailPage = React.lazy(() => import("./pages/PRDDetailPage").then(m => ({ default: m.PRDDetailPage })));
+const InboxPage = React.lazy(() => import("./pages/InboxPage").then(m => ({ default: m.InboxPage })));
+const MyIssuesPage = React.lazy(() => import("./pages/MyIssuesPage").then(m => ({ default: m.MyIssuesPage })));
+const SharedConversationPage = React.lazy(() => import("./pages/SharedConversationPage").then(m => ({ default: m.SharedConversationPage })));
 import NotFound from "./pages/NotFound";
-import { SharedConversationPage } from "./pages/SharedConversationPage";
+
+// Loading component for Suspense fallback
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient();
 
@@ -166,56 +189,58 @@ function AppRoutes() {
   return (
     <>
       <RouteTracker />
-      <Routes>
-        {/* Root redirect - unauthenticated users go to landing */}
-        <Route path="/" element={<RootRedirect />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Root redirect - unauthenticated users go to landing */}
+          <Route path="/" element={<RootRedirect />} />
 
-        {/* Public Routes */}
-        <Route path="/welcome" element={<LandingPage />} />
-        <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
-        <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
-        <Route path="/invite/accept" element={<AcceptInvitePage />} />
-        <Route path="/invite/cancelled" element={<CancelledInvitePage />} />
-        <Route path="/auth/verify-email" element={<ProtectedRoute><EmailVerificationPage /></ProtectedRoute>} />
-        <Route path="/lily/shared/:token" element={<SharedConversationPage />} />
+          {/* Public Routes */}
+          <Route path="/welcome" element={<LandingPage />} />
+          <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
+          <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
+          <Route path="/invite/accept" element={<AcceptInvitePage />} />
+          <Route path="/invite/cancelled" element={<CancelledInvitePage />} />
+          <Route path="/auth/verify-email" element={<ProtectedRoute><EmailVerificationPage /></ProtectedRoute>} />
+          <Route path="/lily/shared/:token" element={<SharedConversationPage />} />
 
-        {/* Onboarding Routes */}
-        <Route path="/onboarding/create-team" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
-        <Route path="/onboarding/create-project" element={<ProtectedRoute><CreateProjectPage /></ProtectedRoute>} />
-        <Route path="/onboarding/ai-setup" element={<ProtectedRoute><AISetupPage /></ProtectedRoute>} />
+          {/* Onboarding Routes */}
+          <Route path="/onboarding/create-team" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
+          <Route path="/onboarding/create-project" element={<ProtectedRoute><CreateProjectPage /></ProtectedRoute>} />
+          <Route path="/onboarding/ai-setup" element={<ProtectedRoute><AISetupPage /></ProtectedRoute>} />
 
 
-        {/* Protected Routes with Onboarding Check */}
-        <Route path="/dashboard" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
-        <Route path="/inbox" element={<OnboardingCheck><InboxPage /></OnboardingCheck>} />
-        <Route path="/my-issues" element={<OnboardingCheck><MyIssuesPage /></OnboardingCheck>} />
-        <Route path="/issues" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
-        <Route path="/lily" element={<OnboardingCheck><LilyPage /></OnboardingCheck>} />
-        <Route path="/team/members" element={<OnboardingCheck><TeamMembersPage /></OnboardingCheck>} />
-        <Route path="/team/settings" element={<OnboardingCheck><TeamSettingsPage /></OnboardingCheck>} />
-        <Route path="/projects" element={<OnboardingCheck><ProjectsPage /></OnboardingCheck>} />
-        <Route path="/cycles" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
-        <Route path="/prd" element={<OnboardingCheck><PRDPage /></OnboardingCheck>} />
-        <Route path="/prd/:prdId" element={<OnboardingCheck><PRDDetailPage /></OnboardingCheck>} />
-        <Route path="/cycle/active" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
-        <Route path="/cycle/:cycleId" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
-        <Route path="/insights" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
-        <Route path="/project/:projectId" element={<OnboardingCheck><ProjectDetailPage /></OnboardingCheck>} />
-        <Route path="/issue/:issueId" element={<OnboardingCheck><IssueDetailPage /></OnboardingCheck>} />
-        <Route path="/settings" element={<OnboardingCheck><GeneralSettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/ai" element={<OnboardingCheck><AISettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/mcp" element={<OnboardingCheck><MCPSettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/llm" element={<OnboardingCheck><LLMSettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/github" element={<OnboardingCheck><GitHubSettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/slack" element={<OnboardingCheck><SlackSettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/notifications" element={<OnboardingCheck><NotificationSettingsPage /></OnboardingCheck>} />
-        <Route path="/settings/security" element={<OnboardingCheck><SecuritySettingsPage /></OnboardingCheck>} />
-        <Route path="/notifications" element={<OnboardingCheck><NotificationsPage /></OnboardingCheck>} />
-        <Route path="/profile" element={<OnboardingCheck><ProfilePage /></OnboardingCheck>} />
+          {/* Protected Routes with Onboarding Check */}
+          <Route path="/dashboard" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
+          <Route path="/inbox" element={<OnboardingCheck><InboxPage /></OnboardingCheck>} />
+          <Route path="/my-issues" element={<OnboardingCheck><MyIssuesPage /></OnboardingCheck>} />
+          <Route path="/issues" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
+          <Route path="/lily" element={<OnboardingCheck><LilyPage /></OnboardingCheck>} />
+          <Route path="/team/members" element={<OnboardingCheck><TeamMembersPage /></OnboardingCheck>} />
+          <Route path="/team/settings" element={<OnboardingCheck><TeamSettingsPage /></OnboardingCheck>} />
+          <Route path="/projects" element={<OnboardingCheck><ProjectsPage /></OnboardingCheck>} />
+          <Route path="/cycles" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
+          <Route path="/prd" element={<OnboardingCheck><PRDPage /></OnboardingCheck>} />
+          <Route path="/prd/:prdId" element={<OnboardingCheck><PRDDetailPage /></OnboardingCheck>} />
+          <Route path="/cycle/active" element={<OnboardingCheck><CyclesPage /></OnboardingCheck>} />
+          <Route path="/cycle/:cycleId" element={<OnboardingCheck><IssuesPage /></OnboardingCheck>} />
+          <Route path="/insights" element={<OnboardingCheck><DashboardPage /></OnboardingCheck>} />
+          <Route path="/project/:projectId" element={<OnboardingCheck><ProjectDetailPage /></OnboardingCheck>} />
+          <Route path="/issue/:issueId" element={<OnboardingCheck><IssueDetailPage /></OnboardingCheck>} />
+          <Route path="/settings" element={<OnboardingCheck><GeneralSettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/ai" element={<OnboardingCheck><AISettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/mcp" element={<OnboardingCheck><MCPSettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/llm" element={<OnboardingCheck><LLMSettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/github" element={<OnboardingCheck><GitHubSettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/slack" element={<OnboardingCheck><SlackSettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/notifications" element={<OnboardingCheck><NotificationSettingsPage /></OnboardingCheck>} />
+          <Route path="/settings/security" element={<OnboardingCheck><SecuritySettingsPage /></OnboardingCheck>} />
+          <Route path="/notifications" element={<OnboardingCheck><NotificationsPage /></OnboardingCheck>} />
+          <Route path="/profile" element={<OnboardingCheck><ProfilePage /></OnboardingCheck>} />
 
-        {/* Catch-all */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {/* Catch-all */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

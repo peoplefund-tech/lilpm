@@ -20,5 +20,30 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     sourcemap: mode === "development",
+    chunkSizeWarningLimit: 1000, // Increase limit since we're intentionally creating large vendor chunks
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React ecosystem
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // Supabase client
+          'supabase': ['@supabase/supabase-js'],
+          // Rich text editor
+          'editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-placeholder', '@tiptap/extension-link'],
+          // UI components
+          'ui-radix': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-tooltip', '@radix-ui/react-popover'],
+          // Icons
+          'icons': ['lucide-react'],
+          // Form and validation
+          'form': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          // State management
+          'state': ['zustand'],
+          // Date utilities
+          'date': ['date-fns'],
+          // i18n
+          'i18n': ['i18next', 'react-i18next'],
+        },
+      },
+    },
   },
 }));

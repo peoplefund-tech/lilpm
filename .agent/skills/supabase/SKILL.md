@@ -113,3 +113,36 @@ supabase functions deploy [function-name]
 # 비인증 접근 허용 (get-invite-preview 등)
 supabase functions deploy [function-name] --no-verify-jwt
 ```
+
+## 🔄 캐싱 & 최적화
+
+### 쿼리 최적화
+```typescript
+// ❌ 피해야 할 패턴
+const { data } = await supabase.from('profiles').select('*');
+
+// ✅ 필요한 컬럼만 선택
+const { data } = await supabase
+  .from('profiles')
+  .select('id, name, email, avatar_url');
+```
+
+### FK 조인 문법
+```typescript
+// ✅ 간단한 컬럼 참조 (권장)
+.select(`
+  *,
+  profile:profiles(id, name, email)
+`)
+
+// ❌ 명시적 FK 이름 (에러 발생 가능)
+.select(`
+  *,
+  profile:profiles!team_members_user_id_fkey(*)
+`)
+```
+
+### 클라이언트 캐싱
+- React Query나 SWR 사용
+- 5분 TTL로 팀/멤버 데이터 캐싱
+- Stale-While-Revalidate 패턴 적용
