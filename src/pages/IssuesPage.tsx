@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { AppLayout } from '@/components/layout';
 import { IssueList, IssueBoard, GanttChart, CreateIssueModal } from '@/components/issues';
 import { IssueFilters, type IssueFiltersState } from '@/components/issues/IssueFilters';
-import { PresenceAvatars } from '@/components/collaboration';
 import { useIssueStore } from '@/stores/issueStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { Button } from '@/components/ui/button';
@@ -187,11 +186,6 @@ export function IssuesPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 justify-between sm:justify-end">
-            {/* Presence Avatars - Hidden on mobile */}
-            <div className="hidden sm:block">
-              <PresenceAvatars />
-            </div>
-
             {/* Create Issue */}
             <Button size="sm" className="h-8 gap-1 flex-1 sm:flex-none" onClick={() => handleOpenCreateModal()}>
               <Plus className="h-3.5 w-3.5" />

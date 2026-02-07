@@ -492,7 +492,15 @@
     "mcpConnections": "MCPs",
     "viewAllMcp": "View all MCPs",
     "uploadFile": "Upload file",
-    "describeFiles": "Describe what you want to do with the files..."
+    "describeFiles": "Describe what you want to do with the files...",
+    "apiKeyRequired": "API Key Required",
+    "apiKeyRequiredDesc": "At least one AI service API key is required to use Lil PM AI.",
+    "getApiKey": "Get API Key",
+    "later": "Later",
+    "saveAndStart": "Save and start",
+    "anthropicDesc": "Claude models (strong in code, analysis)",
+    "openaiDesc": "GPT-4o model (general purpose AI)",
+    "geminiDesc": "Gemini Pro model (multimodal)"
   },
   "prd": {
     "title": "PRD Documents",

@@ -24,21 +24,24 @@ interface ApiKeyRequiredModalProps {
 const PROVIDER_INFO = {
     anthropic: {
         name: 'Anthropic Claude',
-        description: 'Claude 모델 (코드, 분석에 강점)',
+        descKey: 'lily.anthropicDesc',
+        descFallback: 'Claude models (strong in code, analysis)',
         icon: '🟣',
         keyPrefix: 'sk-ant-',
         docsUrl: 'https://console.anthropic.com/account/keys',
     },
     openai: {
         name: 'OpenAI GPT-4',
-        description: 'GPT-4o 모델 (범용 AI)',
+        descKey: 'lily.openaiDesc',
+        descFallback: 'GPT-4o model (general purpose AI)',
         icon: '🟢',
         keyPrefix: 'sk-',
         docsUrl: 'https://platform.openai.com/api-keys',
     },
     gemini: {
         name: 'Google Gemini',
-        description: 'Gemini Pro 모델 (멀티모달)',
+        descKey: 'lily.geminiDesc',
+        descFallback: 'Gemini Pro model (multimodal)',
         icon: '🔵',
         keyPrefix: 'AI',
         docsUrl: 'https://makersuite.google.com/app/apikey',
@@ -109,7 +112,7 @@ export function ApiKeyRequiredModal({ open, onKeysSaved, onClose, saveApiKey }: 
                                         rel="noopener noreferrer"
                                         className="text-xs text-primary hover:underline flex items-center gap-1"
                                     >
-                                        키 발급받기
+                                        {t('lily.getApiKey', 'Get API Key')}
                                         <ExternalLink className="h-3 w-3" />
                                     </a>
                                 </div>
@@ -122,7 +125,7 @@ export function ApiKeyRequiredModal({ open, onKeysSaved, onClose, saveApiKey }: 
                                     className="font-mono text-sm"
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    {PROVIDER_INFO[provider].description}
+                                    {t(PROVIDER_INFO[provider].descKey, PROVIDER_INFO[provider].descFallback)}
                                 </p>
                             </div>
                         </TabsContent>
@@ -131,18 +134,18 @@ export function ApiKeyRequiredModal({ open, onKeysSaved, onClose, saveApiKey }: 
 
                 <div className="flex justify-between gap-2 mt-4">
                     <Button variant="ghost" onClick={onClose}>
-                        나중에
+                        {t('lily.later', 'Later')}
                     </Button>
                     <Button onClick={handleSave} disabled={isSaving || !apiKey.trim()}>
                         {isSaving ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                저장 중...
+                                {t('common.saving', 'Saving...')}
                             </>
                         ) : (
                             <>
                                 <Check className="mr-2 h-4 w-4" />
-                                저장하고 시작하기
+                                {t('lily.saveAndStart', 'Save and start')}
                             </>
                         )}
                     </Button>
