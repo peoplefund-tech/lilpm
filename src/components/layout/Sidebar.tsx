@@ -122,7 +122,7 @@ interface ConversationListItemProps {
   isEditing: boolean;
   editingTitle: string;
   dateLocale: typeof ko | typeof enUS;
-  t: (key: string, fallback?: string) => string;
+  t: ReturnType<typeof useTranslation>['t'];
   onSelect: () => void;
   onDelete: () => void;
   onPin: () => void;
