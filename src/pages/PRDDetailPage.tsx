@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AppLayout } from '@/components/layout';
 import { prdService, type PRDWithRelations } from '@/lib/services/prdService';
+import { projectService } from '@/lib/services/projectService';
 import { teamMemberService } from '@/lib/services/teamService';
 import { notificationService } from '@/lib/services/notificationService';
 import { prdVersionService } from '@/lib/services/prdVersionService';
@@ -62,6 +63,7 @@ import {
   X,
   Cloud,
   CloudOff,
+  Folder,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -237,6 +239,11 @@ export function PRDDetailPage() {
   const { user } = useAuthStore();
   const { currentTeam } = useTeamStore();
   const [teamMembers, setTeamMembers] = useState<import('@/types/database').Profile[]>([]);
+
+  // Project linking state
+  const [allProjects, setAllProjects] = useState<Array<{ id: string; name: string; icon?: string }>>([]);
+  const [linkedProjects, setLinkedProjects] = useState<Array<{ id: string; name: string; icon?: string }>>([]);
+  const [showProjectSelector, setShowProjectSelector] = useState(false);
 
   // Generate a consistent user color based on user ID
   const getUserColor = (userId: string) => {
@@ -450,6 +457,24 @@ export function PRDDetailPage() {
           setSavedStatus(data.status as PRDStatus);
           setLastSaved(new Date(data.updated_at));
           setHasChanges(false);
+
+          // Load linked projects for this PRD
+          try {
+            const linked = await prdService.getLinkedProjects(prdId);
+            setLinkedProjects(linked);
+          } catch (e) {
+            console.log('No linked projects found');
+          }
+        }
+
+        // Load all projects for the team (for dropdown)
+        if (currentTeam?.id) {
+          try {
+            const projects = await projectService.getProjects(currentTeam.id);
+            setAllProjects(projects.map(p => ({ id: p.id, name: p.name, icon: p.icon })));
+          } catch (e) {
+            console.log('Could not load projects');
+          }
         }
       } catch (error) {
         console.error('Failed to load PRD:', error);
@@ -460,7 +485,7 @@ export function PRDDetailPage() {
     };
 
     loadPRD();
-  }, [prdId, t]);
+  }, [prdId, t, currentTeam?.id]);
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
@@ -481,6 +506,27 @@ export function PRDDetailPage() {
       await prdService.updateStatus(prdId, newStatus);
       setLastSaved(new Date());
       toast.success(t('prd.statusUpdated', 'Status updated'));
+    } catch (error) {
+      toast.error(t('common.error'));
+    }
+  };
+
+  const toggleProjectLink = async (projectId: string) => {
+    if (!prdId) return;
+    const isLinked = linkedProjects.some(p => p.id === projectId);
+    try {
+      if (isLinked) {
+        await prdService.unlinkFromProject(prdId, projectId);
+        setLinkedProjects(prev => prev.filter(p => p.id !== projectId));
+        toast.success(t('prd.projectUnlinked', 'Project unlinked'));
+      } else {
+        await prdService.linkToProject(prdId, projectId);
+        const project = allProjects.find(p => p.id === projectId);
+        if (project) {
+          setLinkedProjects(prev => [...prev, project]);
+        }
+        toast.success(t('prd.projectLinked', 'Project linked'));
+      }
     } catch (error) {
       toast.error(t('common.error'));
     }
@@ -743,16 +789,53 @@ Respond in the same language as the user's message.`
                 <ArrowLeft className="h-4 w-4" />
               </Button>
 
-              {/* Breadcrumb */}
+              {/* Breadcrumb with Project Selector */}
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">PRDs</span>
                 <span className="text-muted-foreground">/</span>
-                {prd.project && (
-                  <>
-                    <span className="text-muted-foreground">{prd.project.name}</span>
-                    <span className="text-muted-foreground">/</span>
-                  </>
-                )}
+
+                {/* Project Multi-Select Dropdown */}
+                <DropdownMenu open={showProjectSelector} onOpenChange={setShowProjectSelector}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 gap-1 text-muted-foreground hover:text-foreground">
+                      <Folder className="h-3 w-3" />
+                      {linkedProjects.length === 0 ? (
+                        <span className="text-xs">{t('prd.addProject', 'Add project')}</span>
+                      ) : linkedProjects.length === 1 ? (
+                        <span className="text-xs">{linkedProjects[0].name}</span>
+                      ) : (
+                        <span className="text-xs">{linkedProjects.length} projects</span>
+                      )}
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    {allProjects.length === 0 ? (
+                      <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                        {t('projects.noProjects', 'No projects')}
+                      </div>
+                    ) : (
+                      allProjects.map(project => {
+                        const isLinked = linkedProjects.some(p => p.id === project.id);
+                        return (
+                          <DropdownMenuItem
+                            key={project.id}
+                            onClick={() => toggleProjectLink(project.id)}
+                            className="flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span>{project.icon || '📁'}</span>
+                              <span>{project.name}</span>
+                            </div>
+                            {isLinked && <Check className="h-4 w-4 text-primary" />}
+                          </DropdownMenuItem>
+                        );
+                      })
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <span className="text-muted-foreground">/</span>
                 <span className="font-medium truncate max-w-[200px]">{title}</span>
               </div>
             </div>
@@ -1236,6 +1319,6 @@ Respond in the same language as the user's message.`
           )}
         </div>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }
