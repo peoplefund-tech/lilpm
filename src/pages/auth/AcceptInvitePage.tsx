@@ -97,6 +97,15 @@ export function AcceptInvitePage() {
 
   const acceptInvite = async () => {
     if (!token || isAccepting) return;
+
+    // Check if user is authenticated before calling service
+    if (!isAuthenticated) {
+      // Redirect to login with return URL
+      const returnUrl = `/invite/accept?token=${token}`;
+      navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+      return;
+    }
+
     setIsAccepting(true);
 
     try {

@@ -100,9 +100,25 @@ serve(async (req) => {
                 const { error: e10 } = await supabaseAdmin.from('notifications').delete().eq('user_id', userId)
                 details.push(`notifications: ${e10 ? e10.message : 'ok'}`)
 
-                // 11. DELETE profiles
-                const { error: e11 } = await supabaseAdmin.from('profiles').delete().eq('id', userId)
-                details.push(`profiles: ${e11 ? e11.message : 'ok'}`)
+                // 11. DELETE conversation_access_requests (requested_by)
+                const { error: e11a } = await supabaseAdmin.from('conversation_access_requests').delete().eq('requested_by', userId)
+                details.push(`conversation_access_requests (requested_by): ${e11a ? e11a.message : 'ok'}`)
+
+                // 12. UPDATE conversation_access_requests (reviewed_by) - nullable
+                const { error: e11b } = await supabaseAdmin.from('conversation_access_requests').update({ reviewed_by: null }).eq('reviewed_by', userId)
+                details.push(`conversation_access_requests (reviewed_by): ${e11b ? e11b.message : 'ok'}`)
+
+                // 13. DELETE conversation_shares (shared_by)
+                const { error: e12 } = await supabaseAdmin.from('conversation_shares').delete().eq('shared_by', userId)
+                details.push(`conversation_shares: ${e12 ? e12.message : 'ok'}`)
+
+                // 14. DELETE conversations (user_id) - this will cascade to messages
+                const { error: e13 } = await supabaseAdmin.from('conversations').delete().eq('user_id', userId)
+                details.push(`conversations: ${e13 ? e13.message : 'ok'}`)
+
+                // 15. DELETE profiles
+                const { error: e14 } = await supabaseAdmin.from('profiles').delete().eq('id', userId)
+                details.push(`profiles: ${e14 ? e14.message : 'ok'}`)
 
                 // 12. Finally delete auth user
                 console.log('Deleting auth user...')
