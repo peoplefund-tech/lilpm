@@ -1105,7 +1105,12 @@ export function LilyChat() {
                             [&_img]:rounded-lg [&_img]:my-4
                             [&_del]:line-through [&_del]:text-muted-foreground
                           ">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanContent || t('lily.generating', 'Generating...')}</ReactMarkdown>
+                              {/* During CoT streaming, show placeholder in bubble */}
+                              {isLoading && messages.indexOf(message) === messages.length - 1 && thinkingContent && !cleanContent ? (
+                                <span className="text-muted-foreground italic">{t('lily.thinking', 'Thinking...')}</span>
+                              ) : (
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanContent || t('lily.generating', 'Generating...')}</ReactMarkdown>
+                              )}
                             </div>
                           ) : (
                             <p className="text-sm whitespace-pre-wrap leading-relaxed">{cleanContent}</p>
@@ -1426,7 +1431,7 @@ export function LilyChat() {
 
         {/* Unified Right Panel - Shows for canvas mode OR suggested issues OR PRD viewer */}
         {(canvasMode || suggestedIssues.length > 0 || selectedPRDContent || (showArtifact && artifact)) ? (
-          <div className="w-[450px] border-l border-border flex flex-col bg-background">
+          <div className="w-[500px] border-l border-border flex flex-col bg-background">
             {/* Artifact Header */}
             <div className="h-12 flex items-center justify-between px-4 border-b border-border">
               <div className="flex items-center gap-2">
