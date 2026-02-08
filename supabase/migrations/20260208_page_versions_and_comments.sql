@@ -4,7 +4,7 @@
 -- PRD Versions Table
 CREATE TABLE IF NOT EXISTS prd_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  page_id UUID NOT NULL REFERENCES prds(id) ON DELETE CASCADE,
+  page_id UUID NOT NULL REFERENCES prd_documents(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   title TEXT,
   author_id UUID NOT NULL REFERENCES auth.users(id),
@@ -57,8 +57,20 @@ CREATE TABLE IF NOT EXISTS block_comment_replies (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_prd_versions_page_id ON prd_versions(page_id);
+-- Indexes for performance (skip if columns don't exist - table might have been created differently)
+DO $$ 
+BEGIN
+  -- Try prd_document_id first (existing schema), then page_id (new schema)
+  BEGIN
+    CREATE INDEX IF NOT EXISTS idx_prd_versions_prd_document_id ON prd_versions(prd_document_id);
+  EXCEPTION WHEN undefined_column THEN
+    BEGIN
+      CREATE INDEX IF NOT EXISTS idx_prd_versions_page_id ON prd_versions(page_id);
+    EXCEPTION WHEN undefined_column THEN
+      NULL; -- Neither column exists, skip
+    END;
+  END;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_prd_versions_created_at ON prd_versions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_issue_versions_page_id ON issue_versions(page_id);
 CREATE INDEX IF NOT EXISTS idx_issue_versions_created_at ON issue_versions(created_at DESC);
@@ -74,7 +86,7 @@ ALTER TABLE prd_versions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "PRD versions viewable by team members" ON prd_versions
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM prds p
+      SELECT 1 FROM prd_documents p
       JOIN team_members tm ON p.team_id = tm.team_id
       WHERE p.id = prd_versions.page_id
       AND tm.user_id = auth.uid()
@@ -84,7 +96,7 @@ CREATE POLICY "PRD versions viewable by team members" ON prd_versions
 CREATE POLICY "PRD versions creatable by team members" ON prd_versions
   FOR INSERT WITH CHECK (
     EXISTS (
-      SELECT 1 FROM prds p
+      SELECT 1 FROM prd_documents p
       JOIN team_members tm ON p.team_id = tm.team_id
       WHERE p.id = prd_versions.page_id
       AND tm.user_id = auth.uid()
@@ -121,7 +133,7 @@ CREATE POLICY "Block comments viewable by team members" ON block_comments
   FOR SELECT USING (
     CASE 
       WHEN page_type = 'prd' THEN EXISTS (
-        SELECT 1 FROM prds p
+        SELECT 1 FROM prd_documents p
         JOIN team_members tm ON p.team_id = tm.team_id
         WHERE p.id = block_comments.page_id
         AND tm.user_id = auth.uid()
@@ -140,7 +152,7 @@ CREATE POLICY "Block comments creatable by team members" ON block_comments
   FOR INSERT WITH CHECK (
     CASE 
       WHEN page_type = 'prd' THEN EXISTS (
-        SELECT 1 FROM prds p
+        SELECT 1 FROM prd_documents p
         JOIN team_members tm ON p.team_id = tm.team_id
         WHERE p.id = block_comments.page_id
         AND tm.user_id = auth.uid()
