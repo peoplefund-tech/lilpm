@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,8 @@ import { BlockEditor } from '@/components/editor';
 import { IssueFocusIndicator, EditingIndicator, TypingIndicator } from '@/components/collaboration';
 import { useIssueFocus, useRealtimeIssueUpdates } from '@/hooks/useRealtimeCollaboration';
 import { useSupabaseCollaboration } from '@/hooks/collaboration/useSupabaseCollaboration';
+import type { RemoteCursor } from '@/hooks/collaboration/useCloudflareCollaboration';
+import { supabase } from '@/lib/supabase';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { Button } from '@/components/ui/button';
@@ -239,6 +241,24 @@ export function IssueDetailPage() {
     }
   }, [isSupabaseCollabConnected, onRemoteContentChange]);
 
+  // Convert presenceUsers to remoteCursors Map for BlockEditor
+  const remoteCursors = useMemo(() => {
+    const cursors = new Map<string, RemoteCursor>();
+    presenceUsers.forEach((u) => {
+      cursors.set(u.id, {
+        odId: u.id,
+        id: u.id,
+        name: u.name,
+        color: u.color,
+        avatar: u.avatar,
+        position: u.cursorPosition || 0,
+        blockId: u.blockId,
+        lastUpdate: u.lastSeen || Date.now(),
+      });
+    });
+    return cursors;
+  }, [presenceUsers]);
+
   // Auto-save for title
   const { debouncedSave: debouncedSaveTitle, setInitialValue: setInitialTitle } = useAutoSave({
     onSave: async (value) => {
@@ -418,6 +438,23 @@ export function IssueDetailPage() {
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success(t('issues.linkCopied'));
+  };
+
+  // Archive issue handler
+  const handleArchive = async () => {
+    if (!issue) return;
+    try {
+      const { error } = await supabase.rpc('archive_item', {
+        p_item_type: 'issue',
+        p_item_id: issue.id,
+      });
+      if (error) throw error;
+      toast.success(t('issues.archived', 'Issue archived'));
+      navigate('/issues');
+    } catch (error) {
+      console.error('Failed to archive issue:', error);
+      toast.error(t('issues.archiveError', 'Failed to archive issue'));
+    }
   };
 
   // AI Assistant handler
@@ -658,7 +695,7 @@ Respond in the same language as the user's message.`
                       Copy Link
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-orange-500">
+                    <DropdownMenuItem className="text-orange-500" onClick={handleArchive}>
                       <Archive className="h-4 w-4 mr-2" />
                       {t('common.archive', 'Archive')}
                     </DropdownMenuItem>
@@ -784,6 +821,8 @@ Respond in the same language as the user's message.`
                       placeholder={t('issues.addDescription', 'Add a description... Type "/" for commands')}
                       editable={true}
                       autoFocus={true}
+                      remoteCursors={remoteCursors}
+                      onCursorPositionChange={supabaseUpdateCursorPosition}
                     />
                   </div>
                 </div>
