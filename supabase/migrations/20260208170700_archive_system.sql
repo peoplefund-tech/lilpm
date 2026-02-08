@@ -86,17 +86,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION cleanup_expired_archives()
 RETURNS INTEGER AS $$
 DECLARE
-  deleted_count INTEGER := 0;
+  issues_count INTEGER := 0;
+  prds_count INTEGER := 0;
 BEGIN
   -- Delete issues archived more than 30 days ago
   DELETE FROM issues WHERE archived_at < NOW() - INTERVAL '30 days';
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  GET DIAGNOSTICS issues_count = ROW_COUNT;
   
   -- Delete PRDs archived more than 30 days ago
   DELETE FROM prd_documents WHERE archived_at < NOW() - INTERVAL '30 days';
-  GET DIAGNOSTICS deleted_count = deleted_count + ROW_COUNT;
+  GET DIAGNOSTICS prds_count = ROW_COUNT;
   
-  RETURN deleted_count;
+  RETURN issues_count + prds_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
