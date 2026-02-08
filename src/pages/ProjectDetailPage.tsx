@@ -194,6 +194,9 @@ export function ProjectDetailPage() {
         <div className="flex flex-col items-center justify-center h-full gap-4">
           <FolderOpen className="h-12 w-12 text-muted-foreground" />
           <p className="text-lg font-medium">{t('projects.notFound')}</p>
+          <p className="text-sm text-muted-foreground text-center max-w-md">
+            {t('projects.notFoundOrNoAccess', '프로젝트를 찾을 수 없거나 접근 권한이 없습니다. 팀 관리자에게 프로젝트 할당을 요청하세요.')}
+          </p>
           <Button onClick={() => navigate('/projects')}>{t('projects.backToList')}</Button>
         </div>
       </AppLayout>

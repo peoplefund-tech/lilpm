@@ -63,9 +63,11 @@ import {
   Building2,
   Timer,
   AlertCircle,
+  FolderOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TeamRole, TeamInvite } from '@/types/database';
+import { ProjectAssignmentModal } from '@/components/team';
 
 export function TeamMembersPage() {
   const { t } = useTranslation();
@@ -78,6 +80,7 @@ export function TeamMembersPage() {
   const [inviteRole, setInviteRole] = useState<TeamRole>('member');
   const [isSending, setIsSending] = useState(false);
   const [removeMember, setRemoveMember] = useState<TeamMemberWithProfile | null>(null);
+  const [projectAssignMember, setProjectAssignMember] = useState<TeamMemberWithProfile | null>(null);
   const [activeTab, setActiveTab] = useState<string>('members');
 
   const roleLabels: Record<TeamRole, string> = {
@@ -436,6 +439,10 @@ export function TeamMembersPage() {
                                   <Shield className="h-4 w-4 mr-2" />
                                   {t('team.member')}
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setProjectAssignMember(member)}>
+                                  <FolderOpen className="h-4 w-4 mr-2" />
+                                  {t('team.manageProjects', '프로젝트 할당')}
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => setRemoveMember(member)}
@@ -637,6 +644,14 @@ export function TeamMembersPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Project Assignment Modal */}
+        <ProjectAssignmentModal
+          open={!!projectAssignMember}
+          onOpenChange={(open) => !open && setProjectAssignMember(null)}
+          member={projectAssignMember}
+          teamId={currentTeam?.id || ''}
+        />
       </div>
     </AppLayout>
   );
