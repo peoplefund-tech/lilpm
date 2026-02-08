@@ -260,6 +260,9 @@ export function IssuesPage() {
                 <DropdownMenuItem onClick={() => setViewPreferences({ groupBy: 'assignee' })}>
                   {t('issues.groupByAssignee')}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setViewPreferences({ groupBy: 'cycle' })}>
+                  {t('issues.groupByCycle', 'Cycle')}
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setViewPreferences({ groupBy: 'none' })}>
                   {t('issues.noGrouping')}
                 </DropdownMenuItem>

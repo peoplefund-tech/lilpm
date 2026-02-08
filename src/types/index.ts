@@ -261,7 +261,7 @@ export interface PaginatedResponse<T> {
 // View preferences
 export interface ViewPreferences {
   layout: 'list' | 'board' | 'calendar' | 'gantt';
-  groupBy: 'status' | 'priority' | 'assignee' | 'project' | 'none';
+  groupBy: 'status' | 'priority' | 'assignee' | 'project' | 'cycle' | 'none';
   sortBy: 'created' | 'updated' | 'priority' | 'status' | 'title';
   sortOrder: 'asc' | 'desc';
   filters: ViewFilters;

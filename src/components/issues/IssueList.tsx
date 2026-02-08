@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 
 interface IssueListProps {
   issues: Issue[];
-  groupBy: 'status' | 'priority' | 'assignee' | 'project' | 'none';
+  groupBy: 'status' | 'priority' | 'assignee' | 'project' | 'cycle' | 'none';
   selectedIssues: Set<string>;
   onSelectIssue: (issueId: string, selected: boolean) => void;
   onSelectAll: (selected: boolean) => void;
@@ -75,7 +75,7 @@ export function IssueList({
     const issueId = e.dataTransfer.getData('issueId');
     setDragOverGroup(null);
     setDraggingIssueId(null);
-    
+
     if (issueId && onStatusChange && groupBy === 'status') {
       const issue = issues.find(i => i.id === issueId);
       if (issue && issue.status !== groupKey) {
@@ -107,8 +107,9 @@ export function IssueList({
     // Default grouping
     return issues.reduce((acc, issue) => {
       const key = groupBy === 'priority' ? issue.priority :
-                  groupBy === 'assignee' ? (issue.assignee?.id || 'unassigned') :
-                  groupBy === 'project' ? (issue.projectId || 'no-project') : 'all';
+        groupBy === 'assignee' ? (issue.assignee?.id || 'unassigned') :
+          groupBy === 'project' ? (issue.projectId || 'no-project') :
+            groupBy === 'cycle' ? (issue.cycleId || 'no-cycle') : 'all';
       if (!acc[key]) {
         acc[key] = [];
       }
@@ -131,9 +132,9 @@ export function IssueList({
         {issues.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
             <p>{t('issues.noIssues')}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="mt-4"
               onClick={() => onCreateIssue?.()}
             >
@@ -156,12 +157,12 @@ export function IssueList({
         const isDragOver = dragOverGroup === groupKey;
 
         return (
-          <div 
-            key={groupKey} 
+          <div
+            key={groupKey}
             className={cn(
               "border rounded-lg overflow-hidden transition-colors",
-              isDragOver 
-                ? "border-primary bg-primary/5 ring-2 ring-primary/30" 
+              isDragOver
+                ? "border-primary bg-primary/5 ring-2 ring-primary/30"
                 : "border-border"
             )}
             onDragOver={isDragEnabled ? (e) => handleDragOver(e, groupKey) : undefined}
@@ -181,7 +182,7 @@ export function IssueList({
               ) : (
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               )}
-              
+
               {groupBy === 'status' && (
                 <>
                   <StatusIcon status={groupKey as IssueStatus} />
@@ -190,7 +191,19 @@ export function IssueList({
                   </span>
                 </>
               )}
-              
+
+              {groupBy === 'cycle' && (
+                <span className="font-medium text-sm">
+                  {groupKey === 'no-cycle' ? t('issues.backlog', 'Backlog') : groupKey}
+                </span>
+              )}
+
+              {groupBy !== 'status' && groupBy !== 'cycle' && (
+                <span className="font-medium text-sm capitalize">
+                  {groupKey}
+                </span>
+              )}
+
               <span className="text-xs text-muted-foreground ml-1">
                 {count}
               </span>
@@ -228,7 +241,7 @@ export function IssueList({
                     "py-8 text-center text-sm transition-colors",
                     isDragOver ? "text-primary font-medium" : "text-muted-foreground"
                   )}>
-                    {isDragOver 
+                    {isDragOver
                       ? t('issues.dropHere', 'Drop here')
                       : t('issues.noIssues')
                     }
