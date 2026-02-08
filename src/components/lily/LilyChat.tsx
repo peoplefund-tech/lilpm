@@ -190,7 +190,18 @@ function isPRDLikeContent(content: string): boolean {
   return score >= 4;
 }
 
-export function LilyChat() {
+// Project context for AI-assisted creation from project page
+interface ProjectContext {
+  projectId?: string;
+  projectName?: string;
+  type?: 'issue' | 'prd';
+}
+
+interface LilyChatProps {
+  projectContext?: ProjectContext;
+}
+
+export function LilyChat({ projectContext }: LilyChatProps) {
   const { t, i18n } = useTranslation();
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -367,6 +378,29 @@ export function LilyChat() {
       }
     }
   }, [messages]);
+
+  // Show initial greeting when coming from project page with AI context
+  const hasShownGreeting = useRef(false);
+  useEffect(() => {
+    if (projectContext && projectContext.projectId && projectContext.type && messages.length === 0 && !hasShownGreeting.current) {
+      hasShownGreeting.current = true;
+      const typeName = projectContext.type === 'issue' ? '이슈' : 'PRD';
+      const greeting = `안녕하세요! **${projectContext.projectName || '프로젝트'}** 프로젝트에 들어갈 ${typeName}를 함께 작성해 드리겠습니다. 어떤 ${typeName}를 만들어 드릴까요?`;
+
+      // Directly add assistant greeting message via store
+      useLilyStore.setState((state) => ({
+        messages: [
+          ...state.messages,
+          {
+            id: `greeting-${Date.now()}`,
+            role: 'assistant' as const,
+            content: greeting,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }));
+    }
+  }, [projectContext, messages.length]);
 
   // Track previous loading state for auto-preview
   const prevIsLoading = useRef(isLoading);

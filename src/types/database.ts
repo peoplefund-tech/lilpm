@@ -98,6 +98,21 @@ export interface Project {
   updated_at: string;
 }
 
+export type ProjectMemberRole = 'lead' | 'member' | 'viewer';
+
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: ProjectMemberRole;
+  assigned_by: string | null;
+  assigned_at: string;
+}
+
+export interface ProjectMemberWithProfile extends ProjectMember {
+  profile: Profile;
+}
+
 export interface Label {
   id: string;
   team_id: string;

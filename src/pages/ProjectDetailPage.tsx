@@ -27,22 +27,15 @@ import {
   ListTodo,
   BarChart3,
   Users,
-  FileText
+  FileText,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
 import type { Project, Issue, Profile } from '@/types/database';
 
-const PROJECT_ICONS: Record<string, string> = {
-  folder: '📁',
-  rocket: '🚀',
-  star: '⭐',
-  lightning: '⚡',
-  target: '🎯',
-  gem: '💎',
-  fire: '🔥',
-  heart: '❤️',
-};
+
 
 const STATUS_COLORS: Record<string, string> = {
   backlog: '#6b7280',
@@ -67,6 +60,19 @@ export function ProjectDetailPage() {
   const [members, setMembers] = useState<{ profile: Profile; role: string; issueCount: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+
+  // Remember last viewed tab
+  const [activeTab, setActiveTab] = useState(() => {
+    if (!projectId) return 'overview';
+    return localStorage.getItem(`project-${projectId}-lastTab`) || 'overview';
+  });
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (projectId) {
+      localStorage.setItem(`project-${projectId}-lastTab`, tab);
+    }
+  };
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -194,25 +200,18 @@ export function ProjectDetailPage() {
     );
   }
 
-  const icon = PROJECT_ICONS[project.icon || 'folder'] || '📁';
 
   return (
     <AppLayout>
       <div className="h-full overflow-auto">
         {/* Header */}
         <div className="sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={() => navigate('/projects')}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
 
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                style={{ backgroundColor: `${project.color}20` }}
-              >
-                {icon}
-              </div>
 
               <div>
                 <div className="flex items-center gap-2">
@@ -241,8 +240,8 @@ export function ProjectDetailPage() {
         </div>
 
         {/* Content */}
-        <div className="p-6 max-w-7xl mx-auto">
-          <Tabs defaultValue="overview" className="space-y-6">
+        <div className="p-6 w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
             <TabsList>
               <TabsTrigger value="overview" className="gap-1.5">
                 <BarChart3 className="h-4 w-4" />
@@ -273,6 +272,26 @@ export function ProjectDetailPage() {
 
             {/* Issues Tab */}
             <TabsContent value="issues">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">{t('issues.title')}</h2>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/issue/new?projectId=${projectId}`)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {t('issues.createNew', '새 이슈')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/lily?context=project&projectId=${projectId}&projectName=${encodeURIComponent(project?.name || '')}&type=issue`)}
+                  >
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    {t('common.aiCreate', 'AI로 작성')}
+                  </Button>
+                </div>
+              </div>
               <div className="divide-y divide-border rounded-lg border">
                 {issues.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground">
@@ -299,6 +318,26 @@ export function ProjectDetailPage() {
 
             {/* PRDs Tab */}
             <TabsContent value="prds">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">PRDs</h2>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/prd/new?projectId=${projectId}`)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {t('prd.createNew', '새 PRD')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/lily?context=project&projectId=${projectId}&projectName=${encodeURIComponent(project?.name || '')}&type=prd`)}
+                  >
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    {t('common.aiCreate', 'AI로 작성')}
+                  </Button>
+                </div>
+              </div>
               <div className="divide-y divide-border rounded-lg border">
                 {prds.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground">
