@@ -178,15 +178,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Calculate the cell width based on view mode
-  const cellWidth = useMemo(() => {
-    switch (viewMode) {
-      case 'day': return 60;
-      case 'week': return 40;
-      case 'month': return 32;
-      case 'quarter': return 20;
-      default: return 32;
-    }
-  }, [viewMode]);
+  const cellWidth = useMemo(() => getCellWidth(viewMode), [viewMode]);
 
   // Global mouse tracker for row dragging - now handled by handleMouseMove
   // handleContainerDragOver removed - using custom drag instead of HTML5 DnD
@@ -235,47 +227,6 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
         issue.assigneeId && selectedAssignees.has(issue.assigneeId)
       );
     }
-
-    // Sort with robust handling for mixed defined/undefined sortOrders
-    // 1. Establish a "Natural Order" based on Date -> Created -> ID
-    // 2. Assign virtual sortOrders to undefined items based on their Natural Index
-    // 3. Sort by Effective Sort Order (Real ?? Virtual)
-    const sortIssues = (issueList: Issue[]) => {
-      const BASE_GAP = 1000000;
-
-      // 1. Natural Sort (fallback logic)
-      const naturalSorted = [...issueList].sort((a, b) => {
-        // Fallback 1: Due Date
-        const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-        const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-        if (dateA !== dateB) {
-          if (dateA === 0) return 1;
-          if (dateB === 0) return -1;
-          return dateA - dateB;
-        }
-        // Fallback 2: Creation Date
-        const createdA = new Date(a.createdAt).getTime();
-        const createdB = new Date(b.createdAt).getTime();
-        if (createdA !== createdB) return createdA - createdB;
-        // Fallback 3: ID
-        return a.id.localeCompare(b.id);
-      });
-
-      // 2 & 3. Map to effective sort order and sort
-      return naturalSorted
-        .map((issue, index) => ({
-          issue,
-          effectiveSortOrder: issue.sortOrder ?? ((index + 1) * BASE_GAP)
-        }))
-        .sort((a, b) => {
-          if (a.effectiveSortOrder !== b.effectiveSortOrder) {
-            return a.effectiveSortOrder - b.effectiveSortOrder;
-          }
-          // Ultimate tie-breaker (should rarely be reached due to unique IDs in natural sort)
-          return a.issue.id.localeCompare(b.issue.id);
-        })
-        .map(item => item.issue);
-    };
 
     if (groupBy === 'none') {
       return [{
@@ -738,57 +689,13 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
     }
   }, [dragState.issueId, linkingFrom, handleMouseMove, handleMouseUp]);
 
-  const getBarPosition = useCallback((issue: Issue) => {
-    const dueDate = issue.dueDate ? parseISO(issue.dueDate) : null;
-    const createdDate = parseISO(issue.createdAt);
+  // Use imported utility function with component-specific dependencies
+  const getBarPosition = useCallback(
+    (issue: Issue) => getBarPositionFromUtils(issue, dateRange, cellWidth),
+    [dateRange, cellWidth]
+  );
 
-    // Use explicit start_date if available, otherwise fall back to created date
-    const issueStartDate = (issue as any).startDate || (issue as any).start_date;
-    const startDate = issueStartDate ? parseISO(issueStartDate) : createdDate;
-
-    // Safety check for invalid dates
-    const safeStartDate = isValid(startDate) ? startDate : new Date(); // Fallback to now if invalid
-
-    // Use due date as end, or start date + 3 days if no due date
-    const endDate = dueDate && isValid(dueDate) ? dueDate : addDays(safeStartDate, 3);
-
-    const safeEndDate = isValid(endDate) ? endDate : addDays(safeStartDate, 3);
-
-    const startIndex = differenceInDays(safeStartDate, dateRange.start);
-    const endIndex = differenceInDays(safeEndDate, dateRange.start);
-    const totalDays = dateRange.days.length;
-
-    // Calculate position
-    const left = Math.max(0, startIndex * cellWidth);
-    const width = Math.max(cellWidth, (endIndex - startIndex + 1) * cellWidth);
-
-    const isVisible = endIndex >= 0 && startIndex < totalDays;
-
-    return {
-      left: `${left}px`,
-      width: `${Math.min(width, (totalDays - Math.max(0, startIndex)) * cellWidth)}px`,
-      isVisible,
-      hasDueDate: !!dueDate && isValid(dueDate),
-      hasStartDate: !!issueStartDate,
-    };
-  }, [dateRange, cellWidth]);
-
-  const getStatusColor = (status: Issue['status']) => {
-    switch (status) {
-      case 'done':
-        return 'bg-emerald-500 hover:bg-emerald-600';
-      case 'in_progress':
-        return 'bg-blue-500 hover:bg-blue-600';
-      case 'in_review':
-        return 'bg-amber-500 hover:bg-amber-600';
-      case 'todo':
-        return 'bg-slate-500 hover:bg-slate-600';
-      case 'cancelled':
-        return 'bg-red-500/70 hover:bg-red-600/70';
-      default:
-        return 'bg-slate-400 hover:bg-slate-500';
-    }
-  };
+  // Use imported getStatusColor from utils
 
   const handleIssueClick = (issue: Issue) => {
     if (onIssueClick) {
@@ -800,42 +707,11 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
 
   const totalWidth = dateRange.days.length * cellWidth;
 
-  // Get week/month markers for header
-  const getHeaderMarkers = () => {
-    const markers: { date: Date; label: string; span: number }[] = [];
-    let currentMonth = '';
-    let currentSpan = 0;
-    let startIndex = 0;
-
-    dateRange.days.forEach((day, index) => {
-      const monthKey = format(day, 'yyyy-MM');
-      if (monthKey !== currentMonth) {
-        if (currentMonth) {
-          markers.push({
-            date: dateRange.days[startIndex],
-            label: format(dateRange.days[startIndex], 'MMMM yyyy', { locale: dateLocale }),
-            span: currentSpan,
-          });
-        }
-        currentMonth = monthKey;
-        currentSpan = 1;
-        startIndex = index;
-      } else {
-        currentSpan++;
-      }
-    });
-
-    // Push last month
-    if (currentSpan > 0) {
-      markers.push({
-        date: dateRange.days[startIndex],
-        label: format(dateRange.days[startIndex], 'MMMM yyyy', { locale: dateLocale }),
-        span: currentSpan,
-      });
-    }
-
-    return markers;
-  };
+  // Get week/month markers for header using imported utility
+  const getHeaderMarkers = useCallback(
+    () => getHeaderMarkersFromUtils(dateRange, viewMode, dateLocale),
+    [dateRange, viewMode, dateLocale]
+  );
 
   const totalIssuesWithDates = groupedIssues.reduce((sum, g) => sum + g.issues.length, 0);
 
