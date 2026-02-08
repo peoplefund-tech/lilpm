@@ -27,14 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Settings, 
-  Users, 
-  Trash2, 
+import {
+  Settings,
+  Users,
+  Trash2,
   Loader2,
   Save,
   AlertTriangle,
   Building2,
+  LogOut,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TeamRole } from '@/types/database';
@@ -44,20 +45,22 @@ export function TeamSettingsPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { currentTeam, teams, selectTeam, loadTeams, deleteTeam } = useTeamStore();
-  
+
   const [name, setName] = useState('');
   const [issuePrefix, setIssuePrefix] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [userRole, setUserRole] = useState<TeamRole | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [leaveConfirmation, setLeaveConfirmation] = useState('');
 
   useEffect(() => {
     if (currentTeam) {
       setName(currentTeam.name);
       // Load issue_prefix directly from the database if needed
       setIssuePrefix('');
-      
+
       // Fetch the full team data including issue_prefix
       const loadTeamDetails = async () => {
         try {
@@ -88,7 +91,7 @@ export function TeamSettingsPage() {
 
   const handleSave = async () => {
     if (!currentTeam || !name.trim()) return;
-    
+
     setIsSaving(true);
     try {
       await teamService.updateTeam(currentTeam.id, {
@@ -106,11 +109,11 @@ export function TeamSettingsPage() {
 
   const handleDelete = async () => {
     if (!currentTeam || deleteConfirmation !== currentTeam.name) return;
-    
+
     setIsDeleting(true);
     try {
       await deleteTeam(currentTeam.id);
-      
+
       // Switch to another team if available
       const remainingTeams = teams.filter(t => t.id !== currentTeam.id);
       if (remainingTeams.length > 0) {
@@ -119,13 +122,46 @@ export function TeamSettingsPage() {
       } else {
         navigate('/onboarding/create-team');
       }
-      
+
       toast.success(t('teamSettings.teamDeleted'));
     } catch (error: any) {
       toast.error(error.message || t('common.error'));
     } finally {
       setIsDeleting(false);
       setDeleteConfirmation('');
+    }
+  };
+
+  const handleLeaveTeam = async () => {
+    if (!currentTeam || !user || leaveConfirmation !== 'LEAVE') return;
+
+    // Check if user is the only owner
+    if (userRole === 'owner') {
+      toast.error(t('teamSettings.cannotLeaveAsOwner', 'You must transfer ownership before leaving'));
+      return;
+    }
+
+    setIsLeaving(true);
+    try {
+      // Remove user from team
+      await teamMemberService.removeMember(user.id);
+
+      // Reload teams and switch to another team
+      await loadTeams();
+      const remainingTeams = teams.filter(t => t.id !== currentTeam.id);
+      if (remainingTeams.length > 0) {
+        await selectTeam(remainingTeams[0].id);
+        navigate('/dashboard');
+      } else {
+        navigate('/onboarding/create-team');
+      }
+
+      toast.success(t('teamSettings.leftTeam', 'You have left the team'));
+    } catch (error: any) {
+      toast.error(error.message || t('common.error'));
+    } finally {
+      setIsLeaving(false);
+      setLeaveConfirmation('');
     }
   };
 
@@ -153,7 +189,7 @@ export function TeamSettingsPage() {
               {t('teamSettings.description', 'Manage your team settings and preferences')}
             </p>
           </div>
-          
+
           {/* Team Selector */}
           {teams.length > 1 && (
             <div className="flex items-center gap-2">
@@ -162,7 +198,7 @@ export function TeamSettingsPage() {
                 value={currentTeam?.id}
                 onValueChange={(teamId) => {
                   const team = teams.find(t => t.id === teamId);
-                  if (team) selectTeam(team);
+                  if (team) selectTeam(team.id);
                 }}
               >
                 <SelectTrigger className="w-[200px]">
@@ -198,7 +234,7 @@ export function TeamSettingsPage() {
                 disabled={!canEdit}
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('teamSettings.issuePrefix', 'Issue Prefix')}</label>
               <Input
@@ -231,9 +267,9 @@ export function TeamSettingsPage() {
             <CardTitle className="text-lg">{t('teamSettings.quickActions', 'Quick Actions')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start" 
+            <Button
+              variant="outline"
+              className="w-full justify-start"
               onClick={() => navigate('/team/members')}
             >
               <Users className="h-4 w-4 mr-2" />
@@ -241,6 +277,70 @@ export function TeamSettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Leave Team - Only for non-owners */}
+        {userRole !== 'owner' && (
+          <Card className="border-orange-500/50">
+            <CardHeader>
+              <CardTitle className="text-lg text-orange-600 flex items-center gap-2">
+                <LogOut className="h-5 w-5" />
+                {t('teamSettings.leaveTeam', 'Leave Team')}
+              </CardTitle>
+              <CardDescription>
+                {t('teamSettings.leaveTeamDesc', 'Remove yourself from this team')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="gap-2 border-orange-500 text-orange-600 hover:bg-orange-500/10">
+                    <LogOut className="h-4 w-4" />
+                    {t('teamSettings.leaveTeam', 'Leave Team')}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {t('teamSettings.leaveTeamTitle', 'Leave this team?')}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-3">
+                      <p>
+                        {t('teamSettings.leaveTeamConfirmDesc', 'You will lose access to all projects, issues, and data in this team. You can rejoin if invited again.')}
+                      </p>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {t('teamSettings.typeLeaveToConfirm', 'Type LEAVE to confirm')}
+                        </p>
+                        <Input
+                          value={leaveConfirmation}
+                          onChange={(e) => setLeaveConfirmation(e.target.value.toUpperCase())}
+                          placeholder="LEAVE"
+                        />
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setLeaveConfirmation('')}>
+                      {t('common.cancel')}
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleLeaveTeam}
+                      disabled={leaveConfirmation !== 'LEAVE' || isLeaving}
+                      className="bg-orange-600 text-white hover:bg-orange-700"
+                    >
+                      {isLeaving ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <LogOut className="h-4 w-4 mr-2" />
+                      )}
+                      {t('teamSettings.confirmLeave', 'Leave Team')}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Danger Zone */}
         {canDelete && (

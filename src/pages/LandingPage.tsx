@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -9,11 +10,80 @@ import {
   Users,
   Sparkles,
   CheckCircle2,
-  ArrowUpRight
+  ArrowUpRight,
+  FileText,
+  MessageSquare,
+  Kanban,
+  Clock,
 } from 'lucide-react';
+
+// Hero animation features
+const HERO_FEATURES = [
+  {
+    icon: Sparkles,
+    title: 'AI-Powered PRD',
+    description: 'Generate complete PRDs from a simple conversation',
+    color: 'from-violet-500 to-purple-600',
+  },
+  {
+    icon: Zap,
+    title: 'Auto Ticket Creation',
+    description: 'Automatically create development tickets from requirements',
+    color: 'from-yellow-500 to-orange-500',
+  },
+  {
+    icon: MessageSquare,
+    title: 'Chat with Lily',
+    description: 'Natural language interface for project planning',
+    color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    icon: Kanban,
+    title: 'Kanban Board',
+    description: 'Visualize workflow with drag-and-drop boards',
+    color: 'from-green-500 to-emerald-500',
+  },
+  {
+    icon: GitBranch,
+    title: 'Gantt Charts',
+    description: 'Timeline view with dependencies and milestones',
+    color: 'from-pink-500 to-rose-500',
+  },
+  {
+    icon: Users,
+    title: 'Real-time Collaboration',
+    description: 'Work together with live cursors and presence',
+    color: 'from-indigo-500 to-violet-500',
+  },
+  {
+    icon: FileText,
+    title: 'Rich Documentation',
+    description: 'Notion-like editor with @mentions and embeds',
+    color: 'from-teal-500 to-cyan-500',
+  },
+  {
+    icon: Clock,
+    title: 'Sprint Planning',
+    description: 'Organize work into cycles with velocity tracking',
+    color: 'from-amber-500 to-yellow-500',
+  },
+];
 
 export function LandingPage() {
   const { t } = useTranslation();
+  const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
+
+  // Rotate features every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentFeatureIndex((prev) => (prev + 1) % HERO_FEATURES.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentFeature = HERO_FEATURES[currentFeatureIndex];
+  const CurrentIcon = currentFeature.icon;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
@@ -102,83 +172,48 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* App Preview - Interactive AI Demo */}
+      {/* Animated Feature Showcase */}
       <section className="px-6 pb-20" id="demo">
         <div className="max-w-6xl mx-auto">
           <div className="relative rounded-xl border border-border bg-card overflow-hidden shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
 
-            {/* Mockup App Interface */}
-            <div className="grid md:grid-cols-3 min-h-[500px]">
-              {/* Sidebar */}
-              <div className="hidden md:flex flex-col bg-muted/30 border-r border-border p-4">
-                <div className="flex items-center gap-2 mb-6">
-                  <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                    <span className="text-sm font-bold text-primary-foreground">L</span>
-                  </div>
-                  <span className="font-semibold">Lil PM</span>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm">
-                    <Sparkles className="h-4 w-4" />
-                    <span>Lily AI</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-muted-foreground">
-                    <BarChart3 className="h-4 w-4" />
-                    <span>PRD</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-muted-foreground">
-                    <Zap className="h-4 w-4" />
-                    <span>Issues</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted text-sm text-muted-foreground">
-                    <GitBranch className="h-4 w-4" />
-                    <span>Gantt Chart</span>
-                  </div>
-                </div>
+            {/* Animated Feature Display */}
+            <div className="relative min-h-[400px] flex flex-col items-center justify-center p-8">
+              {/* Feature Icon with Animation */}
+              <div
+                key={currentFeatureIndex}
+                className={`h-24 w-24 rounded-2xl bg-gradient-to-br ${currentFeature.color} flex items-center justify-center mb-6 shadow-lg animate-in fade-in zoom-in-50 duration-500`}
+              >
+                <CurrentIcon className="h-12 w-12 text-white" />
               </div>
 
-              {/* Chat Area */}
-              <div className="md:col-span-2 flex flex-col p-6">
-                <div className="flex-1 space-y-4">
-                  {/* User Message */}
-                  <div className="flex gap-3 justify-end">
-                    <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%] text-sm">
-                      Plan a review system feature for a shopping mall app
-                    </div>
-                    <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                  </div>
+              {/* Feature Text */}
+              <h3
+                key={`title-${currentFeatureIndex}`}
+                className="text-2xl md:text-3xl font-bold mb-3 animate-in fade-in slide-in-from-bottom-2 duration-500"
+              >
+                {currentFeature.title}
+              </h3>
+              <p
+                key={`desc-${currentFeatureIndex}`}
+                className="text-muted-foreground text-lg max-w-md text-center animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100"
+              >
+                {currentFeature.description}
+              </p>
 
-                  {/* AI Response */}
-                  <div className="flex gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="bg-muted rounded-lg px-4 py-3 max-w-[80%] text-sm space-y-3">
-                      <p className="font-medium">📋 Created Review System PRD!</p>
-                      <div className="border border-border rounded-lg p-3 bg-background/50">
-                        <p className="text-xs text-muted-foreground mb-1">PRD Preview</p>
-                        <p className="font-medium text-sm">Shopping Mall Review System</p>
-                        <p className="text-xs text-muted-foreground mt-1">5 User Stories · 12 Requirements</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-xs">Auto-generated tickets</span>
-                        <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-xs">AI Analysis Complete</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Input Area */}
-                <div className="mt-4 flex gap-2">
-                  <div className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                    Ask Lily anything...
-                  </div>
-                  <button className="h-11 w-11 rounded-lg bg-primary flex items-center justify-center">
-                    <ArrowRight className="h-5 w-5 text-primary-foreground" />
-                  </button>
-                </div>
+              {/* Feature Progress Dots */}
+              <div className="flex gap-2 mt-8">
+                {HERO_FEATURES.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentFeatureIndex(index)}
+                    className={`h-2 rounded-full transition-all duration-300 ${index === currentFeatureIndex
+                        ? 'w-8 bg-primary'
+                        : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                      }`}
+                  />
+                ))}
               </div>
             </div>
           </div>
