@@ -32,3 +32,6 @@ export type { InlineColumn, InlineRow, InlineDatabaseOptions } from './InlineDat
 // Core Extensions
 export { UniqueId, getBlockIdAtPos, findBlockById } from './UniqueId';
 export { SyncedBlock, SyncedBlockService } from './SyncedBlock';
+
+// Slash Commands (Notion-style '/' menu)
+export { SlashCommands, slashCommandItems } from './SlashCommands';

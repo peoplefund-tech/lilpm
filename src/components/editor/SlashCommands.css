@@ -1,0 +1,49 @@
+/* Slash Commands Menu Styles */
+
+.slash-command-container {
+    z-index: 9999;
+}
+
+.tippy-box[data-theme~='slash-command'] {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.tippy-box[data-theme~='slash-command']>.tippy-content {
+    padding: 0;
+}
+
+.slash-command-menu {
+    animation: slideIn 0.15s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Scrollbar styling */
+.slash-command-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.slash-command-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.slash-command-menu::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+}
+
+.slash-command-menu::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+}

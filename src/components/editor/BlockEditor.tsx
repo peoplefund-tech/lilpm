@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useRef, DragEvent, useMemo } f
 import './DragHandle.css';
 import './CollaborationCursor.css';
 import './BlockLink.css';
+import './SlashCommands.css';
 import { BlockPresenceIndicator } from './BlockPresenceIndicator';
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -74,7 +75,8 @@ import {
   BookmarkNode, FileNode, UniqueId, getBlockIdAtPos,
   AudioNode, ColumnBlock, Column, PageEmbed, BreadcrumbsNode,
   ButtonBlock, TemplateButton,
-  LinkedDatabase, InlineDatabase
+  LinkedDatabase, InlineDatabase,
+  SlashCommands,
 } from './extensions';
 import { cn } from '@/lib/utils';
 import {
@@ -886,6 +888,8 @@ export function BlockEditor({
       // Sprint 4: Database
       LinkedDatabase,
       InlineDatabase,
+      // Slash Commands (Notion-style '/' menu)
+      SlashCommands,
     ],
     content: yjsDoc ? undefined : content, // Don't set content when using Yjs (doc is the source of truth)
     editable,
