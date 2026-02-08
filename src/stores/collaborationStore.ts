@@ -7,6 +7,7 @@ export interface Presence {
   name: string;
   avatarUrl?: string;
   cursor?: { x: number; y: number };
+  textCursor?: { line: number; column: number; selection?: string };
   focusedIssueId?: string;
   isEditing?: boolean;
   isTyping?: boolean;
@@ -34,6 +35,11 @@ interface CollaborationStore {
   updateCursor: (position: { x: number; y: number }) => void;
   broadcastIssueUpdate: (issueId: string, changes: Record<string, unknown>) => void;
   toggleShowCursors: () => void;
+  // Cursor visibility to specific members
+  cursorVisibleTo: string[]; // Array of user IDs who can see my cursor
+  setCursorVisibleTo: (userIds: string[]) => void;
+  // Text cursor for editor collaboration
+  updateTextCursor: (position: { line: number; column: number; selection?: string }) => void;
 }
 
 const PRESENCE_COLORS = [
@@ -54,6 +60,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     color: getRandomColor(),
   },
   showCursors: localStorage.getItem('showCursors') === 'true', // default false
+  cursorVisibleTo: JSON.parse(localStorage.getItem('cursorVisibleTo') || '[]'),
 
   joinRoom: async (roomId: string, userInfo: { id: string; name: string; avatarUrl?: string }) => {
     // Leave existing room first
@@ -216,5 +223,26 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       localStorage.setItem('showCursors', String(newValue));
       return { showCursors: newValue };
     });
+  },
+
+  setCursorVisibleTo: (userIds: string[]) => {
+    localStorage.setItem('cursorVisibleTo', JSON.stringify(userIds));
+    set({ cursorVisibleTo: userIds });
+  },
+
+  updateTextCursor: (position: { line: number; column: number; selection?: string }) => {
+    const { channel, myPresence } = get();
+
+    // Broadcast text cursor position
+    if (channel) {
+      channel.send({
+        type: 'broadcast',
+        event: 'textCursor:update',
+        payload: { odId: myPresence.odId, textCursor: position },
+      });
+    }
+
+    // Update local presence
+    get().updatePresence({ textCursor: position });
   },
 }));

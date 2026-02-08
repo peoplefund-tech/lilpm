@@ -48,7 +48,7 @@ export function Header({
   const location = useLocation();
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
-  const { showCursors, toggleShowCursors } = useCollaborationStore();
+  const { showCursors, toggleShowCursors, users, cursorVisibleTo, setCursorVisibleTo } = useCollaborationStore();
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -130,26 +130,87 @@ export function Header({
           </Tooltip>
         )}
 
-        {/* Cursor Visibility Toggle */}
+        {/* Cursor Visibility Toggle with Member Selection */}
         {isCollaborating && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={showCursors ? "default" : "ghost"}
-                size="icon"
-                className={cn(
-                  "h-7 w-7",
-                  showCursors && "bg-violet-500 hover:bg-violet-600 text-white"
-                )}
-                onClick={toggleShowCursors}
-              >
-                <MousePointer2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{showCursors ? t('collaboration.hideCursors', 'Hide cursors') : t('collaboration.showCursors', 'Show cursors')}</p>
-            </TooltipContent>
-          </Tooltip>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={showCursors ? "default" : "ghost"}
+                    size="icon"
+                    className={cn(
+                      "h-7 w-7",
+                      showCursors && "bg-violet-500 hover:bg-violet-600 text-white"
+                    )}
+                  >
+                    <MousePointer2 className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{showCursors ? t('collaboration.hideCursors', 'Hide cursors') : t('collaboration.showCursors', 'Show cursors')}</p>
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  {t('collaboration.cursorVisibility', 'Cursor Visibility')}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={toggleShowCursors}
+                >
+                  {showCursors ? t('collaboration.hideCursors', 'Hide cursors') : t('collaboration.showCursors', 'Show cursors')}
+                </Button>
+              </div>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  {t('collaboration.showCursorTo', 'Share my cursor with:')}
+                </p>
+                <div className="space-y-1">
+                  {users.filter(u => u.odId !== user?.id).length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      {t('collaboration.noOtherUsers', 'No other users online')}
+                    </p>
+                  ) : (
+                    users.filter(u => u.odId !== user?.id).map((member) => (
+                      <label
+                        key={member.odId}
+                        className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          className="rounded border-border"
+                          checked={cursorVisibleTo.includes(member.odId)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setCursorVisibleTo([...cursorVisibleTo, member.odId]);
+                            } else {
+                              setCursorVisibleTo(cursorVisibleTo.filter(id => id !== member.odId));
+                            }
+                          }}
+                        />
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={member.avatarUrl} />
+                          <AvatarFallback
+                            className="text-[10px] text-white"
+                            style={{ backgroundColor: member.color }}
+                          >
+                            {member.name?.charAt(0) || '?'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm truncate">{member.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
         {/* Notifications */}

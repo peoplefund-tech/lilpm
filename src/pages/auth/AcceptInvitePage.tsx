@@ -10,6 +10,8 @@ import { useMCPStore } from '@/stores/mcpStore';
 import { supabase } from '@/lib/supabase';
 import { Loader2, CheckCircle2, XCircle, Users, Mail, LogIn, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { notificationService } from '@/lib/services/notificationService';
+import { teamMemberService } from '@/lib/services/team/teamMemberService';
 
 type InviteStatus = 'loading' | 'pending' | 'processing' | 'success' | 'error' | 'magic_link_sent';
 
@@ -135,6 +137,40 @@ export function AcceptInvitePage() {
           await loadTeams();
           if (result.teamId) {
             await selectTeam(result.teamId);
+
+            // Create notifications for inviter and team members
+            try {
+              // Get team members to notify
+              const teamMembers = await teamMemberService.getMembers(result.teamId);
+              const inviterId = invitePreview.inviterName ?
+                teamMembers.find(m => m.profile?.name === invitePreview.inviterName)?.user_id : null;
+
+              // Notify the inviter that their invite was accepted
+              if (inviterId && user?.id && user.id !== inviterId) {
+                await notificationService.createNotification(
+                  inviterId,
+                  'invite_accepted',
+                  t('notifications.inviteAccepted', 'Invite Accepted'),
+                  t('notifications.inviteAcceptedBody', `${user?.name || 'A new member'} has joined the team!`),
+                  { teamId: result.teamId, newMemberId: user?.id }
+                );
+              }
+
+              // Notify all other team members about the new member
+              for (const member of teamMembers) {
+                if (member.user_id !== user?.id && member.user_id !== inviterId) {
+                  await notificationService.createNotification(
+                    member.user_id,
+                    'invite_accepted',
+                    t('notifications.newTeamMember', 'New Team Member'),
+                    t('notifications.newTeamMemberBody', `${user?.name || 'Someone'} has joined ${result.teamName}!`),
+                    { teamId: result.teamId, newMemberId: user?.id }
+                  );
+                }
+              }
+            } catch (notifyErr) {
+              console.warn('Failed to send join notifications:', notifyErr);
+            }
           }
           setOnboardingCompleted(true);
           setStatus('success');
