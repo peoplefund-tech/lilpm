@@ -83,7 +83,7 @@ const EditableCell: React.FC<{
                 />
             );
 
-        case 'select':
+        case 'select': {
             const selected = column.options?.find(o => o.id === value);
             return (
                 <div className="relative">
@@ -124,6 +124,7 @@ const EditableCell: React.FC<{
                     )}
                 </div>
             );
+        }
 
         case 'date':
             return (

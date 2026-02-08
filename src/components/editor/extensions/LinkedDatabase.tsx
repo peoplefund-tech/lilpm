@@ -79,7 +79,7 @@ const TableView: React.FC<{
                         className="h-4 w-4 rounded border-gray-300"
                     />
                 );
-            case 'select':
+            case 'select': {
                 const option = column.options?.find(o => o.id === value);
                 return option ? (
                     <span
@@ -89,6 +89,7 @@ const TableView: React.FC<{
                         {option.name}
                     </span>
                 ) : null;
+            }
             case 'date':
                 return value ? new Date(value).toLocaleDateString() : '';
             case 'url':
