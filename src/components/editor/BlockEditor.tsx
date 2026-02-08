@@ -1422,8 +1422,8 @@ export function BlockEditor({
               }}
             >
               <EditorContent editor={editor} />
-              {/* Block Presence Indicators - show avatars next to blocks being edited */}
-              {remoteCursors && remoteCursors.size > 0 && (
+              {/* Block Presence Indicators - only show when Yjs is active (to avoid double display with CursorOverlay) */}
+              {yjsProvider && remoteCursors && remoteCursors.size > 0 && (
                 <BlockPresenceIndicator
                   editor={editor}
                   users={Array.from(remoteCursors.values()).map(cursor => ({
