@@ -1,6 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import {
   Send,
@@ -11,7 +9,6 @@ import {
   ChevronRight,
   Loader2,
   Bot,
-  User,
   Check,
   CheckCircle,
   X,
@@ -21,35 +18,21 @@ import {
   Clock,
   BarChart3,
   Square,
-  Settings,
-  Link,
   Pin,
-  PinOff,
-  Pencil,
-  MoreHorizontal,
-  GripVertical,
-  Brain,
-  PanelRightClose,
-  PanelRightOpen,
   Code,
   Copy,
   Paperclip,
-  Image,
-  File,
-  FileCode,
-  FileSpreadsheet,
-  Film,
-  RotateCcw,
+  Eye,
+  Save,
   ArrowUp,
   ArrowDown,
   ChevronsUp,
-  Share2,
+  PanelRightClose,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,17 +45,14 @@ import { useLilyStore } from '@/stores/lilyStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useIssueStore } from '@/stores/issueStore';
 import { useMCPStore } from '@/stores/mcpStore';
-import { SuggestedIssuesList } from './SuggestedIssueCard';
 import { ApiKeyRequiredModal } from './ApiKeyRequiredModal';
-import { TimelineThinkingBlock } from './TimelineThinkingBlock';
 import { ConversationItem } from './ConversationItem';
+import { ChatMessage } from './ChatMessage';
 import { cn } from '@/lib/utils';
-import type { AIProvider, Issue } from '@/types';
-import { formatDistanceToNow } from 'date-fns';
-import { ko, enUS, Locale } from 'date-fns/locale';
+import type { AIProvider } from '@/types';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { Plug, ExternalLink, Eye, Save } from 'lucide-react';
+import { Plug, ExternalLink } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAISettings } from '@/hooks/useAISettings';
 import { prdService } from '@/lib/services/prdService';
@@ -86,116 +66,24 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { ShareConversationModal } from './ShareConversationModal';
+import {
+  UploadedFile,
+  FILE_TYPE_MAP,
+  ProjectContext,
+  MIN_HISTORY_WIDTH,
+  MAX_HISTORY_WIDTH,
+  DEFAULT_HISTORY_WIDTH,
+} from './types';
+import { getFileTypeIcon } from './utils';
 
-const MIN_HISTORY_WIDTH = 200;
-const MAX_HISTORY_WIDTH = 400;
-const DEFAULT_HISTORY_WIDTH = 256; // 16rem = 256px
-
-// File upload types
-interface UploadedFile {
-  id: string;
-  file: File;
-  preview?: string;
-  base64?: string;
-  type: 'image' | 'video' | 'pdf' | 'document' | 'code' | 'spreadsheet' | 'other';
-}
-
-// Allowed file types and their categories
-const FILE_TYPE_MAP: Record<string, UploadedFile['type']> = {
-  'image/jpeg': 'image',
-  'image/jpg': 'image',
-  'image/png': 'image',
-  'image/gif': 'image',
-  'image/webp': 'image',
-  'video/mp4': 'video',
-  'video/webm': 'video',
-  'video/quicktime': 'video',
-  'application/pdf': 'pdf',
-  'application/msword': 'document',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
-  'application/vnd.ms-excel': 'spreadsheet',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'spreadsheet',
-  'text/csv': 'spreadsheet',
-  'text/plain': 'code',
-  'text/javascript': 'code',
-  'text/typescript': 'code',
-  'text/html': 'code',
-  'text/css': 'code',
-  'application/json': 'code',
-  'application/xml': 'code',
-  'text/x-python': 'code',
-  'text/x-java': 'code',
-  'text/x-c': 'code',
-  'text/x-cpp': 'code',
-};
-
-// Get file type icon
-function getFileTypeIcon(type: UploadedFile['type']) {
-  switch (type) {
-    case 'image': return <Image className="h-4 w-4" />;
-    case 'video': return <Film className="h-4 w-4" />;
-    case 'pdf': return <FileText className="h-4 w-4" />;
-    case 'document': return <FileText className="h-4 w-4" />;
-    case 'spreadsheet': return <FileSpreadsheet className="h-4 w-4" />;
-    case 'code': return <FileCode className="h-4 w-4" />;
-    default: return <File className="h-4 w-4" />;
-  }
-}
-
-// Detect if content looks like a PRD (Product Requirements Document)
-function isPRDLikeContent(content: string): boolean {
-  if (!content || content.length < 300) return false;
-
-  // Count indicators of PRD-like content
-  let score = 0;
-
-  // Check for H1/H2/H3 headings
-  const headingCount = (content.match(/^#{1,3}\s+.+$/gm) || []).length;
-  if (headingCount >= 3) score += 2;
-  if (headingCount >= 5) score += 1;
-
-  // Check for PRD-related keywords
-  const prdKeywords = [
-    /\b(요구사항|requirements?|기능|features?|목표|goals?|objectives?)\b/gi,
-    /\b(overview|개요|summary|요약|배경|background|context)\b/gi,
-    /\b(user\s*stor(y|ies)|사용자\s*스토리|유스\s*케이스|use\s*cases?)\b/gi,
-    /\b(scope|범위|constraints?|제약|assumptions?|가정)\b/gi,
-    /\b(acceptance\s*criteria|인수\s*기준|테스트\s*케이스|test\s*cases?)\b/gi,
-    /\b(milestone|마일스톤|timeline|일정|deliverables?|산출물)\b/gi,
-  ];
-
-  for (const pattern of prdKeywords) {
-    if (pattern.test(content)) score += 1;
-  }
-
-  // Check for numbered lists or bullet points
-  const listItemCount = (content.match(/^[\s]*[-*•]\s+.+$|^[\s]*\d+\.\s+.+$/gm) || []).length;
-  if (listItemCount >= 5) score += 1;
-  if (listItemCount >= 10) score += 1;
-
-  // Check for tables
-  if (content.includes('|') && (content.match(/\|.*\|/g) || []).length >= 3) {
-    score += 1;
-  }
-
-  // Threshold: score >= 4 means it's likely a PRD
-  return score >= 4;
-}
-
-// Project context for AI-assisted creation from project page
-interface ProjectContext {
-  projectId?: string;
-  projectName?: string;
-  type?: 'issue' | 'prd';
-}
+import { ko, enUS } from 'date-fns/locale';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface LilyChatProps {
   projectContext?: ProjectContext;
@@ -1035,202 +923,24 @@ export function LilyChat({ projectContext }: LilyChatProps) {
               )}
 
 
-              {messages.map((message) => {
-                // Extract thinking content from message
-                let thinkingContent = message.thinking || '';
-                let cleanContent = message.content;
-
-                // Extract thinking from content if present
-                const thinkingMatch = cleanContent.match(/<thinking>([\s\S]*?)<\/thinking>/);
-                if (thinkingMatch) {
-                  thinkingContent = thinkingMatch[1];
-                  cleanContent = cleanContent.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
-                }
-
-                // Remove [CANVAS:...] blocks and template text
-                cleanContent = cleanContent
-                  .replace(/\[CANVAS:[^\]]*\][\s\S]*?(?=\n\n|$)/g, '')
-                  .replace(/\/\/ Write a [^\n]*\n?/g, '')
-                  .trim();
-
-                // Filter out internal tags like [/ISSUE_SUGGESTION], [ISSUE_SUGGESTION], [/PRD_CONTENT] etc.
-                cleanContent = cleanContent
-                  .replace(/\[\/?(?:ISSUE_SUGGESTION|PRD_CONTENT|CANVAS|THINKING)\]/gi, '')
-                  .trim();
-
-                // Only remove code blocks from chat when canvas mode is ON
-                // This allows code blocks to display normally when not in canvas mode
-                if (canvasMode && showCanvasPanel) {
-                  cleanContent = cleanContent.replace(/```[\s\S]*?```/g, '').trim();
-                }
-
-                // Determine if this is a PRD-like content and if PRD button should show
-                const isPRD = isPRDLikeContent(cleanContent || '');
-                const hasIssues = suggestedIssues.length > 0;
-                const shouldShowPRDButton = message.role === 'assistant' && isPRD && !hasIssues && !isLoading;
-                const savedPRDId = savedPRDMap[message.id];
-                const isSavingThisMessage = savingPRDForMessage === message.id;
-
-                return (
-                  <div key={message.id} data-message-id={message.id} className="group/message">
-                    {/* Timeline Thinking Block - Show for ALL AI responses with thinking content */}
-                    {message.role === 'assistant' && thinkingContent && (
-                      <TimelineThinkingBlock
-                        content={thinkingContent}
-                        t={t}
-                        isStreaming={isLoading && messages.indexOf(message) === messages.length - 1}
-                      />
-                    )}
-
-                    {/* Message bubble - Gemini-style compact design */}
-                    <div className={cn(
-                      "flex gap-2",
-                      message.role === 'user' && "flex-row-reverse"
-                    )}>
-                      <Avatar className="h-6 w-6 flex-shrink-0">
-                        <AvatarFallback className={cn(
-                          "text-xs",
-                          message.role === 'assistant' && "bg-primary text-primary-foreground"
-                        )}>
-                          {message.role === 'assistant' ? (
-                            <Bot className="h-3 w-3" />
-                          ) : (
-                            <User className="h-3 w-3" />
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0 max-w-[85%] sm:max-w-[85%]">
-                        {/* Speech Bubble */}
-                        <div
-                          className={cn(
-                            "rounded-lg px-3 py-1.5",
-                            message.role === 'user'
-                              ? "bg-primary text-primary-foreground text-[13px]"
-                              : "bg-muted"
-                          )}
-                        >
-                          {message.role === 'assistant' ? (
-                            <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed overflow-hidden
-                            [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
-                            [&_p]:my-3 [&_p]:leading-7
-                            [&_ul]:my-3 [&_ul]:pl-6 [&_ul]:list-disc [&_ul]:space-y-1
-                            [&_ol]:my-3 [&_ol]:pl-6 [&_ol]:list-decimal [&_ol]:space-y-1
-                            [&_li]:leading-7 [&_li]:pl-1
-                            [&_li_p]:my-1
-                            [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-2
-                            [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-foreground
-                            [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-foreground
-                            [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-3 [&_h4]:mb-1
-                            [&_code]:text-xs [&_code]:bg-muted/70 [&_code]:text-primary [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono
-                            [&_pre]:my-4 [&_pre]:bg-zinc-900 [&_pre]:dark:bg-zinc-950 [&_pre]:text-zinc-100 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:border-border
-                            [&_pre_code]:bg-transparent [&_pre_code]:text-inherit [&_pre_code]:p-0 [&_pre_code]:text-xs
-                            [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:py-2 [&_blockquote]:pr-4 [&_blockquote]:rounded-r-lg
-                            [&_strong]:font-semibold [&_strong]:text-foreground
-                            [&_em]:italic [&_em]:text-foreground/90
-                            [&_hr]:my-6 [&_hr]:border-border
-                            [&_table]:my-4 [&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_table]:border [&_table]:border-border [&_table]:rounded-lg [&_table]:overflow-hidden
-                            [&_thead]:bg-muted/70
-                            [&_th]:border [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:font-semibold [&_th]:text-left [&_th]:text-foreground [&_th]:bg-muted/50
-                            [&_tbody]:divide-y [&_tbody]:divide-border
-                            [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-muted-foreground
-                            [&_tr]:transition-colors
-                            [&_tbody_tr:hover]:bg-muted/30
-                            [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_a]:font-medium hover:[&_a]:text-primary/80
-                            [&_img]:rounded-lg [&_img]:my-4
-                            [&_del]:line-through [&_del]:text-muted-foreground
-                          ">
-                              {/* During CoT streaming, show placeholder in bubble */}
-                              {isLoading && messages.indexOf(message) === messages.length - 1 && thinkingContent && !cleanContent ? (
-                                <span className="text-muted-foreground italic">{t('lily.thinking', 'Thinking...')}</span>
-                              ) : (
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanContent || t('lily.generating', 'Generating...')}</ReactMarkdown>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-sm whitespace-pre-wrap leading-relaxed">{cleanContent}</p>
-                          )}
-                          <span className="text-[9px] opacity-60 mt-0.5 block">
-                            {new Date(message.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-
-                        {/* User Message Actions - OUTSIDE the speech bubble */}
-                        {message.role === 'user' && (
-                          <div className="flex items-center gap-0.5 mt-1 ml-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                              onClick={() => handleEditMessage(cleanContent, message.id)}
-                              title={t('lily.edit', '수정')}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                              onClick={() => handleCopyMessage(cleanContent)}
-                              title={t('lily.copy', '복사')}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                              onClick={() => handleRetryMessage(cleanContent, messages.indexOf(message))}
-                              title={t('lily.retry', '다시 시도')}
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* PRD Save Button - appears for PRD-like content, hidden during streaming or when issues exist */}
-                        {shouldShowPRDButton && (
-                          <div className="mt-2">
-                            {savedPRDId ? (
-                              // Already saved - show "View PRD" button
-                              <Button
-                                variant="default"
-                                size="sm"
-                                className="gap-1.5 h-7 text-xs bg-green-600 hover:bg-green-700"
-                                onClick={() => navigate(`/prd/${savedPRDId}`)}
-                              >
-                                <CheckCircle className="h-3 w-3" />
-                                {t('lily.viewSavedPRD', '저장된 PRD 보러 가기')}
-                              </Button>
-                            ) : (
-                              // Not saved yet - show "Save as PRD" button
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5 h-7 text-xs"
-                                disabled={isSavingThisMessage}
-                                onClick={() => {
-                                  const titleMatch = (cleanContent || '').match(/^#+\s+(.+)$/m);
-                                  const title = titleMatch?.[1] || t('lily.untitledPRD', 'Untitled PRD');
-                                  saveAsPRD(cleanContent || '', title, message.id);
-                                }}
-                              >
-                                {isSavingThisMessage ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <FileText className="h-3 w-3" />
-                                )}
-                                {isSavingThisMessage
-                                  ? t('lily.savingPRD', '저장 중...')
-                                  : t('lily.saveAsPRD', 'PRD로 저장')}
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  messages={messages}
+                  isLoading={isLoading}
+                  canvasMode={canvasMode}
+                  showCanvasPanel={showCanvasPanel}
+                  suggestedIssuesLength={suggestedIssues.length}
+                  savedPRDId={savedPRDMap[message.id]}
+                  isSavingThisMessage={savingPRDForMessage === message.id}
+                  onSaveAsPRD={saveAsPRD}
+                  onViewPRD={(prdId) => navigate(`/prd/${prdId}`)}
+                  onEditMessage={handleEditMessage}
+                  onCopyMessage={handleCopyMessage}
+                  onRetryMessage={handleRetryMessage}
+                />
+              ))}
 
               {isLoading && (
                 <div className="flex gap-2">
