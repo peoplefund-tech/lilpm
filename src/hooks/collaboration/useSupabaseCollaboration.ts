@@ -157,9 +157,18 @@ export function useSupabaseCollaboration(
 
         // Handle content change broadcasts from other users
         channel.on('broadcast', { event: 'content_change' }, ({ payload }) => {
+            console.log('[SupabaseCollaboration] Received content_change broadcast:', {
+                fromUserId: payload.userId,
+                currentUserId: userId,
+                isSelf: payload.userId === userId,
+                hasCallback: !!contentChangeCallbackRef.current,
+                contentLength: payload.content?.length,
+            });
             if (payload.userId !== userId && contentChangeCallbackRef.current) {
-                console.log('[SupabaseCollaboration] Remote content change from:', payload.userId);
+                console.log('[SupabaseCollaboration] Applying remote content change from:', payload.userId);
                 contentChangeCallbackRef.current(payload.content, payload.userId);
+            } else if (payload.userId !== userId && !contentChangeCallbackRef.current) {
+                console.warn('[SupabaseCollaboration] No callback registered for content change!');
             }
         });
 
