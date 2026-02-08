@@ -1,19 +1,19 @@
--- Add archived_at column to issues and prds tables for 30-day archive retention
+-- Add archived_at column to issues and prd_documents tables for 30-day archive retention
 -- Archived items will be hidden from normal views and permanently deleted after 30 days
 
 -- Add archived_at to issues table
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ DEFAULT NULL;
 
--- Add archived_at to prds table  
-ALTER TABLE prds ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ DEFAULT NULL;
+-- Add archived_at to prd_documents table  
+ALTER TABLE prd_documents ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ DEFAULT NULL;
 
 -- Create index for efficient filtering of non-archived items
 CREATE INDEX IF NOT EXISTS idx_issues_archived_at ON issues(archived_at) WHERE archived_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_prds_archived_at ON prds(archived_at) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_prd_documents_archived_at ON prd_documents(archived_at) WHERE archived_at IS NULL;
 
 -- Create index for finding items to permanently delete (archived > 30 days)
 CREATE INDEX IF NOT EXISTS idx_issues_archived_cleanup ON issues(archived_at) WHERE archived_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_prds_archived_cleanup ON prds(archived_at) WHERE archived_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_prd_documents_archived_cleanup ON prd_documents(archived_at) WHERE archived_at IS NOT NULL;
 
 -- RPC function to get archived items
 CREATE OR REPLACE FUNCTION get_archived_items(p_team_id UUID)
@@ -44,7 +44,7 @@ BEGIN
     p.title,
     p.archived_at,
     30 - EXTRACT(DAY FROM (NOW() - p.archived_at))::INTEGER as days_until_deletion
-  FROM prds p
+  FROM prd_documents p
   WHERE p.team_id = p_team_id 
     AND p.archived_at IS NOT NULL
   
@@ -59,7 +59,7 @@ BEGIN
   IF p_item_type = 'issue' THEN
     UPDATE issues SET archived_at = NOW() WHERE id = p_item_id;
   ELSIF p_item_type = 'prd' THEN
-    UPDATE prds SET archived_at = NOW() WHERE id = p_item_id;
+    UPDATE prd_documents SET archived_at = NOW() WHERE id = p_item_id;
   ELSE
     RETURN FALSE;
   END IF;
@@ -74,7 +74,7 @@ BEGIN
   IF p_item_type = 'issue' THEN
     UPDATE issues SET archived_at = NULL WHERE id = p_item_id;
   ELSIF p_item_type = 'prd' THEN
-    UPDATE prds SET archived_at = NULL WHERE id = p_item_id;
+    UPDATE prd_documents SET archived_at = NULL WHERE id = p_item_id;
   ELSE
     RETURN FALSE;
   END IF;
@@ -93,7 +93,7 @@ BEGIN
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   
   -- Delete PRDs archived more than 30 days ago
-  DELETE FROM prds WHERE archived_at < NOW() - INTERVAL '30 days';
+  DELETE FROM prd_documents WHERE archived_at < NOW() - INTERVAL '30 days';
   GET DIAGNOSTICS deleted_count = deleted_count + ROW_COUNT;
   
   RETURN deleted_count;

@@ -145,7 +145,7 @@ export function ArchivePage() {
             const selectedItems = items.filter((item) => selectedIds.has(item.id));
 
             for (const item of selectedItems) {
-                const table = item.item_type === 'issue' ? 'issues' : 'prds';
+                const table = item.item_type === 'issue' ? 'issues' : 'prd_documents';
                 const { error } = await supabase.from(table).delete().eq('id', item.id);
                 if (error) throw error;
             }
