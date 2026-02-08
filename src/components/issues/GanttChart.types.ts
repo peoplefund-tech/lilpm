@@ -41,3 +41,16 @@ export interface GroupedIssues {
     issues: Issue[];
     isCollapsed: boolean;
 }
+
+// Added for utils extraction
+export interface DateRange {
+    start: Date;
+    end: Date;
+    days: Date[];
+}
+
+export interface HeaderMarker {
+    date: Date;
+    label: string;
+    span: number;
+}

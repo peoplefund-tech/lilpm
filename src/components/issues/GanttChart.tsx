@@ -47,8 +47,17 @@ import type {
   Dependency,
   ViewMode,
   GroupBy,
-  GroupedIssues
+  GroupedIssues,
+  DateRange,
 } from './GanttChart.types';
+import {
+  getStatusColor,
+  sortIssues,
+  getBarPosition as getBarPositionFromUtils,
+  getCellWidth,
+  getHeaderMarkers as getHeaderMarkersFromUtils,
+  calculateReorderSortOrder,
+} from './GanttChart.utils';
 
 export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, onDependencyCreate, onDependencyDelete, onCycleCreate }: GanttChartProps) {
   const { t, i18n } = useTranslation();
