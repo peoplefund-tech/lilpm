@@ -26,7 +26,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Get returnUrl from query params for redirect after login
-  const returnUrl = searchParams.get('returnUrl') || '/';
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard';
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.invalidEmail')),

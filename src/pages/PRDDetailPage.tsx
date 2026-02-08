@@ -282,6 +282,7 @@ export function PRDDetailPage() {
   });
 
   // Supabase Realtime Collaboration (reliable fallback for presence/cursors)
+  // TEMPORARILY DISABLED - re-enable after Cloudflare Worker is fully deployed
   const {
     isConnected: isSupabaseCollabConnected,
     presenceUsers,
@@ -295,7 +296,7 @@ export function PRDDetailPage() {
     userName: user?.name || user?.email?.split('@')[0] || 'Anonymous',
     userColor: user?.id ? getUserColor(user.id) : undefined,
     avatarUrl: user?.avatarUrl,
-    enabled: !!(prdId && user?.id && !isLoading),
+    enabled: false, // TEMPORARILY DISABLED to fix page crash
   });
 
   // Combine remote cursors from both sources (Yjs + Supabase Presence)
