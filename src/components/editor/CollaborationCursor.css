@@ -73,3 +73,12 @@
 
 /* Cursor colors - these are set dynamically by the user's assigned color */
 /* The color prop from TiptapCollaborationCursor applies to both caret and label */
+
+/* BubbleMenu - Ensure it appears above ALL other elements */
+[data-tippy-root] {
+    z-index: 99999 !important;
+}
+
+.tippy-box {
+    z-index: 99999 !important;
+}

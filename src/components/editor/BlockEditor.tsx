@@ -7,6 +7,7 @@ import { BlockPresenceIndicator } from './BlockPresenceIndicator';
 import { ResizableImage } from './ResizableImage';
 import { ToolbarButton } from './ToolbarButton';
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, NodeViewProps } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -71,7 +72,7 @@ import {
   Paperclip,
   Copy,
 } from 'lucide-react';
-import { Paintbrush } from 'lucide-react';
+import { Paintbrush, Underline } from 'lucide-react';
 import {
   CalloutNode, ToggleNode, VideoNode, EquationNode, TableOfContentsNode,
   BookmarkNode, FileNode, UniqueId, getBlockIdAtPos,
@@ -943,7 +944,7 @@ export function BlockEditor({
       )}
       {/* Toolbar */}
       {editable && (
-        <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border mb-4 sticky top-0 bg-background z-10">
+        <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border mb-4 sticky top-0 bg-background z-[5]">
           {/* Text formatting */}
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -1271,6 +1272,67 @@ export function BlockEditor({
 
       {/* Editor Content with Cursor Overlay and Block-Type Context Menu */}
       <div style={{ position: 'relative' }}>
+        {/* BubbleMenu - Text selection formatting toolbar */}
+        {editor && (
+          <BubbleMenu
+            editor={editor}
+          >
+            <div
+              className="flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1.5 shadow-xl"
+              style={{ zIndex: 99999, position: 'relative' }}
+            >
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                active={editor.isActive('bold')}
+                title="Bold (⌘B)"
+              >
+                <Bold className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                active={editor.isActive('italic')}
+                title="Italic (⌘I)"
+              >
+                <Italic className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                active={editor.isActive('strike')}
+                title="Strikethrough"
+              >
+                <Strikethrough className="h-4 w-4" />
+              </ToolbarButton>
+              <div className="w-px h-5 bg-border mx-0.5" />
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleCode().run()}
+                active={editor.isActive('code')}
+                title="Code"
+              >
+                <Code className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleHighlight().run()}
+                active={editor.isActive('highlight')}
+                title="Highlight"
+              >
+                <Highlighter className="h-4 w-4" />
+              </ToolbarButton>
+              <div className="w-px h-5 bg-border mx-0.5" />
+              <ToolbarButton
+                onClick={() => {
+                  const url = window.prompt('Enter URL');
+                  if (url) {
+                    editor.chain().focus().setLink({ href: url }).run();
+                  }
+                }}
+                active={editor.isActive('link')}
+                title="Link"
+              >
+                <LinkIcon className="h-4 w-4" />
+              </ToolbarButton>
+            </div>
+          </BubbleMenu>
+        )}
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div

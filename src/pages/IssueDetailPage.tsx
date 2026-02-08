@@ -771,12 +771,12 @@ Respond in the same language as the user's message.`
             {/* Description - Enhanced Block Editor */}
             <div className="mt-4 relative">
               {isEditingDescription ? (
-                <div className="relative border border-border rounded-lg bg-background shadow-sm">
-                  <div className="absolute right-3 top-3 flex items-center gap-2 z-10">
+                <div className="relative">
+                  <div className="absolute right-0 top-0 flex items-center gap-2 z-10">
                     {isSavingDescription && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     {descriptionSaved && <Check className="h-4 w-4 text-green-500" />}
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       className="h-7"
                       onClick={() => {
@@ -787,7 +787,7 @@ Respond in the same language as the user's message.`
                       Done
                     </Button>
                   </div>
-                  <div className="min-h-[400px] max-h-[70vh] overflow-y-auto p-4">
+                  <div className="min-h-[500px]">
                     <BlockEditor
                       content={editDescription || ''}
                       onChange={(content) => handleDescriptionChange(content)}
