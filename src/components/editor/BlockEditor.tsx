@@ -488,8 +488,8 @@ export function BlockEditor({
 
           const renderComponent = () => {
             root?.render(
-              <div className="bg-popover border border-border rounded-md shadow-lg overflow-hidden">
-                <div className="max-h-48 overflow-y-auto p-1">
+              <div className="bg-popover border border-border rounded-md shadow-lg overflow-hidden max-w-[280px]">
+                <div className="max-h-32 overflow-y-auto p-1">
                   {items.length === 0 ? (
                     <div className="px-2 py-1.5 text-sm text-muted-foreground">
                       No members found
@@ -499,13 +499,13 @@ export function BlockEditor({
                       <button
                         key={item.id}
                         type="button"
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left ${index === selectedIndex ? 'bg-accent' : 'hover:bg-accent/50'
+                        className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-left ${index === selectedIndex ? 'bg-accent' : 'hover:bg-accent/50'
                           }`}
                         onClick={() => {
                           props.command({ id: item.id, label: item.name || item.email || 'User' });
                         }}
                       >
-                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs text-primary flex-shrink-0">
+                        <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] text-primary flex-shrink-0">
                           {item.name?.charAt(0) || item.email?.charAt(0) || '?'}
                         </div>
                         <div className="flex-1 min-w-0">

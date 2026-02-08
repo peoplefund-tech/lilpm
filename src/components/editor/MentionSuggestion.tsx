@@ -89,15 +89,15 @@ export const MentionSuggestion = forwardRef<MentionSuggestionRef, MentionSuggest
         }
 
         return (
-            <div className="bg-popover border border-border rounded-md shadow-lg overflow-hidden">
-                <ScrollArea className="max-h-48">
+            <div className="bg-popover border border-border rounded-md shadow-lg overflow-hidden max-w-[280px]">
+                <ScrollArea className="max-h-32">
                     <div className="p-1">
                         {items.map((item, index) => (
                             <button
                                 key={item.id}
                                 type="button"
                                 className={cn(
-                                    'w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left',
+                                    'w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-left',
                                     index === selectedIndex
                                         ? 'bg-accent text-accent-foreground'
                                         : 'hover:bg-accent/50'
@@ -105,7 +105,7 @@ export const MentionSuggestion = forwardRef<MentionSuggestionRef, MentionSuggest
                                 onClick={() => selectItem(index)}
                                 onMouseEnter={() => setSelectedIndex(index)}
                             >
-                                <Avatar className="h-6 w-6 flex-shrink-0">
+                                <Avatar className="h-5 w-5 flex-shrink-0">
                                     <AvatarImage src={item.avatar_url || undefined} />
                                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
                                         {item.name?.charAt(0) || item.email?.charAt(0) || '?'}

@@ -227,6 +227,10 @@ export function PRDDetailPage() {
   const [status, setStatus] = useState<PRDStatus>('draft');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
 
+  // Track if Yjs document has content (for new PRDs, Yjs is empty so we use DB content)
+  const [useYjsForCollab, setUseYjsForCollab] = useState(true);
+  const [hasInitializedYjs, setHasInitializedYjs] = useState(false);
+
   // AI Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
@@ -513,6 +517,29 @@ export function PRDDetailPage() {
 
     loadPRD();
   }, [prdId, t, currentTeam?.id]);
+
+  // Check if Yjs document is empty after sync - if so, use DB content instead
+  // This fixes the issue where newly created PRDs from Lily have empty Yjs docs
+  useEffect(() => {
+    if (isYjsSynced && yjsDoc && !hasInitializedYjs && content) {
+      // Check if Yjs document has content
+      const yFragment = yjsDoc.getXmlFragment('prosemirror');
+      const isEmpty = yFragment.length === 0;
+
+      console.log('[PRDDetailPage] Yjs synced, fragment length:', yFragment.length, 'DB content length:', content.length);
+
+      if (isEmpty && content.length > 0) {
+        // Yjs is empty but DB has content - disable Yjs to use DB content
+        console.log('[PRDDetailPage] Yjs empty, using DB content instead');
+        setUseYjsForCollab(false);
+      } else {
+        // Yjs has content - use Yjs
+        setUseYjsForCollab(true);
+      }
+
+      setHasInitializedYjs(true);
+    }
+  }, [isYjsSynced, yjsDoc, hasInitializedYjs, content]);
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
@@ -1025,10 +1052,10 @@ Respond in the same language as the user's message.`
                 </div>
               </div>
 
-              {/* Block Editor - key forces remount when yjsDoc becomes available */}
+              {/* Block Editor - conditionally use Yjs based on whether it has content */}
               <div className="min-h-[500px]">
                 <BlockEditor
-                  key={yjsDoc ? `collab-${yjsDoc.guid}` : 'no-collab'}
+                  key={useYjsForCollab && yjsDoc ? `collab-${yjsDoc.guid}` : 'db-content'}
                   content={content}
                   onChange={handleContentChange}
                   placeholder="Start writing your PRD... Type '/' for commands or '@' to mention"
@@ -1036,10 +1063,10 @@ Respond in the same language as the user's message.`
                   autoFocus={false}
                   teamMembers={teamMembers}
                   onMention={handleMention}
-                  yjsDoc={yjsDoc || undefined}
-                  yjsProvider={yjsProvider || undefined}
-                  remoteCursors={remoteCursors}
-                  onCursorPositionChange={updateCursorPosition}
+                  yjsDoc={useYjsForCollab && yjsDoc ? yjsDoc : undefined}
+                  yjsProvider={useYjsForCollab && yjsProvider ? yjsProvider : undefined}
+                  remoteCursors={useYjsForCollab ? remoteCursors : undefined}
+                  onCursorPositionChange={useYjsForCollab ? updateCursorPosition : undefined}
                 />
               </div>
 
