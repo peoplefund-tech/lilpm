@@ -15,6 +15,7 @@ import { prdService } from '@/lib/services/prdService';
 import { BlockEditor } from '@/components/editor';
 import { IssueFocusIndicator, EditingIndicator, TypingIndicator } from '@/components/collaboration';
 import { useIssueFocus, useRealtimeIssueUpdates } from '@/hooks/useRealtimeCollaboration';
+import { useSupabaseCollaboration } from '@/hooks/collaboration/useSupabaseCollaboration';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ import {
   ArrowLeft,
   MoreHorizontal,
   Pencil,
-  Trash2,
+  Archive,
   Copy,
   ExternalLink,
   Calendar as CalendarIcon,
@@ -203,6 +204,41 @@ export function IssueDetailPage() {
   // Track focus for collaboration
   useIssueFocus(issueId || null);
 
+  // Generate user color
+  const getUserColor = (userId: string) => {
+    const colors = ['#F87171', '#FB923C', '#FBBF24', '#4ADE80', '#22D3EE', '#60A5FA', '#A78BFA', '#F472B6'];
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  // Supabase Realtime Collaboration for issues (real-time cursor + content sync)
+  const {
+    isConnected: isSupabaseCollabConnected,
+    presenceUsers,
+    updateCursorPosition: supabaseUpdateCursorPosition,
+    broadcastContentChange,
+    onRemoteContentChange,
+  } = useSupabaseCollaboration({
+    entityType: 'issue',
+    entityId: issueId || '',
+    userId: user?.id || '',
+    userName: user?.name || user?.email?.split('@')[0] || 'Anonymous',
+    userColor: user?.id ? getUserColor(user.id) : undefined,
+    avatarUrl: user?.avatarUrl,
+    enabled: !!(issueId && user?.id && !isLoading),
+  });
+
+  // Register remote content change handler for real-time sync
+  useEffect(() => {
+    if (isSupabaseCollabConnected) {
+      onRemoteContentChange((remoteContent: string, remoteUserId: string) => {
+        console.log('[IssueDetailPage] Received remote content change from:', remoteUserId);
+        setEditDescription(remoteContent);
+      });
+    }
+  }, [isSupabaseCollabConnected, onRemoteContentChange]);
+
   // Auto-save for title
   const { debouncedSave: debouncedSaveTitle, setInitialValue: setInitialTitle } = useAutoSave({
     onSave: async (value) => {
@@ -347,6 +383,10 @@ export function IssueDetailPage() {
   const handleDescriptionChange = (value: string) => {
     setEditDescription(value);
     debouncedSaveDescription(value);
+    // Broadcast to other collaborators in real-time
+    if (isSupabaseCollabConnected) {
+      broadcastContentChange(value);
+    }
   };
 
   const handleSendComment = async () => {
@@ -618,9 +658,9 @@ Respond in the same language as the user's message.`
                       Copy Link
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
+                    <DropdownMenuItem className="text-orange-500">
+                      <Archive className="h-4 w-4 mr-2" />
+                      {t('common.archive', 'Archive')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -868,7 +908,7 @@ Respond in the same language as the user's message.`
                             className="h-6 w-6 opacity-0 group-hover:opacity-100"
                             onClick={() => handleDeleteComment(comment.id)}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <X className="h-3 w-3" />
                           </Button>
                         )}
                       </div>
