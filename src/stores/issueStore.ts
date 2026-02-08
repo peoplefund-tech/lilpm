@@ -18,6 +18,8 @@ interface IssueStore {
   createIssue: (teamId: string, data: Partial<Issue>) => Promise<Issue>;
   updateIssue: (issueId: string, data: Partial<Issue>) => Promise<void>;
   deleteIssue: (issueId: string) => Promise<void>;
+  archiveIssue: (issueId: string) => Promise<void>;
+  archiveIssues: (issueIds: string[]) => Promise<void>;
   batchUpdateIssues: (issueIds: string[], data: Partial<Issue>) => Promise<void>;
 
   // View preferences
@@ -299,6 +301,58 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
       set({
         issues: previousIssues,
         error: error instanceof Error ? error.message : 'Failed to update issues',
+      });
+    }
+  },
+
+  archiveIssue: async (issueId: string) => {
+    const previousIssues = get().issues;
+
+    // Optimistic removal from list
+    set((state) => ({
+      issues: state.issues.filter(i => i.id !== issueId),
+      selectedIssue: state.selectedIssue?.id === issueId ? null : state.selectedIssue,
+    }));
+
+    try {
+      // Set archived_at timestamp
+      await supabase
+        .from('issues')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', issueId);
+    } catch (error) {
+      console.error('Failed to archive issue:', error);
+      // Revert on failure
+      set({
+        issues: previousIssues,
+        error: error instanceof Error ? error.message : 'Failed to archive issue',
+      });
+    }
+  },
+
+  archiveIssues: async (issueIds: string[]) => {
+    const previousIssues = get().issues;
+
+    // Optimistic removal from list
+    set((state) => ({
+      issues: state.issues.filter(i => !issueIds.includes(i.id)),
+      selectedIssue: state.selectedIssue && issueIds.includes(state.selectedIssue.id)
+        ? null
+        : state.selectedIssue,
+    }));
+
+    try {
+      // Set archived_at timestamp for all issues
+      await supabase
+        .from('issues')
+        .update({ archived_at: new Date().toISOString() })
+        .in('id', issueIds);
+    } catch (error) {
+      console.error('Failed to archive issues:', error);
+      // Revert on failure
+      set({
+        issues: previousIssues,
+        error: error instanceof Error ? error.message : 'Failed to archive issues',
       });
     }
   },

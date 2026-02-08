@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { AppLayout } from '@/components/layout';
 import { IssueList, IssueBoard, GanttChart, CreateIssueModal } from '@/components/issues';
 import { IssueFilters, type IssueFiltersState } from '@/components/issues/IssueFilters';
+import { BulkArchiveDialog } from '@/components/issues/BulkArchiveDialog';
 import { useIssueStore } from '@/stores/issueStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,8 @@ import {
   ChevronDown,
   Zap,
   Archive,
+  CheckSquare,
+  X,
 } from 'lucide-react';
 import type { Issue, IssueStatus } from '@/types';
 
@@ -40,6 +44,7 @@ export function IssuesPage() {
     loadIssues,
     createIssue,
     updateIssue,
+    archiveIssues,
     setViewPreferences,
     createDependency,
     deleteDependency,
@@ -49,6 +54,8 @@ export function IssuesPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [initialStatus, setInitialStatus] = useState<IssueStatus>('backlog');
   const [sprintView, setSprintView] = useState<SprintView>('all');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [bulkArchiveOpen, setBulkArchiveOpen] = useState(false);
   const [filters, setFilters] = useState<IssueFiltersState>({
     status: [],
     priority: [],
@@ -145,6 +152,27 @@ export function IssuesPage() {
     await updateIssue(issueId, { status: newStatus });
   };
 
+  const handleBulkArchive = async () => {
+    try {
+      await archiveIssues(Array.from(selectedIssues));
+      toast.success(t('issues.archivedBulk', {
+        count: selectedIssues.size,
+        defaultValue: `${selectedIssues.size} issue(s) archived`,
+      }));
+      setSelectedIssues(new Set());
+      setSelectionMode(false);
+    } catch (error) {
+      toast.error(t('issues.archiveFailed', 'Failed to archive issues'));
+    }
+  };
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (selectionMode) {
+      setSelectedIssues(new Set());
+    }
+  };
+
   return (
     <AppLayout>
       <div className="flex flex-col h-full">
@@ -174,8 +202,8 @@ export function IssuesPage() {
               <button
                 onClick={() => setSprintView('all')}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${sprintView === 'all'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 {t('issues.allIssues', 'All')}
@@ -186,8 +214,8 @@ export function IssuesPage() {
               <button
                 onClick={() => setSprintView('active')}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${sprintView === 'active'
-                    ? 'bg-green-500/10 text-green-600 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-green-500/10 text-green-600 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 <Zap className="h-3 w-3" />
@@ -199,8 +227,8 @@ export function IssuesPage() {
               <button
                 onClick={() => setSprintView('backlog')}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${sprintView === 'backlog'
-                    ? 'bg-slate-500/10 text-slate-600 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-slate-500/10 text-slate-600 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 <Archive className="h-3 w-3" />
@@ -246,6 +274,53 @@ export function IssuesPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 justify-between sm:justify-end">
+            {/* Selection Mode Toggle */}
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              className="h-8 gap-1"
+              onClick={toggleSelectionMode}
+            >
+              {selectionMode ? (
+                <>
+                  <X className="h-3.5 w-3.5" />
+                  {t('common.cancel', 'Cancel')}
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  {t('issues.selectMode', 'Select')}
+                </>
+              )}
+            </Button>
+
+            {/* Bulk Actions - Show when in selection mode */}
+            {selectionMode && selectedIssues.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 gap-1"
+                onClick={() => setBulkArchiveOpen(true)}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                {t('issues.archiveSelected', 'Archive')} ({selectedIssues.size})
+              </Button>
+            )}
+
+            {/* Select All - Show when in selection mode */}
+            {selectionMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => handleSelectAll(selectedIssues.size !== filteredIssues.length)}
+              >
+                {selectedIssues.size === filteredIssues.length
+                  ? t('issues.deselectAll', 'Deselect All')
+                  : t('issues.selectAll', 'Select All')}
+              </Button>
+            )}
+
             {/* Create Issue */}
             <Button size="sm" className="h-8 gap-1 flex-1 sm:flex-none" onClick={() => handleOpenCreateModal()}>
               <Plus className="h-3.5 w-3.5" />
@@ -297,6 +372,15 @@ export function IssuesPage() {
         onOpenChange={setCreateModalOpen}
         initialStatus={initialStatus}
         onSubmit={handleCreateIssue}
+      />
+
+      {/* Bulk Archive Dialog */}
+      <BulkArchiveDialog
+        open={bulkArchiveOpen}
+        onOpenChange={setBulkArchiveOpen}
+        issueCount={selectedIssues.size}
+        retentionDays={30}
+        onConfirm={handleBulkArchive}
       />
     </AppLayout>
   );

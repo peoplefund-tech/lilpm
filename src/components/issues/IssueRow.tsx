@@ -1,10 +1,14 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  MoreHorizontal, 
+import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import {
+  MoreHorizontal,
   MessageSquare,
   Paperclip,
   GitBranch,
+  ExternalLink,
+  Copy,
+  Archive,
 } from 'lucide-react';
 import type { Issue, IssueType } from '@/types';
 import { cn } from '@/lib/utils';
@@ -25,6 +29,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useIssueStore } from '@/stores/issueStore';
+import { toast } from 'sonner';
+
 
 interface IssueRowProps {
   issue: Issue;
@@ -38,9 +45,9 @@ interface IssueRowProps {
   isDragging?: boolean;
 }
 
-export function IssueRow({ 
-  issue, 
-  isSelected, 
+export function IssueRow({
+  issue,
+  isSelected,
   onSelect,
   onStatusChange,
   onPriorityChange,
@@ -49,8 +56,47 @@ export function IssueRow({
   onDragEnd,
   isDragging,
 }: IssueRowProps) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { archiveIssue, createIssue } = useIssueStore();
+
+  const handleOpenIssue = () => {
+    navigate(`/issue/${issue.id}`);
+  };
+
+  const handleOpenInNewTab = () => {
+    window.open(`/issue/${issue.id}`, '_blank');
+  };
+
+  const handleDuplicate = async () => {
+    try {
+      await createIssue(issue.teamId, {
+        title: `${issue.title} (copy)`,
+        description: issue.description,
+        status: issue.status,
+        priority: issue.priority,
+        projectId: issue.projectId,
+        cycleId: issue.cycleId,
+        assigneeId: issue.assigneeId,
+        estimate: issue.estimate,
+      });
+      toast.success(t('issues.duplicated', 'Issue duplicated'));
+    } catch (error) {
+      toast.error(t('issues.duplicateFailed', 'Failed to duplicate issue'));
+    }
+  };
+
+  const handleArchive = async () => {
+    try {
+      await archiveIssue(issue.id);
+      toast.success(t('issues.archived', 'Issue archived'));
+    } catch (error) {
+      toast.error(t('issues.archiveFailed', 'Failed to archive issue'));
+    }
+  };
+
   return (
-    <div 
+    <div
       className={cn(
         "group flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-accent/50 transition-colors",
         isSelected && "bg-accent",
@@ -81,9 +127,9 @@ export function IssueRow({
       </Tooltip>
 
       {/* Priority */}
-      <button 
+      <button
         className="flex-shrink-0 hover:bg-muted rounded p-1"
-        onClick={() => {/* Open priority picker */}}
+        onClick={() => {/* Open priority picker */ }}
       >
         <PriorityIcon priority={issue.priority} />
       </button>
@@ -94,15 +140,15 @@ export function IssueRow({
       </span>
 
       {/* Status */}
-      <button 
+      <button
         className="flex-shrink-0 hover:bg-muted rounded p-1"
-        onClick={() => {/* Open status picker */}}
+        onClick={() => {/* Open status picker */ }}
       >
         <StatusIcon status={issue.status} />
       </button>
 
       {/* Title */}
-      <Link 
+      <Link
         to={`/issue/${issue.id}`}
         className="flex-1 min-w-0 text-sm truncate hover:text-primary"
       >
@@ -116,9 +162,9 @@ export function IssueRow({
             <span
               key={label.id}
               className="inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium"
-              style={{ 
-                backgroundColor: `${label.color}20`, 
-                color: label.color 
+              style={{
+                backgroundColor: `${label.color}20`,
+                color: label.color
               }}
             >
               {label.name}
@@ -165,26 +211,35 @@ export function IssueRow({
       {/* Actions */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-6 w-6 opacity-0 group-hover:opacity-100"
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem>이슈 열기</DropdownMenuItem>
-          <DropdownMenuItem>새 탭에서 열기</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleOpenIssue}>
+            {t('issues.openIssue', 'Open issue')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleOpenInNewTab}>
+            <ExternalLink className="h-4 w-4 mr-2" />
+            {t('issues.openInNewTab', 'Open in new tab')}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>상태 변경</DropdownMenuItem>
-          <DropdownMenuItem>우선순위 변경</DropdownMenuItem>
-          <DropdownMenuItem>담당자 변경</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleDuplicate}>
+            <Copy className="h-4 w-4 mr-2" />
+            {t('issues.duplicate', 'Duplicate')}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>복제</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive">삭제</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleArchive} className="text-destructive">
+            <Archive className="h-4 w-4 mr-2" />
+            {t('issues.archive', 'Archive')}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   );
 }
+
