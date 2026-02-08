@@ -74,6 +74,17 @@ import { useAuthStore } from '@/stores/authStore';
 import { useTeamStore } from '@/stores/teamStore';
 import type { AIProvider } from '@/types';
 
+// Extract plain text preview from HTML content for overview field
+const extractOverview = (htmlContent: string): string => {
+  // Create a temporary element to strip HTML
+  const temp = document.createElement('div');
+  temp.innerHTML = htmlContent;
+  const text = temp.textContent || temp.innerText || '';
+  // Get first 200 characters, trim whitespace, and add ellipsis if truncated
+  const preview = text.trim().replace(/\s+/g, ' ').slice(0, 200);
+  return preview.length >= 200 ? preview + '...' : preview;
+};
+
 // Timeline Thinking Block Component (like Gemini/Claude)
 const TimelineThinkingBlock = ({ content, isExpanded = false }: { content: string; isExpanded?: boolean }) => {
   const [expanded, setExpanded] = useState(isExpanded);
@@ -484,7 +495,9 @@ export function PRDDetailPage() {
       if (!prdId) return;
       setIsSavingContent(true);
       try {
-        await prdService.updatePRD(prdId, { content: value });
+        // Update both content and overview for list preview sync
+        const overview = extractOverview(value);
+        await prdService.updatePRD(prdId, { content: value, overview });
         setLastSaved(new Date());
         setContentSaved(true);
         setTimeout(() => setContentSaved(false), 2000);
@@ -616,8 +629,12 @@ export function PRDDetailPage() {
     debouncedSaveContent(value, true); // forceUpdate=true ensures save always happens
 
     // Broadcast to other users via Supabase Realtime
+    console.log('[PRDDetailPage] Content change, isSupabaseCollabConnected:', isSupabaseCollabConnected);
     if (isSupabaseCollabConnected) {
+      console.log('[PRDDetailPage] Broadcasting content change, length:', value.length);
       broadcastContentChange(value);
+    } else {
+      console.warn('[PRDDetailPage] Not connected, skipping broadcast');
     }
   };
 
