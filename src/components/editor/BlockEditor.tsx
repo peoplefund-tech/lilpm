@@ -916,6 +916,52 @@ export function BlockEditor({
     },
   });
 
+  // Ref to track if we're currently updating from remote content
+  const lastContentRef = useRef(content);
+  const isLocalUpdateRef = useRef(false);
+
+  // Sync editor with external content changes (for real-time collaboration)
+  useEffect(() => {
+    if (!editor || !content) return;
+
+    // Skip if this is a Yjs-enabled editor (Yjs handles sync internally)
+    if (yjsDoc) return;
+
+    // Get current editor content
+    const currentEditorContent = editor.getHTML();
+
+    // Only update if:
+    // 1. Content prop changed from external source (not our own onChange)
+    // 2. Content is different from current editor content
+    if (content !== lastContentRef.current && content !== currentEditorContent) {
+      console.log('[BlockEditor] External content change detected, updating editor');
+
+      // Save cursor position
+      const { from, to } = editor.state.selection;
+
+      // Temporarily disable onChange to prevent loop
+      isLocalUpdateRef.current = true;
+
+      // Update editor content
+      editor.commands.setContent(content, { emitUpdate: false }); // Don't emit update
+
+      // Restore cursor position (if valid)
+      try {
+        const docSize = editor.state.doc.content.size;
+        const safeFrom = Math.min(from, docSize);
+        const safeTo = Math.min(to, docSize);
+        editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
+      } catch {
+        // If cursor position is invalid, just ignore
+      }
+
+      isLocalUpdateRef.current = false;
+    }
+
+    // Update our tracking ref
+    lastContentRef.current = content;
+  }, [editor, content, yjsDoc]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
