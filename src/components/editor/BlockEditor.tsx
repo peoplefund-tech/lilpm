@@ -575,12 +575,50 @@ export function BlockEditor({
           }
         },
         onKeyDown: (props: any) => {
+          const renderUpdate = () => {
+            if (root && component) {
+              root.render(
+                <div className="bg-popover border border-border rounded-md shadow-lg overflow-hidden max-w-[280px]">
+                  <div className="max-h-32 overflow-y-auto p-1">
+                    {items.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No members found
+                      </div>
+                    ) : (
+                      items.map((item: Profile, index: number) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-left ${index === selectedIndex ? 'bg-accent' : 'hover:bg-accent/50'
+                            }`}
+                          onClick={() => {
+                            props.command({ id: item.id, label: item.name || item.email || 'User' });
+                          }}
+                        >
+                          <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] text-primary flex-shrink-0">
+                            {item.name?.charAt(0) || item.email?.charAt(0) || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate text-foreground">{item.name || 'User'}</p>
+                            <p className="text-xs text-muted-foreground truncate">{item.email}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            }
+          };
+
           if (props.event.key === 'ArrowUp') {
             selectedIndex = selectedIndex === 0 ? items.length - 1 : selectedIndex - 1;
+            renderUpdate(); // Re-render to show selection
             return true;
           }
           if (props.event.key === 'ArrowDown') {
             selectedIndex = selectedIndex === items.length - 1 ? 0 : selectedIndex + 1;
+            renderUpdate(); // Re-render to show selection
             return true;
           }
           if (props.event.key === 'Enter') {

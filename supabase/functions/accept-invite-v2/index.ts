@@ -269,6 +269,94 @@ serve(async (req) => {
                 .update({ status: 'accepted' })
                 .eq('id', invite.id);
 
+            // STEP 4: Send notification emails to inviter and existing team members
+            if (gmailUser && gmailPassword) {
+                try {
+                    // Get the new member's profile
+                    const { data: newMemberProfile } = await supabaseAdmin
+                        .from('profiles')
+                        .select('name, email')
+                        .eq('id', userId)
+                        .single();
+
+                    const newMemberName = newMemberProfile?.name || newMemberProfile?.email || 'A new member';
+
+                    // Get all existing team members (except the new member)
+                    const { data: teamMembers } = await supabaseAdmin
+                        .from('team_members')
+                        .select('user_id, profiles(email, name)')
+                        .eq('team_id', teamId)
+                        .neq('user_id', userId);
+
+                    // Generate notification email HTML
+                    const notificationHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 40px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">🎉 New Team Member!</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #18181b; margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">${newMemberName} joined ${teamName}</h2>
+              <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Great news! <strong style="color: #18181b;">${newMemberName}</strong> has accepted the invitation and joined <strong style="color: #18181b;">${teamName}</strong>.
+              </p>
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${Deno.env.get('SITE_URL') || 'https://lilpmaiai.vercel.app'}/dashboard" 
+                   style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
+                          color: #ffffff; text-decoration: none; padding: 16px 48px; 
+                          border-radius: 8px; font-size: 16px; font-weight: 600;
+                          box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                  Go to Dashboard
+                </a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #fafafa; padding: 24px 40px; border-top: 1px solid #e4e4e7;">
+              <p style="color: #a1a1aa; font-size: 12px; margin: 0; text-align: center;">
+                You received this email because you're a member of ${teamName}.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+                    // Send email to each team member
+                    for (const member of (teamMembers || [])) {
+                        const memberEmail = (member.profiles as any)?.email;
+                        if (memberEmail) {
+                            await sendGmailEmail(
+                                gmailUser,
+                                gmailPassword,
+                                memberEmail,
+                                `🎉 ${newMemberName} joined ${teamName}!`,
+                                notificationHtml
+                            );
+                            console.log(`Notification email sent to ${memberEmail}`);
+                        }
+                    }
+                } catch (emailError) {
+                    console.warn('Failed to send team notification emails:', emailError);
+                    // Don't fail the request if emails fail
+                }
+            }
+
             return new Response(
                 JSON.stringify({
                     success: true,

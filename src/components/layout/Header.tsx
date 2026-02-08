@@ -149,13 +149,13 @@ export function Header({
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{showCursors ? t('collaboration.hideCursors', 'Hide cursors') : t('collaboration.showCursors', 'Show cursors')}</p>
+                <p>{showCursors ? t('collaboration.hideMouseCursors', 'Hide mouse cursors') : t('collaboration.showMouseCursors', 'Show mouse cursors')}</p>
               </TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5">
                 <p className="text-xs font-medium text-muted-foreground mb-2">
-                  {t('collaboration.cursorVisibility', 'Cursor Visibility')}
+                  {t('collaboration.mouseCursorVisibility', 'Mouse Cursor Visibility')}
                 </p>
                 <Button
                   variant="ghost"
@@ -163,13 +163,13 @@ export function Header({
                   className="w-full justify-start"
                   onClick={toggleShowCursors}
                 >
-                  {showCursors ? t('collaboration.hideCursors', 'Hide cursors') : t('collaboration.showCursors', 'Show cursors')}
+                  {showCursors ? t('collaboration.hideMouseCursors', 'Hide mouse cursors') : t('collaboration.showMouseCursors', 'Show mouse cursors')}
                 </Button>
               </div>
               <DropdownMenuSeparator />
               <div className="px-2 py-1.5">
                 <p className="text-xs font-medium text-muted-foreground mb-2">
-                  {t('collaboration.showCursorTo', 'Share my cursor with:')}
+                  {t('collaboration.shareMouseCursor', 'Share my mouse cursor with:')}
                 </p>
                 <div className="space-y-1">
                   {users.filter(u => u.odId !== user?.id).length === 0 ? (
