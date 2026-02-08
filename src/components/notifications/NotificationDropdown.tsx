@@ -36,6 +36,12 @@ const NOTIFICATION_ICONS: Record<NotificationType, React.ElementType> = {
   comment_added: MessageSquare,
   status_changed: AlertCircle,
   due_date_reminder: Clock,
+  invite_accepted: Check,
+  invite_rejected: AlertCircle,
+  invite_expired: Clock,
+  prd_created: MessageSquare,
+  issue_created: AlertCircle,
+  mention_notification: User,
 };
 
 export function NotificationDropdown() {
@@ -115,9 +121,26 @@ export function NotificationDropdown() {
       await markAsRead(notification.id, user.id);
     }
 
-    // Navigate based on notification type
-    if (notification.data?.issue_id) {
-      navigate(`/issue/${notification.data.issue_id}`);
+    // Navigate based on notification data - support multiple key formats
+    const data = notification.data || {};
+
+    // Check for issue navigation (issue_id, issueId, entity_id with issue type)
+    const issueId = data.issue_id || data.issueId ||
+      (notification.type?.includes('issue') && data.entity_id) || null;
+
+    // Check for PRD navigation (prd_id, prdId, entity_id with prd type)
+    const prdId = data.prd_id || data.prdId ||
+      (notification.type?.includes('prd') && data.entity_id) || null;
+
+    // Check for team navigation (invite_accepted)
+    const teamId = data.teamId || data.team_id || null;
+
+    if (issueId) {
+      navigate(`/issue/${issueId}`);
+    } else if (prdId) {
+      navigate(`/prd/${prdId}`);
+    } else if (teamId && notification.type === 'invite_accepted') {
+      navigate(`/dashboard`);
     }
   };
 
