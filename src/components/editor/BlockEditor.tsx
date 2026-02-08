@@ -16,6 +16,8 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Collaboration from '@tiptap/extension-collaboration';
 import TiptapCollaborationCursor from '@tiptap/extension-collaboration-cursor';
 import Mention from '@tiptap/extension-mention';
+import Color from '@tiptap/extension-color';
+import { TextStyle } from '@tiptap/extension-text-style';
 import { common, createLowlight } from 'lowlight';
 import * as Y from 'yjs';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
@@ -55,9 +57,10 @@ import {
   List as ListIcon,
   Link2 as BookmarkIcon,
   Paperclip,
+  Copy,
 } from 'lucide-react';
 import { Paintbrush } from 'lucide-react';
-import { CalloutNode, ToggleNode, VideoNode, EquationNode, TableOfContentsNode, BookmarkNode, FileNode } from './extensions';
+import { CalloutNode, ToggleNode, VideoNode, EquationNode, TableOfContentsNode, BookmarkNode, FileNode, UniqueId, getBlockIdAtPos } from './extensions';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -400,6 +403,61 @@ const SlashCommandsMenu = ({
       description: 'Attach a file',
       action: () => editor.chain().focus().insertContent({ type: 'file', attrs: { fileName: '', fileSize: 0, fileType: '', fileUrl: '' } }).run()
     },
+    // Color commands
+    {
+      icon: <Paintbrush className="h-4 w-4" />,
+      label: 'Red',
+      description: 'Red text color',
+      action: () => editor.chain().focus().setColor('#ef4444').run()
+    },
+    {
+      icon: <Paintbrush className="h-4 w-4" />,
+      label: 'Blue',
+      description: 'Blue text color',
+      action: () => editor.chain().focus().setColor('#3b82f6').run()
+    },
+    {
+      icon: <Paintbrush className="h-4 w-4" />,
+      label: 'Green',
+      description: 'Green text color',
+      action: () => editor.chain().focus().setColor('#22c55e').run()
+    },
+    {
+      icon: <Paintbrush className="h-4 w-4" />,
+      label: 'Yellow highlight',
+      description: 'Yellow background',
+      action: () => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()
+    },
+    // Turn commands
+    {
+      icon: <Heading1 className="h-4 w-4" />,
+      label: 'Turn to H1',
+      description: 'Convert to heading 1',
+      action: () => editor.chain().focus().setParagraph().toggleHeading({ level: 1 }).run()
+    },
+    {
+      icon: <List className="h-4 w-4" />,
+      label: 'Turn to bullet',
+      description: 'Convert to bullet list',
+      action: () => editor.chain().focus().toggleBulletList().run()
+    },
+    {
+      icon: <ListTodo className="h-4 w-4" />,
+      label: 'Turn to todo',
+      description: 'Convert to task list',
+      action: () => editor.chain().focus().toggleTaskList().run()
+    },
+    // Block manipulation
+    {
+      icon: <Copy className="h-4 w-4" />,
+      label: 'Duplicate',
+      description: 'Duplicate current block (Cmd+D)',
+      action: () => {
+        const { from, to } = editor.state.selection;
+        const text = editor.state.doc.textBetween(from, to, '\n');
+        editor.chain().focus().insertContentAt(to, '\n' + text).run();
+      }
+    },
   ];
 
   if (!isOpen) return null;
@@ -661,6 +719,9 @@ export function BlockEditor({
         multicolor: true,
       }),
       Typography,
+      // Color support for /red, /blue, /green commands
+      TextStyle,
+      Color,
       Table.configure({
         resizable: true,
       }),
@@ -706,6 +767,10 @@ export function BlockEditor({
           },
         }),
       ] : []),
+      // Unique ID extension for block-level addressing
+      UniqueId.configure({
+        attributeName: 'blockId',
+      }),
       // Yjs Collaboration extension (real-time document sync)
       ...(yjsDoc ? [
         Collaboration.configure({
