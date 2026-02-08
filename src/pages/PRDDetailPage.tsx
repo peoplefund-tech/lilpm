@@ -300,7 +300,8 @@ export function PRDDetailPage() {
 
   // Combine remote cursors from both sources (Yjs + Supabase Presence)
   const remoteCursors = useMemo(() => {
-    const combined = new Map(yjsRemoteCursors);
+    // Handle undefined yjsRemoteCursors
+    const combined = new Map(yjsRemoteCursors || []);
     // Add Supabase presence users as cursors for block presence indicator
     presenceUsers.forEach((u) => {
       if (!combined.has(u.id)) {
