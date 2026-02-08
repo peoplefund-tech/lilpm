@@ -1039,14 +1039,20 @@ export function LilyChat() {
 
                 return (
                   <div key={message.id} data-message-id={message.id} className="group/message">
-                    {/* Timeline Thinking Block - OUTSIDE the speech bubble */}
-                    {message.role === 'assistant' && thinkingContent && (
-                      <TimelineThinkingBlock
-                        content={thinkingContent}
-                        t={t}
-                        isStreaming={isLoading && messages.indexOf(message) === messages.length - 1}
-                      />
-                    )}
+                    {/* Timeline Thinking Block - Only show for image-attached messages */}
+                    {message.role === 'assistant' && thinkingContent && (() => {
+                      // Find the previous user message to check if it had images
+                      const msgIndex = messages.indexOf(message);
+                      const prevUserMsg = messages.slice(0, msgIndex).reverse().find(m => m.role === 'user');
+                      const hasImageContext = prevUserMsg?.hasImages;
+                      return hasImageContext && (
+                        <TimelineThinkingBlock
+                          content={thinkingContent}
+                          t={t}
+                          isStreaming={isLoading && msgIndex === messages.length - 1}
+                        />
+                      );
+                    })()}
 
                     {/* Message bubble - Gemini-style compact design */}
                     <div className={cn(

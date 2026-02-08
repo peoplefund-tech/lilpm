@@ -698,6 +698,7 @@ Provide a summary in 2-3 paragraphs.`
       role: 'user',
       content: userContent,
       timestamp: new Date().toISOString(),
+      hasImages: context?.files?.some(f => f.category === 'image') || false,
     };
 
     // Create AbortController for this request

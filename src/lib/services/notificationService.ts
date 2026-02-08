@@ -1,12 +1,18 @@
 import { supabase } from '@/lib/supabase';
 import type { Profile, Issue } from '@/types/database';
 
-export type NotificationType = 
+export type NotificationType =
   | 'issue_assigned'
   | 'issue_mentioned'
   | 'comment_added'
   | 'status_changed'
-  | 'due_date_reminder';
+  | 'due_date_reminder'
+  | 'invite_accepted'
+  | 'invite_rejected'
+  | 'invite_expired'
+  | 'prd_created'
+  | 'issue_created'
+  | 'mention_notification';
 
 export interface Notification {
   id: string;
@@ -60,7 +66,7 @@ export const notificationService = {
     const stored = localStorage.getItem(`notifications_${userId}`);
     const notifications = stored ? JSON.parse(stored) : [];
     notifications.unshift(notification);
-    
+
     // Keep only last 50 notifications
     const trimmed = notifications.slice(0, 50);
     localStorage.setItem(`notifications_${userId}`, JSON.stringify(trimmed));
@@ -72,7 +78,7 @@ export const notificationService = {
     const stored = localStorage.getItem(`notifications_${userId}`);
     if (stored) {
       const notifications = JSON.parse(stored);
-      const updated = notifications.map((n: Notification) => 
+      const updated = notifications.map((n: Notification) =>
         n.id === notificationId ? { ...n, read: true } : n
       );
       localStorage.setItem(`notifications_${userId}`, JSON.stringify(updated));
@@ -115,33 +121,33 @@ export const notificationService = {
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     const notificationsToCreate: Notification[] = [];
     const stored = localStorage.getItem(`notifications_${userId}`);
     const existingNotifications: Notification[] = stored ? JSON.parse(stored) : [];
-    
+
     for (const issue of issues) {
       if (!issue.due_date || issue.status === 'done' || issue.status === 'cancelled') {
         continue;
       }
-      
+
       // Check if user is assignee
       if (issue.assignee_id !== userId) {
         continue;
       }
-      
+
       const dueDate = new Date(issue.due_date);
       const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       // Check if we already sent a reminder for this issue today
-      const alreadySent = existingNotifications.some(n => 
-        n.type === 'due_date_reminder' && 
+      const alreadySent = existingNotifications.some(n =>
+        n.type === 'due_date_reminder' &&
         n.data?.issue_id === issue.id &&
         new Date(n.created_at).toDateString() === now.toDateString()
       );
-      
+
       if (alreadySent) continue;
-      
+
       // Due today
       if (diffDays === 0) {
         const notification = await this.createNotification(
@@ -188,7 +194,7 @@ export const notificationService = {
         notificationsToCreate.push(notification);
       }
     }
-    
+
     return notificationsToCreate;
   },
 
@@ -247,7 +253,7 @@ export const notificationService = {
         },
         async (payload) => {
           const comment = payload.new as any;
-          
+
           // Get the issue to check if user is assignee or creator
           const { data: issue } = await supabase
             .from('issues')

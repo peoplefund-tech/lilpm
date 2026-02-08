@@ -193,6 +193,7 @@ export interface LilyMessage {
   content: string;
   thinking?: string; // Chain of thought reasoning
   timestamp: string;
+  hasImages?: boolean; // True if user uploaded images with this message
   metadata?: {
     suggestedIssues?: Partial<Issue>[];
     suggestedPRD?: PRDDocument;

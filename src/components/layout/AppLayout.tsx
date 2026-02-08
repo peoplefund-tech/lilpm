@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { TeamSwitchingOverlay } from './TeamSwitchingOverlay';
 import { CursorPresence, CollaborationToast } from '@/components/collaboration';
+import { InboxToast } from './InboxToast';
 import { useRealtimeCollaboration } from '@/hooks/useRealtimeCollaboration';
 import { useTeamStore } from '@/stores/teamStore';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -116,6 +117,9 @@ export function AppLayout({
 
       {/* Collaboration toast notifications */}
       {enableCollaboration && <CollaborationToast />}
+
+      {/* Inbox notification toasts */}
+      <InboxToast />
     </div>
   );
 }
