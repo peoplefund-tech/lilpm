@@ -6,7 +6,7 @@ import { useTeamStore } from '@/stores/teamStore';
 import { projectService } from '@/lib/services';
 import { issueService } from '@/lib/services';
 import { teamMemberService } from '@/lib/services/teamService';
-import { prdService, type PRDWithRelations } from '@/lib/services/prdService';
+import { prdService, type PRDWithRelations } from '@/features/prd';
 import {
   ProjectStatsCard,
   ProjectProgressChart,

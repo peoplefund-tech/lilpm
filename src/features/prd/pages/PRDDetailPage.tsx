@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AppLayout } from '@/components/layout';
-import { prdService, type PRDWithRelations } from '@/lib/services/prdService';
+import { prdService, type PRDWithRelations } from '@/features/prd';
 import { projectService } from '@/lib/services';
 import { teamMemberService } from '@/lib/services/teamService';
 import { notificationService } from '@/lib/services/notificationService';
-import { prdVersionService } from '@/lib/services/prdVersionService';
+import { prdVersionService } from '@/features/prd';
 import { BlockEditor } from '@/components/editor';
 import { VersionHistoryPanel } from '@/components/prd/VersionHistoryPanel';
 import { useAutoSave } from '@/hooks/useAutoSave';
@@ -74,7 +74,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useTeamStore } from '@/stores/teamStore';
 import type { AIProvider } from '@/types';
 import { TimelineThinkingBlock } from '@/components/issues';
-import { extractOverview, type VersionEntry, type AISuggestion, type AIMessage, type PRDStatus } from './prd/PRDTypes';
+import { extractOverview, type VersionEntry, type AISuggestion, type AIMessage, type PRDStatus } from '@/features/prd/types/PRDTypes';
 
 
 // Types and utilities are now imported from ./prd/PRDTypes

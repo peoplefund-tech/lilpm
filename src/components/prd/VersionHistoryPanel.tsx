@@ -22,7 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { prdVersionService, type PRDVersionWithCreator } from '@/lib/services/prdVersionService';
+import { prdVersionService, type PRDVersionWithCreator } from '@/features/prd';
 import { cn } from '@/lib/utils';
 
 interface VersionHistoryPanelProps {

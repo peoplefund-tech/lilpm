@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { issueService, commentService, activityService } from '@/lib/services';
 import { teamMemberService } from '@/lib/services/teamService';
 import { cycleService } from '@/lib/services/cycleService';
-import { prdService } from '@/lib/services/prdService';
+import { prdService } from '@/features/prd';
 import { BlockEditor } from '@/components/editor';
 import { IssueFocusIndicator, EditingIndicator, TypingIndicator } from '@/components/collaboration';
 import { useIssueFocus, useRealtimeIssueUpdates } from '@/hooks/useRealtimeCollaboration';

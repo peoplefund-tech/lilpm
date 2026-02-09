@@ -55,7 +55,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plug, ExternalLink } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAISettings } from '@/hooks/useAISettings';
-import { prdService } from '@/lib/services/prdService';
+import { prdService } from '@/features/prd';
 import {
   DndContext,
   closestCenter,

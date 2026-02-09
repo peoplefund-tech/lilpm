@@ -40,8 +40,8 @@ const ProjectDetailPage = React.lazy(() => import("./features/projects/pages/Pro
 const IssueDetailPage = React.lazy(() => import("./features/issues/pages/IssueDetailPage").then(m => ({ default: m.IssueDetailPage })));
 const CyclesPage = React.lazy(() => import("./pages/CyclesPage").then(m => ({ default: m.CyclesPage })));
 const NotificationsPage = React.lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
-const PRDPage = React.lazy(() => import("./pages/PRDPage").then(m => ({ default: m.PRDPage })));
-const PRDDetailPage = React.lazy(() => import("./pages/PRDDetailPage").then(m => ({ default: m.PRDDetailPage })));
+const PRDPage = React.lazy(() => import("./features/prd/pages/PRDPage").then(m => ({ default: m.PRDPage })));
+const PRDDetailPage = React.lazy(() => import("./features/prd/pages/PRDDetailPage").then(m => ({ default: m.PRDDetailPage })));
 const InboxPage = React.lazy(() => import("./pages/InboxPage").then(m => ({ default: m.InboxPage })));
 const MyIssuesPage = React.lazy(() => import("./features/issues/pages/MyIssuesPage").then(m => ({ default: m.MyIssuesPage })));
 const SharedConversationPage = React.lazy(() => import("./pages/SharedConversationPage").then(m => ({ default: m.SharedConversationPage })));
