@@ -1,19 +1,15 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppLayout } from '@/components/layout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
     DropdownMenuSeparator, DropdownMenuTrigger
@@ -23,336 +19,34 @@ import {
 } from '@/components/ui/dialog';
 import {
     Plus, Search, Filter, MoreHorizontal, TableIcon, Kanban,
-    Calendar, List, ChevronDown, Settings, Trash2, Copy, Edit,
-    ArrowUpDown, Eye, EyeOff, Hash, Type, CalendarIcon,
-    User, Link, CheckSquare, Percent, DollarSign, Clock,
-    Mail, Phone, MapPin, Tag, FileText
+    Calendar, List, Trash2, Copy, Edit,
+    ArrowUpDown, Hash, Type, CalendarIcon,
+    Link, CheckSquare, Tag
 } from 'lucide-react';
-import { useTeamStore } from '@/stores/teamStore';
-import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 import { format } from 'date-fns';
-
-// Database property types (Notion-style)
-type PropertyType =
-    | 'text' | 'number' | 'select' | 'multi_select' | 'date' | 'person'
-    | 'checkbox' | 'url' | 'email' | 'phone' | 'formula' | 'relation'
-    | 'rollup' | 'created_time' | 'created_by' | 'last_edited_time'
-    | 'last_edited_by' | 'files' | 'status';
-
-interface DatabaseProperty {
-    id: string;
-    name: string;
-    type: PropertyType;
-    options?: { id: string; name: string; color: string }[];
-    formula?: string;
-    relationDatabaseId?: string;
-    rollupProperty?: string;
-}
-
-interface DatabaseRow {
-    id: string;
-    properties: Record<string, unknown>;
-    createdAt: string;
-    createdBy: string;
-    updatedAt: string;
-    updatedBy: string;
-}
-
-interface Database {
-    id: string;
-    name: string;
-    description?: string;
-    icon?: string;
-    properties: DatabaseProperty[];
-    rows: DatabaseRow[];
-    views: DatabaseView[];
-    createdAt: string;
-    teamId: string;
-}
-
-interface DatabaseView {
-    id: string;
-    name: string;
-    type: 'table' | 'board' | 'calendar' | 'list' | 'gallery' | 'timeline';
-    filters?: unknown[];
-    sorts?: unknown[];
-    groupBy?: string;
-    visibleProperties?: string[];
-}
-
-const PROPERTY_ICONS: Record<PropertyType, React.ElementType> = {
-    text: Type,
-    number: Hash,
-    select: Tag,
-    multi_select: Tag,
-    date: CalendarIcon,
-    person: User,
-    checkbox: CheckSquare,
-    url: Link,
-    email: Mail,
-    phone: Phone,
-    formula: Percent,
-    relation: Link,
-    rollup: ArrowUpDown,
-    created_time: Clock,
-    created_by: User,
-    last_edited_time: Clock,
-    last_edited_by: User,
-    files: FileText,
-    status: Tag,
-};
-
-const PROPERTY_COLORS = [
-    '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
-    '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#06b6d4',
-];
+import { useDatabaseHandlers, PROPERTY_ICONS } from './hooks';
+import type { DatabaseRow, DatabaseProperty } from './hooks';
 
 export function DatabasePage() {
     const { t } = useTranslation();
-    const { currentTeam } = useTeamStore();
-    const [databases, setDatabases] = useState<Database[]>([]);
-    const [selectedDatabase, setSelectedDatabase] = useState<Database | null>(null);
     const [currentView, setCurrentView] = useState<'table' | 'board' | 'calendar' | 'list'>('table');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [showNewDatabaseDialog, setShowNewDatabaseDialog] = useState(false);
-    const [newDatabaseName, setNewDatabaseName] = useState('');
 
-    // Load databases
-    useEffect(() => {
-        if (currentTeam) {
-            loadDatabases();
-        }
-    }, [currentTeam]);
-
-    const loadDatabases = async () => {
-        if (!currentTeam) return;
-        setIsLoading(true);
-
-        try {
-            // Load databases from Supabase
-            const { data: dbData, error: dbError } = await supabase
-                .from('databases')
-                .select('*')
-                .eq('team_id', currentTeam.id)
-                .order('created_at', { ascending: false });
-
-            if (dbError) throw dbError;
-
-            // If no databases exist, create a sample one
-            if (!dbData || dbData.length === 0) {
-                // Create sample database
-                const { data: newDb, error: createError } = await supabase
-                    .from('databases')
-                    .insert({
-                        team_id: currentTeam.id,
-                        name: t('database.sampleTasks'),
-                        description: t('database.sampleTasksDesc'),
-                        icon: '📋',
-                    })
-                    .select()
-                    .single();
-
-                if (createError) throw createError;
-
-                // Create default properties for sample database
-                const defaultProperties = [
-                    { database_id: newDb.id, name: 'Title', type: 'text', position: 0 },
-                    {
-                        database_id: newDb.id, name: 'Status', type: 'select', position: 1, options: [
-                            { id: '1', name: 'To Do', color: '#ef4444' },
-                            { id: '2', name: 'In Progress', color: '#f97316' },
-                            { id: '3', name: 'Done', color: '#22c55e' },
-                        ]
-                    },
-                    {
-                        database_id: newDb.id, name: 'Priority', type: 'select', position: 2, options: [
-                            { id: '1', name: 'High', color: '#ef4444' },
-                            { id: '2', name: 'Medium', color: '#f97316' },
-                            { id: '3', name: 'Low', color: '#22c55e' },
-                        ]
-                    },
-                    { database_id: newDb.id, name: 'Due Date', type: 'date', position: 3 },
-                ];
-
-                await supabase.from('database_properties').insert(defaultProperties);
-
-                // Create default view
-                await supabase.from('database_views').insert({
-                    database_id: newDb.id,
-                    name: 'All Tasks',
-                    type: 'table',
-                    position: 0,
-                });
-
-                // Reload after creating sample
-                return loadDatabases();
-            }
-
-            // Load properties, rows, and views for each database
-            const loadedDatabases: Database[] = await Promise.all(
-                dbData.map(async (db) => {
-                    const [propsRes, rowsRes, viewsRes] = await Promise.all([
-                        supabase.from('database_properties').select('*').eq('database_id', db.id).order('position'),
-                        supabase.from('database_rows').select('*').eq('database_id', db.id).order('created_at'),
-                        supabase.from('database_views').select('*').eq('database_id', db.id).order('position'),
-                    ]);
-
-                    return {
-                        id: db.id,
-                        name: db.name,
-                        description: db.description,
-                        icon: db.icon,
-                        teamId: db.team_id,
-                        createdAt: db.created_at,
-                        properties: (propsRes.data || []).map(p => ({
-                            id: p.id,
-                            name: p.name,
-                            type: p.type as PropertyType,
-                            options: p.options,
-                            formula: p.formula,
-                            relationDatabaseId: p.relation_database_id,
-                            rollupProperty: p.rollup_property,
-                        })),
-                        rows: (rowsRes.data || []).map(r => ({
-                            id: r.id,
-                            properties: r.properties,
-                            createdAt: r.created_at,
-                            createdBy: r.created_by,
-                            updatedAt: r.updated_at,
-                            updatedBy: r.updated_by,
-                        })),
-                        views: (viewsRes.data || []).map(v => ({
-                            id: v.id,
-                            name: v.name,
-                            type: v.type as DatabaseView['type'],
-                            filters: v.filters,
-                            sorts: v.sorts,
-                            groupBy: v.group_by,
-                            visibleProperties: v.visible_properties,
-                        })),
-                    };
-                })
-            );
-
-            setDatabases(loadedDatabases);
-            if (loadedDatabases.length > 0 && !selectedDatabase) {
-                setSelectedDatabase(loadedDatabases[0]);
-            }
-        } catch (error) {
-            console.error('Failed to load databases:', error);
-            toast.error(t('database.loadError'));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleCreateDatabase = async () => {
-        if (!newDatabaseName.trim() || !currentTeam) return;
-
-        try {
-            // Create database in Supabase
-            const { data: newDb, error: dbError } = await supabase
-                .from('databases')
-                .insert({
-                    team_id: currentTeam.id,
-                    name: newDatabaseName,
-                    icon: '📊',
-                })
-                .select()
-                .single();
-
-            if (dbError) throw dbError;
-
-            // Create default properties
-            const defaultProps = [
-                { database_id: newDb.id, name: 'Name', type: 'text', position: 0 },
-                { database_id: newDb.id, name: 'Tags', type: 'multi_select', position: 1, options: [] },
-            ];
-            await supabase.from('database_properties').insert(defaultProps);
-
-            // Create default view
-            await supabase.from('database_views').insert({
-                database_id: newDb.id,
-                name: 'All',
-                type: 'table',
-                position: 0,
-            });
-
-            setShowNewDatabaseDialog(false);
-            setNewDatabaseName('');
-            toast.success(t('database.created'));
-
-            // Reload to get full data
-            await loadDatabases();
-        } catch (error) {
-            console.error('Failed to create database:', error);
-            toast.error(t('database.loadError'));
-        }
-    };
-
-    const handleAddRow = async () => {
-        if (!selectedDatabase) return;
-
-        try {
-            // Insert row in Supabase
-            const { data: newRow, error } = await supabase
-                .from('database_rows')
-                .insert({
-                    database_id: selectedDatabase.id,
-                    properties: {},
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            // Update local state
-            const updatedRow: DatabaseRow = {
-                id: newRow.id,
-                properties: newRow.properties,
-                createdAt: newRow.created_at,
-                createdBy: newRow.created_by,
-                updatedAt: newRow.updated_at,
-                updatedBy: newRow.updated_by,
-            };
-
-            const updatedDatabase = {
-                ...selectedDatabase,
-                rows: [...selectedDatabase.rows, updatedRow]
-            };
-
-            setSelectedDatabase(updatedDatabase);
-            setDatabases(databases.map(db =>
-                db.id === selectedDatabase.id ? updatedDatabase : db
-            ));
-        } catch (error) {
-            console.error('Failed to add row:', error);
-            toast.error(t('database.loadError'));
-        }
-    };
-
-    const handleAddProperty = (type: PropertyType) => {
-        if (!selectedDatabase) return;
-
-        const newProperty: DatabaseProperty = {
-            id: Date.now().toString(),
-            name: `New ${type}`,
-            type,
-            options: type === 'select' || type === 'multi_select' ? [] : undefined,
-        };
-
-        const updatedDatabase = {
-            ...selectedDatabase,
-            properties: [...selectedDatabase.properties, newProperty]
-        };
-
-        setSelectedDatabase(updatedDatabase);
-        setDatabases(databases.map(db =>
-            db.id === selectedDatabase.id ? updatedDatabase : db
-        ));
-    };
+    const {
+        databases,
+        selectedDatabase,
+        setSelectedDatabase,
+        isLoading,
+        searchQuery,
+        setSearchQuery,
+        showNewDatabaseDialog,
+        setShowNewDatabaseDialog,
+        newDatabaseName,
+        setNewDatabaseName,
+        filteredRows,
+        handleCreateDatabase,
+        handleAddRow,
+        handleAddProperty,
+    } = useDatabaseHandlers();
 
     const getCellValue = (row: DatabaseRow, property: DatabaseProperty) => {
         const value = row.properties[property.id];
@@ -383,16 +77,6 @@ export function DatabasePage() {
                 return value as string;
         }
     };
-
-    const filteredRows = useMemo(() => {
-        if (!selectedDatabase || !searchQuery) return selectedDatabase?.rows || [];
-
-        return selectedDatabase.rows.filter(row => {
-            return Object.values(row.properties).some(value =>
-                String(value).toLowerCase().includes(searchQuery.toLowerCase())
-            );
-        });
-    }, [selectedDatabase, searchQuery]);
 
     // View Components
     const TableView = () => (
