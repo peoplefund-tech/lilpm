@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Sparkles, 
-  ArrowRight, 
-  ArrowLeft, 
-  Eye, 
-  EyeOff, 
-  Check, 
+import {
+  Sparkles,
+  ArrowRight,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Check,
   ExternalLink,
   Brain,
   Zap
@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useMCPStore } from '@/stores/mcpStore';
+import { useTeamStore } from '@/stores/teamStore';
 import { LLM_PROVIDERS, type LLMProvider } from '@/types/mcp';
 import { toast } from 'sonner';
 
@@ -24,14 +25,16 @@ const MAIN_PROVIDERS: LLMProvider[] = ['anthropic', 'openai', 'gemini'];
 
 export function AISetupPage() {
   const navigate = useNavigate();
-  const { 
-    providerApiKeys, 
-    setProviderApiKey, 
+  const {
+    providerApiKeys,
+    setProviderApiKey,
     initializePresetModels,
-    setOnboardingCompleted 
+    setOnboardingCompleted
   } = useMCPStore();
+  const { currentTeam, loadTeams, selectTeam } = useTeamStore();
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleShowKey = (provider: string) => {
     setShowKeys(prev => ({ ...prev, [provider]: !prev[provider] }));
@@ -39,17 +42,37 @@ export function AISetupPage() {
 
   const handleKeyChange = (provider: LLMProvider, value: string) => {
     setProviderApiKey(provider, value);
+    // Clear error when user starts typing
+    if (error) setError(null);
   };
 
   const hasAtLeastOneKey = MAIN_PROVIDERS.some(p => providerApiKeys[p]?.length > 0);
 
-  const handleComplete = () => {
+  // Navigate to dashboard after ensuring team data is loaded
+  const navigateToDashboard = async () => {
+    if (currentTeam) {
+      // Re-select team to ensure members and projects are loaded
+      await selectTeam(currentTeam.id);
+    } else {
+      // Reload teams to get fresh data
+      await loadTeams();
+    }
+    navigate('/dashboard', { replace: true });
+  };
+
+  const handleComplete = async () => {
+    // Validate at least one API key is entered
+    if (!hasAtLeastOneKey) {
+      setError('Please enter at least one API key to continue with AI features.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       initializePresetModels();
       setOnboardingCompleted(true);
       toast.success('Setup complete! Welcome to Lil PM');
-      navigate('/dashboard');
+      await navigateToDashboard();
     } catch (error) {
       console.error('Failed to complete setup:', error);
       toast.error('Failed to complete setup');
@@ -58,10 +81,18 @@ export function AISetupPage() {
     }
   };
 
-  const handleSkip = () => {
-    initializePresetModels();
-    setOnboardingCompleted(true);
-    navigate('/dashboard');
+  const handleSkip = async () => {
+    setIsLoading(true);
+    try {
+      initializePresetModels();
+      setOnboardingCompleted(true);
+      await navigateToDashboard();
+    } catch (error) {
+      console.error('Failed to skip setup:', error);
+      toast.error('Failed to complete setup');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -121,11 +152,11 @@ export function AISetupPage() {
         {/* API Key Inputs */}
         <div className="space-y-4">
           <Label className="text-base">Enter your API keys</Label>
-          
+
           {MAIN_PROVIDERS.map((provider) => {
             const config = LLM_PROVIDERS[provider];
             const hasKey = providerApiKeys[provider]?.length > 0;
-            
+
             return (
               <div key={provider} className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -139,9 +170,9 @@ export function AISetupPage() {
                       </Badge>
                     )}
                   </div>
-                  <a 
-                    href={config.docsUrl} 
-                    target="_blank" 
+                  <a
+                    href={config.docsUrl}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
                   >
@@ -174,56 +205,53 @@ export function AISetupPage() {
               </div>
             );
           })}
-          
+
           <p className="text-xs text-muted-foreground">
-            Your API keys are stored locally and never sent to our servers. 
+            Your API keys are stored locally and never sent to our servers.
             You can add more providers later in Settings → LLM Models.
           </p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+            {error}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3">
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             onClick={() => navigate('/onboarding/create-project')}
             className="flex-1"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <Button 
-            onClick={handleComplete} 
+          <Button
+            onClick={handleComplete}
             className="flex-1"
             disabled={isLoading}
           >
-            {hasAtLeastOneKey ? (
-              <>
-                Complete Setup
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            ) : (
-              <>
-                Continue without AI
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
+            Continue with AI
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
 
-        {/* Skip link */}
-        {!hasAtLeastOneKey && (
-          <div className="text-center">
-            <Button
-              variant="ghost"
-              className="text-muted-foreground"
-              onClick={handleSkip}
-            >
-              I'll set this up later
-            </Button>
-          </div>
-        )}
+        {/* Skip link - always visible */}
+        <div className="text-center">
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={handleSkip}
+          >
+            I'll set this up later
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
+
