@@ -32,7 +32,7 @@ const SlackSettingsPage = React.lazy(() => import("./pages/settings/SlackSetting
 // Core pages - lazy loaded for performance
 const DashboardPage = React.lazy(() => import("./pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
 const IssuesPage = React.lazy(() => import("./features/issues/pages/IssuesPage").then(m => ({ default: m.IssuesPage })));
-const LilyPage = React.lazy(() => import("./pages/LilyPage").then(m => ({ default: m.LilyPage })));
+const LilyPage = React.lazy(() => import("./features/lily/pages/LilyPage").then(m => ({ default: m.LilyPage })));
 const TeamMembersPage = React.lazy(() => import("./pages/TeamMembersPage").then(m => ({ default: m.TeamMembersPage })));
 const TeamSettingsPage = React.lazy(() => import("./pages/TeamSettingsPage").then(m => ({ default: m.TeamSettingsPage })));
 const ProjectsPage = React.lazy(() => import("./features/projects/pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));

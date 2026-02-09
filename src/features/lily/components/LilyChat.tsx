@@ -41,7 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { useLilyStore } from '@/stores/lilyStore';
+import { useLilyStore } from '@/stores';
 import { useTeamStore } from '@/stores/teamStore';
 import { useIssueStore } from '@/stores';
 import { useMCPStore } from '@/stores/mcpStore';

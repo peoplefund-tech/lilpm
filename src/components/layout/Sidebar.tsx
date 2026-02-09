@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore } from '@/stores/teamStore';
-import { useLilyStore } from '@/stores/lilyStore';
+import { useLilyStore } from '@/stores';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { projectService } from '@/lib/services';

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { conversationService, messageService } from '@/lib/services/conversationService';
 import type { LilyMessage, PRDDocument, Issue, AIProvider } from '@/types';
 import type { MCPConnector } from '@/types/mcp';
-import { parseMCPToolCalls, extractMCPConfig, callMCPServer, parseIssueSuggestions } from './lily/mcpUtils';
+import { parseMCPToolCalls, extractMCPConfig, callMCPServer, parseIssueSuggestions } from './utils/mcpUtils';
 
 // Fallback to hardcoded URL if env var is undefined
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
