@@ -72,15 +72,15 @@ export function Header({
   };
 
   return (
-    <header className="h-12 flex items-center justify-between px-4 border-b border-border bg-background">
+    <header className="h-12 flex items-center justify-between px-4 border-b border-white/5 bg-[#121215]">
       {/* Left: Menu Button (Mobile) & Page Title */}
       <div className="flex items-center gap-2">
         {showMenuButton && (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onMenuClick}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white hover:bg-white/5" onClick={onMenuClick}>
             <Menu className="h-4 w-4" />
           </Button>
         )}
-        <h1 className="text-sm font-medium">{getPageTitle()}</h1>
+        <h1 className="text-sm font-medium text-white">{getPageTitle()}</h1>
       </div>
 
       {/* Center: Search & Quick Actions */}
@@ -89,11 +89,11 @@ export function Header({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2 gap-1"
+          className="h-7 px-2 gap-1 bg-[#1a1a1f] border-white/10 text-slate-300 hover:bg-white/5 hover:text-white"
         >
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t('issues.newIssue')}</span>
-          <span className="kbd ml-1 hidden sm:inline">C</span>
+          <span className="kbd ml-1 hidden sm:inline text-slate-500">C</span>
         </Button>
       </div>
 
@@ -105,12 +105,12 @@ export function Header({
             <PresenceAvatars maxVisible={4} />
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Wifi className="h-3 w-3 text-green-500" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Wifi className="h-3 w-3 text-emerald-500" />
                   <span>{onlineCount}</span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-[#1a1a1f] border-white/10 text-white">
                 <p>{onlineCount} online</p>
               </TooltipContent>
             </Tooltip>
@@ -120,11 +120,11 @@ export function Header({
         {!isCollaborating && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <WifiOff className="h-3 w-3" />
               </div>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent className="bg-[#1a1a1f] border-white/10 text-white">
               <p>Offline</p>
             </TooltipContent>
           </Tooltip>
@@ -141,54 +141,55 @@ export function Header({
                     size="icon"
                     className={cn(
                       "h-7 w-7",
-                      showCursors && "bg-violet-500 hover:bg-violet-600 text-white"
+                      showCursors
+                        ? "bg-violet-500 hover:bg-violet-400 text-white"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
                     )}
                   >
                     <MousePointer2 className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-[#1a1a1f] border-white/10 text-white">
                 <p>{showCursors ? t('collaboration.hideMouseCursors', 'Hide mouse cursors') : t('collaboration.showMouseCursors', 'Show mouse cursors')}</p>
               </TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-56 bg-[#1a1a1f] border-white/10">
               <div className="px-2 py-1.5">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
+                <p className="text-xs font-medium text-slate-500 mb-2">
                   {t('collaboration.mouseCursorVisibility', 'Mouse Cursor Visibility')}
                 </p>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start"
+                  className="w-full justify-start text-slate-300 hover:text-white hover:bg-white/5"
                   onClick={toggleShowCursors}
                 >
                   {showCursors ? t('collaboration.hideMouseCursors', 'Hide mouse cursors') : t('collaboration.showMouseCursors', 'Show mouse cursors')}
                 </Button>
               </div>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="bg-white/10" />
               <div className="px-2 py-1.5">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
+                <p className="text-xs font-medium text-slate-500 mb-2">
                   {t('collaboration.shareMouseCursor', 'Share my mouse cursor with:')}
                 </p>
                 <div className="space-y-1">
                   {users.filter(u => u.odId !== user?.id).length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">
+                    <p className="text-xs text-slate-500 italic">
                       {t('collaboration.noOtherUsers', 'No other users online')}
                     </p>
                   ) : (
-                    /* Sort by lastActivity (most recent first), then by name */
                     [...users]
                       .filter(u => u.odId !== user?.id)
                       .sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0))
                       .map((member) => (
                         <label
                           key={member.odId}
-                          className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer"
+                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 cursor-pointer"
                         >
                           <input
                             type="checkbox"
-                            className="rounded border-border"
+                            className="rounded border-white/20 bg-transparent"
                             checked={cursorVisibleTo.includes(member.odId)}
                             onChange={(e) => {
                               if (e.target.checked) {
@@ -207,7 +208,7 @@ export function Header({
                               {member.name?.charAt(0) || '?'}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm truncate">{member.name}</span>
+                          <span className="text-sm text-slate-300 truncate">{member.name}</span>
                         </label>
                       ))
                   )}
@@ -223,35 +224,35 @@ export function Header({
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-              <Avatar className="h-7 w-7">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/5">
+              <Avatar className="h-7 w-7 border border-white/10">
                 <AvatarImage src={user?.avatarUrl} alt={user?.name} />
-                <AvatarFallback className="text-xs">
+                <AvatarFallback className="text-xs bg-violet-500 text-white">
                   {user?.name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56 bg-[#1a1a1f] border-white/10">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{user?.name}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="text-sm font-medium text-white">{user?.name}</p>
+              <p className="text-xs text-slate-500">{user?.email}</p>
             </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
+            <DropdownMenuSeparator className="bg-white/10" />
+            <DropdownMenuItem asChild className="text-slate-300 focus:text-white focus:bg-white/5">
               <Link to="/profile">
                 <User className="h-4 w-4 mr-2" />
                 {t('settings.profile')}
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem asChild className="text-slate-300 focus:text-white focus:bg-white/5">
               <Link to="/settings">
                 <Settings className="h-4 w-4 mr-2" />
                 {t('common.settings')}
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+            <DropdownMenuSeparator className="bg-white/10" />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-400 focus:text-red-400 focus:bg-red-500/10">
               <LogOut className="h-4 w-4 mr-2" />
               {t('common.logout')}
             </DropdownMenuItem>

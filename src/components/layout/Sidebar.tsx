@@ -197,13 +197,13 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   // If in Lily mode, show conversation history sidebar
   if (isLilyMode) {
     return (
-      <aside className="flex-1 bg-sidebar border-r border-border flex flex-col" style={style}>
+      <aside className="flex-1 bg-[#1a1a1f] border-r border-white/5 flex flex-col" style={style}>
         {/* Back button header */}
-        <div className="h-12 flex items-center px-3 border-b border-border gap-2">
+        <div className="h-12 flex items-center px-3 border-b border-white/5 gap-2">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 text-slate-400 hover:text-white hover:bg-white/5"
             onClick={() => setShowLilySidebar(false)}
             title={t('common.back', 'Back to menu')}
           >
@@ -211,15 +211,15 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
           </Button>
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-violet-500" />
-            <span className="font-semibold text-sm">{t('lily.title')}</span>
+            <span className="font-semibold text-sm text-white">{t('lily.title')}</span>
           </div>
         </div>
 
         {/* New Conversation Button */}
-        <div className="px-3 py-3 border-b border-border">
+        <div className="px-3 py-3 border-b border-white/5">
           <Button
             onClick={handleNewConversation}
-            className="w-full gap-2"
+            className="w-full gap-2 bg-violet-500 hover:bg-violet-400 text-white"
             size="sm"
           >
             <Plus className="h-4 w-4" />
@@ -231,7 +231,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {conversations.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-4">
+              <p className="text-center text-slate-500 text-sm py-4">
                 {t('lily.noHistory', 'No conversations yet')}
               </p>
             ) : (
@@ -239,7 +239,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                 {/* Pinned */}
                 {conversations.filter(c => pinnedConversations.includes(c.id)).length > 0 && (
                   <div className="mb-2">
-                    <p className="text-xs font-medium text-muted-foreground px-2 mb-1 flex items-center gap-1">
+                    <p className="text-xs font-medium text-slate-500 px-2 mb-1 flex items-center gap-1">
                       <Pin className="h-3 w-3" />
                       {t('lily.pinned', 'Pinned')}
                     </p>
@@ -269,7 +269,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                 {conversations.filter(c => !pinnedConversations.includes(c.id)).length > 0 && (
                   <div>
                     {pinnedConversations.length > 0 && (
-                      <p className="text-xs font-medium text-muted-foreground px-2 mb-1">
+                      <p className="text-xs font-medium text-slate-500 px-2 mb-1">
                         {t('lily.recent', 'Recent')}
                       </p>
                     )}
@@ -300,7 +300,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
         </ScrollArea>
 
         {/* Settings */}
-        <div className="border-t border-border p-3">
+        <div className="border-t border-white/5 p-3">
           <NavItem
             icon={Settings}
             label={t('common.settings')}
@@ -313,42 +313,38 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   }
 
   return (
-    <aside className="flex-1 bg-sidebar border-r border-border flex flex-col" style={style}>
+    <aside className="flex-1 bg-[#1a1a1f] border-r border-white/5 flex flex-col" style={style}>
       {/* Logo */}
-      <div className="h-12 flex items-center px-3 border-b border-border">
+      <div className="h-12 flex items-center px-3 border-b border-white/5">
         <Link to="/" onClick={onNavigate} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
             <span className="text-white font-bold text-xs">LP</span>
           </div>
-          <span className="font-semibold text-sm">Lil PM</span>
+          <span className="font-semibold text-sm text-white">Lil PM</span>
         </Link>
       </div>
 
       {/* Team Switcher */}
-      <div className="px-3 py-2 border-b border-border">
-        <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 px-2">
+      <div className="px-3 py-2 border-b border-white/5">
+        <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5 px-2">
           {t('nav.team', 'Team')}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 hover:bg-sidebar-accent rounded-md px-2 py-1.5 w-full">
+            <button className="flex items-center gap-2 hover:bg-white/5 rounded-md px-2 py-1.5 w-full">
               <div
-                className="h-6 w-6 rounded flex items-center justify-center text-xs font-semibold"
-                style={{
-                  backgroundColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary-foreground))'
-                }}
+                className="h-6 w-6 rounded flex items-center justify-center text-xs font-semibold bg-violet-500 text-white"
               >
                 {currentTeam?.name?.charAt(0) || 'T'}
               </div>
-              <span className="flex-1 text-sm font-medium text-left truncate">
+              <span className="flex-1 text-sm font-medium text-left truncate text-white">
                 {currentTeam?.name || t('nav.selectTeam')}
               </span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="h-4 w-4 text-slate-500" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <DropdownMenuContent align="start" className="w-56 bg-[#1a1a1f] border-white/10">
+            <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               {t('nav.teams')}
             </div>
             {teams.map((team) => (
@@ -360,14 +356,10 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
                     navigate('/'); // Navigate to dashboard when team changes
                   }
                 }}
-                className={cn(currentTeam?.id === team.id && "bg-accent")}
+                className={cn("text-slate-300 focus:text-white focus:bg-white/5", currentTeam?.id === team.id && "bg-white/5")}
               >
                 <div
-                  className="h-5 w-5 rounded flex items-center justify-center text-xs font-semibold mr-2"
-                  style={{
-                    backgroundColor: 'hsl(var(--primary) / 0.8)',
-                    color: 'hsl(var(--primary-foreground))'
-                  }}
+                  className="h-5 w-5 rounded flex items-center justify-center text-xs font-semibold mr-2 bg-violet-500/80 text-white"
                 >
                   {team.name.charAt(0)}
                 </div>
@@ -400,11 +392,11 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
       <div className="px-3 py-2">
         <button
           onClick={() => setSearchOpen(true)}
-          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
         >
           <Search className="h-4 w-4" />
           <span className="flex-1 text-left">{t('common.search')}...</span>
-          <span className="kbd text-xs">⌘K</span>
+          <span className="text-xs text-slate-600">⌘K</span>
         </button>
       </div>
 
@@ -529,7 +521,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
 
         {/* Workspace Section */}
         <div className="space-y-0.5">
-          <div className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="px-2 py-1 text-xs font-medium text-slate-500 uppercase tracking-wider">
             Workspace
           </div>
           {workspaceNav.map((item) => (
@@ -546,7 +538,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
       </nav>
 
       {/* Bottom Section */}
-      <div className="border-t border-border p-3 space-y-2">
+      <div className="border-t border-white/5 p-3 space-y-2">
         <NavItem
           icon={HelpCircle}
           label={t('common.help')}

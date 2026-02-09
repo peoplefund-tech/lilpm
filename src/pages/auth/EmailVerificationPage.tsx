@@ -16,39 +16,28 @@ export function EmailVerificationPage() {
     const [resendSuccess, setResendSuccess] = useState(false);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Get returnUrl from query params (e.g., for team invite flow)
     const returnUrl = searchParams.get('returnUrl');
 
-    // If email is verified, redirect to returnUrl or onboarding
     useEffect(() => {
         if (isEmailVerified) {
-            // If there's a returnUrl (e.g., invite acceptance), go there
-            // Otherwise, go to team creation for new users
             const redirectTo = returnUrl || '/onboarding/create-team';
             navigate(redirectTo, { replace: true });
         }
     }, [isEmailVerified, navigate, returnUrl]);
 
-    // Poll for email verification every 3 seconds
-    // This detects when user verifies email in another tab
     useEffect(() => {
         const checkEmailVerification = async () => {
             try {
                 const { data: { user: currentUser } } = await supabase.auth.getUser();
                 if (currentUser?.email_confirmed_at) {
-                    // Email is verified! Refresh the auth session to update store
                     await supabase.auth.refreshSession();
-                    // The authStore's onAuthStateChange listener will handle the update
                 }
             } catch (error) {
                 console.error('Error checking email verification:', error);
             }
         };
 
-        // Start polling
         pollingRef.current = setInterval(checkEmailVerification, 3000);
-
-        // Also check immediately on mount
         checkEmailVerification();
 
         return () => {
@@ -81,75 +70,76 @@ export function EmailVerificationPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background px-4">
-            <div className="w-full max-w-md space-y-8 text-center">
-                {/* Icon */}
-                <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-primary/10 mx-auto">
-                    <Mail className="h-10 w-10 text-primary" />
-                </div>
+        <div className="min-h-screen flex items-center justify-center bg-[#0d0d0f] px-4">
+            <div className="w-full max-w-md">
+                <div className="bg-[#1a1a1f] border border-white/10 rounded-2xl p-8 shadow-2xl text-center space-y-6">
+                    {/* Icon */}
+                    <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-violet-500/10 border border-violet-500/20">
+                        <Mail className="h-10 w-10 text-violet-400" />
+                    </div>
 
-                {/* Title */}
-                <div>
-                    <h1 className="text-2xl font-semibold">
-                        {t('auth.verifyEmail', 'Verify your email')}
-                    </h1>
-                    <p className="text-muted-foreground mt-3 leading-relaxed">
-                        {t('auth.verificationInstructions', 'We sent a verification link to:')}
-                    </p>
-                    <p className="text-lg font-medium mt-2 text-primary">
-                        {user?.email}
-                    </p>
-                </div>
+                    {/* Title */}
+                    <div>
+                        <h1 className="text-2xl font-semibold text-white">
+                            {t('auth.verifyEmail', 'Verify your email')}
+                        </h1>
+                        <p className="text-slate-400 mt-3 leading-relaxed">
+                            {t('auth.verificationInstructions', 'We sent a verification link to:')}
+                        </p>
+                        <p className="text-lg font-medium mt-2 text-violet-400">
+                            {user?.email}
+                        </p>
+                    </div>
 
-                {/* Instructions */}
-                <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground space-y-2">
-                    <p>{t('auth.checkInbox', 'Check your inbox and click the verification link.')}</p>
-                    <p>{t('auth.checkSpam', "If you don't see the email, check your spam folder.")}</p>
-                </div>
+                    {/* Instructions */}
+                    <div className="bg-[#121215] border border-white/5 rounded-xl p-4 text-sm text-slate-400 space-y-2">
+                        <p>{t('auth.checkInbox', 'Check your inbox and click the verification link.')}</p>
+                        <p>{t('auth.checkSpam', "If you don't see the email, check your spam folder.")}</p>
+                    </div>
 
-                {/* Resend Button */}
-                <div className="space-y-3">
-                    {resendSuccess ? (
-                        <div className="flex items-center justify-center gap-2 text-green-600">
-                            <CheckCircle className="h-5 w-5" />
-                            <span>{t('auth.emailSent', 'Email sent successfully')}</span>
-                        </div>
-                    ) : (
+                    {/* Resend Button */}
+                    <div className="space-y-3">
+                        {resendSuccess ? (
+                            <div className="flex items-center justify-center gap-2 text-emerald-400">
+                                <CheckCircle className="h-5 w-5" />
+                                <span>{t('auth.emailSent', 'Email sent successfully')}</span>
+                            </div>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                className="w-full gap-2 bg-[#121215] border-white/10 text-slate-300 hover:bg-white/5 hover:text-white h-11 rounded-xl"
+                                onClick={handleResend}
+                                disabled={isResending}
+                            >
+                                {isResending ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        {t('auth.sending', 'Sending...')}
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="h-4 w-4" />
+                                        {t('auth.resendEmail', 'Resend verification email')}
+                                    </>
+                                )}
+                            </Button>
+                        )}
+
                         <Button
-                            variant="outline"
-                            className="w-full gap-2"
-                            onClick={handleResend}
-                            disabled={isResending}
+                            variant="ghost"
+                            className="w-full text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                            onClick={handleLogout}
                         >
-                            {isResending ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    {t('auth.sending', 'Sending...')}
-                                </>
-                            ) : (
-                                <>
-                                    <RefreshCw className="h-4 w-4" />
-                                    {t('auth.resendEmail', 'Resend verification email')}
-                                </>
-                            )}
+                            {t('auth.useAnotherEmail', 'Sign up with a different email')}
                         </Button>
-                    )}
+                    </div>
 
-                    <Button
-                        variant="ghost"
-                        className="w-full text-muted-foreground"
-                        onClick={handleLogout}
-                    >
-                        {t('auth.useAnotherEmail', 'Sign up with a different email')}
-                    </Button>
+                    {/* Help text */}
+                    <p className="text-xs text-slate-500">
+                        {t('auth.verificationHelp', 'Once verified, you will be redirected automatically.')}
+                    </p>
                 </div>
-
-                {/* Help text */}
-                <p className="text-xs text-muted-foreground">
-                    {t('auth.verificationHelp', 'Once verified, you will be redirected automatically.')}
-                </p>
             </div>
         </div>
     );
 }
-

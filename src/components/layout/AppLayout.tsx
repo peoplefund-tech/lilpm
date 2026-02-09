@@ -20,7 +20,7 @@ interface AppLayoutProps {
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
-const DEFAULT_SIDEBAR_WIDTH = 224; // 14rem = 224px
+const DEFAULT_SIDEBAR_WIDTH = 224;
 const COLLAPSED_SIDEBAR_WIDTH = 0;
 
 export function AppLayout({
@@ -33,39 +33,32 @@ export function AppLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isSwitchingTeam, switchingToTeamName } = useTeamStore();
 
-  // Sidebar collapse state with localStorage persistence
   const [isCollapsed, setIsCollapsed] = useState(() =>
     localStorage.getItem('sidebarCollapsed') === 'true'
   );
 
-  // Sidebar resize state
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('sidebarWidth');
     return saved ? parseInt(saved, 10) : DEFAULT_SIDEBAR_WIDTH;
   });
   const [isResizing, setIsResizing] = useState(false);
 
-  // Persist collapse state
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', String(isCollapsed));
   }, [isCollapsed]);
 
-  // Persist sidebar width
   useEffect(() => {
     localStorage.setItem('sidebarWidth', String(sidebarWidth));
   }, [sidebarWidth]);
 
-  // Initialize real-time collaboration
   const { isConnected, onlineCount } = useRealtimeCollaboration({
     enabled: enableCollaboration,
   });
 
-  // Toggle sidebar collapse
   const toggleSidebar = useCallback(() => {
     setIsCollapsed(prev => !prev);
   }, []);
 
-  // Handle sidebar resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -92,7 +85,7 @@ export function AppLayout({
   const actualSidebarWidth = isCollapsed ? COLLAPSED_SIDEBAR_WIDTH : sidebarWidth;
 
   return (
-    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+    <div className="flex h-screen w-full bg-[#121215] text-white overflow-hidden">
       {/* Team Switching Overlay */}
       <TeamSwitchingOverlay
         isVisible={isSwitchingTeam}
@@ -103,7 +96,7 @@ export function AppLayout({
       {showSidebar && !isMobile && (
         <div
           className={cn(
-            "relative flex-shrink-0 bg-sidebar flex transition-all duration-300 ease-in-out overflow-hidden",
+            "relative flex-shrink-0 bg-[#1a1a1f] flex transition-all duration-300 ease-in-out overflow-hidden",
             isCollapsed && "w-0"
           )}
           style={{ width: isCollapsed ? 0 : sidebarWidth }}
@@ -115,8 +108,8 @@ export function AppLayout({
             <div
               className={cn(
                 "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-20",
-                "hover:bg-primary/50 transition-colors",
-                isResizing && "bg-primary/50"
+                "hover:bg-violet-500/50 transition-colors",
+                isResizing && "bg-violet-500/50"
               )}
               onMouseDown={handleMouseDown}
             />
@@ -130,7 +123,7 @@ export function AppLayout({
           variant="ghost"
           size="icon"
           className={cn(
-            "absolute top-3 z-30 h-8 w-8 transition-all duration-300",
+            "absolute top-3 z-30 h-8 w-8 transition-all duration-300 text-slate-400 hover:text-white hover:bg-white/5",
             isCollapsed ? "left-3" : "left-3"
           )}
           style={{ left: isCollapsed ? 12 : sidebarWidth - 36 }}
@@ -148,7 +141,7 @@ export function AppLayout({
       {/* Mobile Sidebar Sheet */}
       {showSidebar && isMobile && (
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="left" className="p-0 w-[280px]">
+          <SheetContent side="left" className="p-0 w-[280px] bg-[#1a1a1f] border-white/5">
             <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
           </SheetContent>
         </Sheet>
@@ -161,13 +154,10 @@ export function AppLayout({
           onMenuClick={() => setMobileMenuOpen(true)}
           showMenuButton={isMobile && showSidebar}
         />
-        <main ref={mainRef} className="flex-1 overflow-auto relative">
+        <main ref={mainRef} className="flex-1 overflow-auto relative bg-[#121215]">
           {children}
         </main>
       </div>
-
-      {/* CursorPresence disabled - use CollaborationCursor in BlockEditor instead */}
-      {/* {enableCollaboration && <CursorPresence />} */}
 
       {/* Collaboration toast notifications */}
       {enableCollaboration && <CollaborationToast />}
