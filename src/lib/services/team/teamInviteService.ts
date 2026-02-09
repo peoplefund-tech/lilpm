@@ -8,6 +8,7 @@ import { logInviteSent, logInviteCancelled, logInviteAccepted } from '../activit
 
 export const teamInviteService = {
     async getInvites(teamId: string): Promise<TeamInvite[]> {
+        console.log('[getInvites] Fetching invites for team:', teamId);
         const { data, error } = await supabase
             .from('team_invites')
             .select('*')
@@ -15,7 +16,11 @@ export const teamInviteService = {
             .eq('status', 'pending')
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            console.error('[getInvites] Error:', error);
+            throw error;
+        }
+        console.log('[getInvites] Found invites:', data?.length || 0, data);
         return (data || []) as TeamInvite[];
     },
 
