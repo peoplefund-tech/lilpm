@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Issue, IssueType } from '@/types';
-import { PriorityIcon } from '@/features/issues/components/IssueIcons';
-import { IssueTypeIcon, issueTypeConfig } from '@/features/issues/components/IssueTypeIcon';
+import { PriorityIcon } from '@/features/issues/components/shared/IssueIcons';
+import { IssueTypeIcon, issueTypeConfig } from '@/features/issues/components/shared/IssueTypeIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { IssueFocusIndicator } from '@/components/collaboration';
 import { cn } from '@/lib/utils';

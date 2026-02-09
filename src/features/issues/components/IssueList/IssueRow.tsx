@@ -12,8 +12,8 @@ import {
 } from 'lucide-react';
 import type { Issue, IssueType } from '@/types';
 import { cn } from '@/lib/utils';
-import { StatusIcon, PriorityIcon } from '@/features/issues/components/IssueIcons';
-import { IssueTypeIcon, issueTypeConfig } from '@/features/issues/components/IssueTypeIcon';
+import { StatusIcon, PriorityIcon } from '@/features/issues/components/shared/IssueIcons';
+import { IssueTypeIcon, issueTypeConfig } from '@/features/issues/components/shared/IssueTypeIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';

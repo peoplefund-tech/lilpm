@@ -45,9 +45,9 @@ import { useLilyStore } from '@/stores';
 import { useTeamStore } from '@/stores/teamStore';
 import { useIssueStore } from '@/stores';
 import { useMCPStore } from '@/stores/mcpStore';
-import { ApiKeyRequiredModal } from './ApiKeyRequiredModal';
-import { ConversationItem } from './ConversationItem';
-import { ChatMessage } from './ChatMessage';
+import { ApiKeyRequiredModal } from './panels/ApiKeyRequiredModal';
+import { ConversationItem } from './chat/ConversationItem';
+import { ChatMessage } from './chat/ChatMessage';
 import { cn } from '@/lib/utils';
 import type { AIProvider } from '@/types';
 import { toast } from 'sonner';
@@ -70,7 +70,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { ShareConversationModal } from './ShareConversationModal';
+import { ShareConversationModal } from './panels/ShareConversationModal';
 import {
   UploadedFile,
   FILE_TYPE_MAP,

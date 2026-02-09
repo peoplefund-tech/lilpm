@@ -1,4 +1,4 @@
 export { LilyChat } from './LilyChat';
-export { SuggestedIssueCard, SuggestedIssuesList } from './SuggestedIssueCard';
-export { TimelineThinkingBlock } from './TimelineThinkingBlock';
-export { ConversationItem } from './ConversationItem';
+export { SuggestedIssueCard, SuggestedIssuesList } from './shared/SuggestedIssueCard';
+export { TimelineThinkingBlock } from './shared/TimelineThinkingBlock';
+export { ConversationItem } from './chat/ConversationItem';

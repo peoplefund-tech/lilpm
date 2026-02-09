@@ -7,7 +7,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { IssueTypeIcon } from '@/features/issues/components/IssueTypeIcon';
+import { IssueTypeIcon } from '@/features/issues/components/shared/IssueTypeIcon';
 import type { Issue } from '@/types';
 
 interface SortableIssueRowProps {

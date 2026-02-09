@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { IssueTypeIcon, allIssueTypes } from '@/components/issues';
-import { TicketDetailModal } from './TicketDetailModal';
+import { TicketDetailModal } from '../panels/TicketDetailModal';
 import type { Issue, IssuePriority, IssueStatus, IssueType } from '@/types';
 
 interface SuggestedIssue {

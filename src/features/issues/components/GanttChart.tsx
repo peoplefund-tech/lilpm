@@ -37,8 +37,8 @@ import {
 } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { StatusIcon, PriorityIcon } from '@/features/issues/components/IssueIcons';
-import { IssueTypeIcon } from '@/features/issues/components/IssueTypeIcon';
+import { StatusIcon, PriorityIcon } from '@/features/issues/components/shared/IssueIcons';
+import { IssueTypeIcon } from '@/features/issues/components/shared/IssueTypeIcon';
 import type { Issue } from '@/types';
 import type {
   GanttCycle,

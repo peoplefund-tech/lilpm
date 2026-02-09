@@ -41,7 +41,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { StatusIcon, PriorityIcon, statusLabels, priorityLabels, allStatuses, allPriorities } from '@/features/issues/components/IssueIcons';
+import { StatusIcon, PriorityIcon, statusLabels, priorityLabels, allStatuses, allPriorities } from '@/features/issues/components/shared/IssueIcons';
 import {
   Loader2,
   CalendarIcon,
