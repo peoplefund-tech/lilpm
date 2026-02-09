@@ -80,7 +80,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const dbTeams = await teamService.getTeams();
       const teams = dbTeams.map(convertDbTeam);
 
-      set({ teams, isLoading: false, error: null });
+      // Update teams in store (but keep isLoading true until team is selected)
+      set({ teams, error: null });
 
       // Try to restore last selected team from localStorage
       if (!get().currentTeam && teams.length > 0) {
@@ -95,8 +96,12 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
           console.error('Failed to read team selection from localStorage:', e);
         }
 
+        // selectTeam loads members and projects - await it before setting isLoading false
         await get().selectTeam(teamToSelect);
       }
+
+      // Now all data is loaded, set isLoading false
+      set({ isLoading: false });
     } catch (error) {
       console.error('Failed to load teams:', error);
       // Keep existing teams on error to prevent redirect
