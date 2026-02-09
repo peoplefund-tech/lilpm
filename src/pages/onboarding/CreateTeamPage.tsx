@@ -50,7 +50,7 @@ export function CreateTeamPage() {
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
     form.setValue('name', name);
-    
+
     // Generate slug
     const slug = name
       .toLowerCase()
@@ -58,15 +58,15 @@ export function CreateTeamPage() {
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
-    
+
     form.setValue('slug', slug);
-    
+
     // Generate issue prefix (first 3 letters uppercase)
     const prefix = name
       .replace(/[^a-zA-Z]/g, '')
       .substring(0, 3)
       .toUpperCase();
-    
+
     if (prefix.length >= 2) {
       form.setValue('issuePrefix', prefix);
     }
@@ -80,7 +80,7 @@ export function CreateTeamPage() {
       navigate('/login');
       return;
     }
-    
+
     setIsLoading(true);
     try {
       // Use teamStore.createTeam which updates the store and sets currentTeam
@@ -92,7 +92,7 @@ export function CreateTeamPage() {
       console.error('Failed to create team:', error);
       const message = error?.message || '';
       const errorCode = error?.code || '';
-      
+
       if (message.includes('verify your email')) {
         toast.error('Please check your email and verify your account first.');
       } else if (message.includes('unique constraint') || message.includes('duplicate') || errorCode === '23505') {
@@ -221,18 +221,8 @@ export function CreateTeamPage() {
             </Button>
           </form>
         </Form>
-
-        {/* Skip for now */}
-        <div className="text-center">
-          <Button
-            variant="ghost"
-            className="text-muted-foreground"
-            onClick={() => navigate('/')}
-          >
-            Skip for now
-          </Button>
-        </div>
       </div>
     </div>
   );
 }
+
