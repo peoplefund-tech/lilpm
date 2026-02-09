@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Mail, Loader2, RefreshCw, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 export function EmailVerificationPage() {
@@ -13,12 +14,13 @@ export function EmailVerificationPage() {
     const { user, isEmailVerified, resendVerificationEmail, logout } = useAuthStore();
     const [isResending, setIsResending] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
+    const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
     // Get returnUrl from query params (e.g., for team invite flow)
     const returnUrl = searchParams.get('returnUrl');
 
     // If email is verified, redirect to returnUrl or onboarding
-    React.useEffect(() => {
+    useEffect(() => {
         if (isEmailVerified) {
             // If there's a returnUrl (e.g., invite acceptance), go there
             // Otherwise, go to team creation for new users
@@ -26,6 +28,35 @@ export function EmailVerificationPage() {
             navigate(redirectTo, { replace: true });
         }
     }, [isEmailVerified, navigate, returnUrl]);
+
+    // Poll for email verification every 3 seconds
+    // This detects when user verifies email in another tab
+    useEffect(() => {
+        const checkEmailVerification = async () => {
+            try {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser?.email_confirmed_at) {
+                    // Email is verified! Refresh the auth session to update store
+                    await supabase.auth.refreshSession();
+                    // The authStore's onAuthStateChange listener will handle the update
+                }
+            } catch (error) {
+                console.error('Error checking email verification:', error);
+            }
+        };
+
+        // Start polling
+        pollingRef.current = setInterval(checkEmailVerification, 3000);
+
+        // Also check immediately on mount
+        checkEmailVerification();
+
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+            }
+        };
+    }, []);
 
     const handleResend = async () => {
         setIsResending(true);
@@ -42,6 +73,9 @@ export function EmailVerificationPage() {
     };
 
     const handleLogout = async () => {
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+        }
         await logout();
         navigate('/login', { replace: true });
     };
@@ -118,3 +152,4 @@ export function EmailVerificationPage() {
         </div>
     );
 }
+

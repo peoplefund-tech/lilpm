@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ export function LoginPage() {
   const { t } = useTranslation();
   const { login, isLoading } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
+  const [isInvalidCredentials, setIsInvalidCredentials] = useState(false);
 
   // Get returnUrl from query params for redirect after login
   const returnUrl = searchParams.get('returnUrl') || '/dashboard';
@@ -46,6 +47,7 @@ export function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     try {
       setError(null);
+      setIsInvalidCredentials(false);
       await login(data.email, data.password);
       toast.success(t('auth.loginSuccess'));
       navigate(returnUrl);
@@ -53,11 +55,12 @@ export function LoginPage() {
       // Parse Supabase error messages for better UX
       const message = err.message || '';
       if (message.includes('Invalid login credentials')) {
-        setError(t('auth.invalidCredentials', 'Invalid email or password. Please check your credentials and try again.'));
+        setIsInvalidCredentials(true);
+        setError(t('auth.invalidCredentials', '이메일 또는 비밀번호가 올바르지 않습니다. 계정이 없으시다면 회원가입해주세요.'));
       } else if (message.includes('Email not confirmed')) {
-        setError(t('auth.emailNotConfirmed', 'Please verify your email address before logging in.'));
+        setError(t('auth.emailNotConfirmed', '로그인하기 전에 이메일 인증을 완료해주세요.'));
       } else if (message.includes('Too many requests')) {
-        setError(t('auth.tooManyAttempts', 'Too many login attempts. Please try again later.'));
+        setError(t('auth.tooManyAttempts', '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.'));
       } else {
         setError(err instanceof Error ? err.message : t('auth.loginError'));
       }
@@ -66,24 +69,42 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Simple Navigation Header */}
+      {/* Navigation Header - matches LandingPage GNB */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/welcome" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-foreground">L</span>
-            </div>
-            <span className="text-lg">LilPM</span>
-          </Link>
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link to="/welcome" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+                <span className="text-lg font-bold text-primary-foreground">L</span>
+              </div>
+              <span className="text-xl font-semibold">Lil PM</span>
+            </Link>
+          </div>
+
+          <div className="hidden md:flex items-center gap-8">
+            <Link to="/welcome#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              {t('landing.features', 'Features')}
+            </Link>
+            <Link to="/welcome#ai" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              {t('landing.ai', 'AI')}
+            </Link>
+            <Link to="/welcome#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              {t('landing.pricing', 'Pricing')}
+            </Link>
+          </div>
+
           <div className="flex items-center gap-4">
-            <Link to="/signup" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {t('auth.signUp')}
+            <Link to="/signup">
+              <Button size="sm">
+                {t('landing.getStartedFree', 'Get Started Free')}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
             </Link>
           </div>
         </div>
       </nav>
 
-      <div className="pt-14 min-h-screen flex items-center justify-center px-4">
+      <div className="pt-16 min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-sm space-y-8">
           {/* Logo */}
           <div className="text-center">
@@ -101,7 +122,17 @@ export function LoginPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {error && (
                 <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                  {error}
+                  <p>{error}</p>
+                  {isInvalidCredentials && (
+                    <p className="mt-2">
+                      <Link
+                        to={returnUrl !== '/dashboard' ? `/signup?returnUrl=${encodeURIComponent(returnUrl)}` : '/signup'}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {t('auth.goToSignup', '회원가입 하러가기 →')}
+                      </Link>
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -206,7 +237,7 @@ export function LoginPage() {
           <p className="text-center text-sm text-muted-foreground">
             {t('auth.noAccount')}{' '}
             <Link
-              to={returnUrl !== '/' ? `/signup?returnUrl=${encodeURIComponent(returnUrl)}` : '/signup'}
+              to={returnUrl !== '/dashboard' ? `/signup?returnUrl=${encodeURIComponent(returnUrl)}` : '/signup'}
               className="font-medium text-primary hover:underline"
             >
               {t('auth.signup')}

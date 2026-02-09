@@ -143,9 +143,9 @@ function OnboardingCheck({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth/verify-email" replace />;
   }
 
-  // Redirect to welcome/onboarding if no teams
+  // Redirect to onboarding if no teams (self-signup users need to create a team)
   if (teams.length === 0 && !onboardingCompleted) {
-    return <Navigate to="/welcome" replace />;
+    return <Navigate to="/onboarding/create-team" replace />;
   }
 
   return <>{children}</>;
