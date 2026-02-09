@@ -53,7 +53,7 @@ export function CreateProjectPage() {
       navigate('/onboarding/create-team');
       return;
     }
-    
+
     setIsLoading(true);
     try {
       await createProject({
@@ -75,33 +75,33 @@ export function CreateProjectPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0d0d0f] px-4">
       <div className="w-full max-w-md space-y-8">
         {/* Progress indicator */}
         <div className="flex items-center justify-center gap-2">
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
-            <span className="text-sm text-muted-foreground">Team</span>
+            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+            <span className="text-sm text-slate-400">Team</span>
           </div>
-          <div className="w-8 h-px bg-green-500" />
+          <div className="w-8 h-px bg-emerald-500" />
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">2</div>
-            <span className="text-sm font-medium">Project</span>
+            <div className="w-8 h-8 rounded-full bg-violet-500 text-white flex items-center justify-center text-sm font-medium">2</div>
+            <span className="text-sm font-medium text-white">Project</span>
           </div>
-          <div className="w-8 h-px bg-border" />
+          <div className="w-8 h-px bg-white/10" />
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm">3</div>
-            <span className="text-sm text-muted-foreground">AI Setup</span>
+            <div className="w-8 h-8 rounded-full bg-[#1a1a1f] text-slate-500 flex items-center justify-center text-sm border border-white/10">3</div>
+            <span className="text-sm text-slate-500">AI Setup</span>
           </div>
         </div>
 
         {/* Header */}
         <div className="text-center">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-6">
-            <FolderKanban className="h-8 w-8 text-primary" />
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 mb-6">
+            <FolderKanban className="h-8 w-8 text-violet-400" />
           </div>
-          <h1 className="text-2xl font-semibold">Create your first project</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl font-semibold text-white">Create your first project</h1>
+          <p className="text-slate-400 mt-2">
             Projects help you organize and track your work
           </p>
         </div>
@@ -113,7 +113,7 @@ export function CreateProjectPage() {
             <div className="space-y-3">
               <FormLabel>Project icon & color</FormLabel>
               <div className="flex items-center gap-4">
-                <div 
+                <div
                   className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl"
                   style={{ backgroundColor: selectedColor + '20' }}
                 >
@@ -126,9 +126,8 @@ export function CreateProjectPage() {
                         key={icon}
                         type="button"
                         onClick={() => setSelectedIcon(icon)}
-                        className={`w-8 h-8 rounded-md flex items-center justify-center text-lg hover:bg-accent transition-colors ${
-                          selectedIcon === icon ? 'bg-accent ring-2 ring-primary' : ''
-                        }`}
+                        className={`w-8 h-8 rounded-md flex items-center justify-center text-lg hover:bg-accent transition-colors ${selectedIcon === icon ? 'bg-accent ring-2 ring-primary' : ''
+                          }`}
                       >
                         {icon}
                       </button>
@@ -140,9 +139,8 @@ export function CreateProjectPage() {
                         key={color}
                         type="button"
                         onClick={() => setSelectedColor(color)}
-                        className={`w-6 h-6 rounded-full transition-transform ${
-                          selectedColor === color ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : ''
-                        }`}
+                        className={`w-6 h-6 rounded-full transition-transform ${selectedColor === color ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : ''
+                          }`}
                         style={{ backgroundColor: color }}
                       />
                     ))}
@@ -188,9 +186,9 @@ export function CreateProjectPage() {
             />
 
             <div className="flex gap-3">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => navigate('/onboarding/create-team')}
                 className="flex-1"
               >

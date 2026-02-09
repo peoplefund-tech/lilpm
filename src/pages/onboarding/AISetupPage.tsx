@@ -96,39 +96,39 @@ export function AISetupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-[#0d0d0f] px-4 py-8">
       <div className="w-full max-w-lg space-y-8">
         {/* Progress indicator */}
         <div className="flex items-center justify-center gap-2">
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
-            <span className="text-sm text-muted-foreground">Team</span>
+            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+            <span className="text-sm text-slate-400">Team</span>
           </div>
-          <div className="w-8 h-px bg-green-500" />
+          <div className="w-8 h-px bg-emerald-500" />
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
-            <span className="text-sm text-muted-foreground">Project</span>
+            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+            <span className="text-sm text-slate-400">Project</span>
           </div>
-          <div className="w-8 h-px bg-green-500" />
+          <div className="w-8 h-px bg-emerald-500" />
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">3</div>
-            <span className="text-sm font-medium">AI Setup</span>
+            <div className="w-8 h-8 rounded-full bg-violet-500 text-white flex items-center justify-center text-sm font-medium">3</div>
+            <span className="text-sm font-medium text-white">AI Setup</span>
           </div>
         </div>
 
         {/* Header */}
         <div className="text-center">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 mb-6">
-            <Sparkles className="h-8 w-8 text-violet-500" />
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20 mb-6">
+            <Sparkles className="h-8 w-8 text-violet-400" />
           </div>
-          <h1 className="text-2xl font-semibold">Power up with AI</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl font-semibold text-white">Power up with AI</h1>
+          <p className="text-slate-400 mt-2">
             Connect your AI providers to unlock Lil PM AI assistant
           </p>
         </div>
 
         {/* AI Features Preview */}
-        <Card className="border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-purple-500/5">
+        <Card className="border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-purple-500/5 rounded-xl">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3 mb-4">
               <Brain className="h-5 w-5 text-violet-500 mt-0.5" />

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
+import {
   ArrowLeft,
   Settings,
   Globe,
@@ -95,16 +95,16 @@ export function GeneralSettingsPage() {
                   key={lang.code}
                   onClick={() => handleLanguageChange(lang.code)}
                   className={cn(
-                    "flex items-center justify-between p-4 rounded-lg border transition-colors",
-                    "hover:bg-accent hover:border-primary/50",
-                    language === lang.code && "border-primary bg-primary/5"
+                    "flex items-center justify-between p-4 rounded-xl border border-white/10 bg-[#1a1a1f] transition-colors",
+                    "hover:bg-white/5 hover:border-violet-500/30",
+                    language === lang.code && "border-violet-500 bg-violet-500/10"
                   )}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{lang.flag}</span>
                     <div className="text-left">
-                      <p className="font-medium">{lang.nativeName}</p>
-                      <p className="text-sm text-muted-foreground">{lang.name}</p>
+                      <p className="font-medium text-white">{lang.nativeName}</p>
+                      <p className="text-sm text-slate-400">{lang.name}</p>
                     </div>
                   </div>
                   {language === lang.code && (
@@ -136,16 +136,16 @@ export function GeneralSettingsPage() {
                     key={themeOption.code}
                     onClick={() => handleThemeChange(themeOption.code)}
                     className={cn(
-                      "flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors",
-                      "hover:bg-accent hover:border-primary/50",
-                      theme === themeOption.code && "border-primary bg-primary/5"
+                      "flex flex-col items-center gap-2 p-4 rounded-xl border border-white/10 bg-[#1a1a1f] transition-colors",
+                      "hover:bg-white/5 hover:border-violet-500/30",
+                      theme === themeOption.code && "border-violet-500 bg-violet-500/10"
                     )}
                   >
                     <Icon className={cn(
                       "h-6 w-6",
                       theme === themeOption.code ? "text-primary" : "text-muted-foreground"
                     )} />
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium text-white">
                       {t(`settings.${themeOption.name}`)}
                     </span>
                     {theme === themeOption.code && (
@@ -162,7 +162,7 @@ export function GeneralSettingsPage() {
         <div className="space-y-3">
           <button
             onClick={() => navigate('/settings/notifications')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Bell className="h-5 w-5 text-muted-foreground" />
@@ -176,7 +176,7 @@ export function GeneralSettingsPage() {
 
           <button
             onClick={() => navigate('/settings/security')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Shield className="h-5 w-5 text-muted-foreground" />
@@ -190,7 +190,7 @@ export function GeneralSettingsPage() {
 
           <button
             onClick={() => navigate('/settings/ai')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Bot className="h-5 w-5 text-muted-foreground" />
@@ -204,7 +204,7 @@ export function GeneralSettingsPage() {
 
           <button
             onClick={() => navigate('/settings/mcp')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Plug className="h-5 w-5 text-muted-foreground" />
@@ -218,7 +218,7 @@ export function GeneralSettingsPage() {
 
           <button
             onClick={() => navigate('/settings/llm')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Brain className="h-5 w-5 text-muted-foreground" />
@@ -232,7 +232,7 @@ export function GeneralSettingsPage() {
 
           <button
             onClick={() => navigate('/settings/github')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Github className="h-5 w-5 text-muted-foreground" />
@@ -246,7 +246,7 @@ export function GeneralSettingsPage() {
 
           <button
             onClick={() => navigate('/settings/slack')}
-            className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-[#1a1a1f] hover:bg-white/5 hover:border-violet-500/30 transition-colors"
           >
             <div className="flex items-center gap-3">
               <MessageSquare className="h-5 w-5 text-muted-foreground" />
