@@ -16,7 +16,7 @@ export const teamMemberService = {
             .from('team_members')
             .select(`
         *,
-        profile:profiles(id, name, email, avatar_url)
+        profile:profiles!team_members_user_id_fkey(id, name, email, avatar_url)
       `)
             .eq('team_id', teamId)
             .order('joined_at', { ascending: true });
@@ -72,7 +72,7 @@ export const teamMemberService = {
             .select(`
         *,
         team:teams(id, name),
-        profile:profiles(id, email, name)
+        profile:profiles!team_members_user_id_fkey(id, email, name)
       `)
             .eq('id', memberId)
             .single();
