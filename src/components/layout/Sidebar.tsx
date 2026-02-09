@@ -31,8 +31,7 @@ import { useTeamStore } from '@/stores/teamStore';
 import { useLilyStore } from '@/stores';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { projectService } from '@/lib/services';
-import { supabase } from '@/lib/supabase';
+
 import { formatDistanceToNow } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -56,7 +55,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import type { Project } from '@/types/database';
+
 import { NavItem, ConversationListItem } from './SidebarComponents';
 import { useSidebarKeyboardShortcuts } from './hooks';
 
@@ -76,7 +75,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
-  const { currentTeam, teams, selectTeam } = useTeamStore();
+  const { currentTeam, teams, selectTeam, projects, isLoading: isTeamLoading } = useTeamStore();
   const { users } = useCollaborationStore();
   const { unreadCount } = useNotificationStore();
   const {
@@ -94,8 +93,6 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
   const [teamsOpen, setTeamsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isProjectsLoading, setIsProjectsLoading] = useState(true);
 
   // Lily mode state - manually controlled sidebar mode
   const isOnLilyPage = location.pathname === '/lily';
@@ -133,43 +130,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
     onNavigate?.();
   };
 
-  // Load projects when team changes
-  useEffect(() => {
-    if (currentTeam?.id) {
-      setIsProjectsLoading(true);
-      projectService.getProjects(currentTeam.id)
-        .then(setProjects)
-        .catch(console.error)
-        .finally(() => setIsProjectsLoading(false));
-    }
-  }, [currentTeam?.id]);
 
-  // Real-time subscription for projects
-  useEffect(() => {
-    if (!currentTeam?.id) return;
-
-    const channel = supabase
-      .channel(`projects-${currentTeam.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'projects',
-          filter: `team_id=eq.${currentTeam.id}`,
-        },
-        async () => {
-          // Reload projects on any change
-          const updatedProjects = await projectService.getProjects(currentTeam.id);
-          setProjects(updatedProjects);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentTeam?.id]);
 
   // Keyboard shortcuts (extracted to hook)
   useSidebarKeyboardShortcuts(setSearchOpen);
@@ -513,7 +474,7 @@ export function Sidebar({ onNavigate, style }: SidebarProps) {
             </Button>
           </div>
           <CollapsibleContent className="space-y-0.5 mt-1">
-            {!isProjectsLoading && projects.length === 0 ? (
+            {!isTeamLoading && projects.length === 0 ? (
               <p className="px-2 py-1 text-xs text-muted-foreground">
                 No projects yet
               </p>
