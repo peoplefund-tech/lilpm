@@ -10,9 +10,26 @@ import {
     Calendar,
     Clock,
     Tag,
-    ChevronRight,
     Sparkles,
+    Search,
+    Filter,
+    Plus,
+    MoreHorizontal,
+    ChevronDown,
+    Circle,
+    CheckCircle,
+    AlertCircle,
     ArrowRight,
+    Play,
+    Link2,
+    MessageSquare,
+    Paperclip,
+    Settings,
+    Bell,
+    Home,
+    Folder,
+    BarChart3,
+    Target,
 } from 'lucide-react';
 
 // Typing animation hook
@@ -79,7 +96,7 @@ function AnimatedCursor({
             transition={{ type: 'spring', damping: 20, stiffness: 200 }}
             className="absolute z-50 pointer-events-none"
         >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
                 <path
                     d="M3 2L17 10L10 11L7 18L3 2Z"
                     fill={color}
@@ -89,7 +106,7 @@ function AnimatedCursor({
                 />
             </svg>
             <div
-                className="absolute left-4 top-4 px-2 py-0.5 rounded text-xs text-white whitespace-nowrap shadow-lg"
+                className="absolute left-4 top-4 px-2 py-0.5 rounded text-[10px] text-white whitespace-nowrap shadow-lg"
                 style={{ backgroundColor: color }}
             >
                 {name}
@@ -99,322 +116,275 @@ function AnimatedCursor({
 }
 
 // Status badge component
-function StatusBadge({ status, className = '' }: { status: string; className?: string }) {
+function StatusBadge({ status }: { status: string }) {
     const colors: Record<string, string> = {
         'Backlog': 'bg-slate-500/20 text-slate-400',
-        'Todo': 'bg-blue-500/20 text-blue-400',
-        'In Progress': 'bg-amber-500/20 text-amber-400',
-        'In Review': 'bg-purple-500/20 text-purple-400',
+        'Todo': 'bg-violet-500/20 text-violet-400',
+        'In Progress': 'bg-violet-500/30 text-violet-300',
+        'In Review': 'bg-violet-500/20 text-violet-400',
         'Done': 'bg-emerald-500/20 text-emerald-400',
     };
     return (
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${colors[status] || 'bg-muted text-muted-foreground'} ${className}`}>
+        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${colors[status] || 'bg-muted text-muted-foreground'}`}>
             {status}
         </span>
     );
 }
 
-// Priority indicator
-function PriorityIndicator({ priority }: { priority: 'urgent' | 'high' | 'medium' | 'low' }) {
+// Priority dot
+function PriorityDot({ priority }: { priority: 'urgent' | 'high' | 'medium' | 'low' }) {
     const colors = {
         urgent: 'bg-red-500',
         high: 'bg-orange-500',
-        medium: 'bg-yellow-500',
-        low: 'bg-blue-500',
+        medium: 'bg-violet-500',
+        low: 'bg-slate-500',
     };
+    return <div className={`h-1.5 w-1.5 rounded-full ${colors[priority]}`} />;
+}
+
+// App Sidebar Component (mimics actual app)
+function AppSidebar({ compact = false }: { compact?: boolean }) {
     return (
-        <div className={`h-1.5 w-1.5 rounded-full ${colors[priority]}`} />
+        <div className={`${compact ? 'w-12' : 'w-48'} h-full bg-[#1a1a1f] border-r border-white/5 flex flex-col`}>
+            {/* Logo */}
+            <div className={`${compact ? 'p-2' : 'p-3'} border-b border-white/5`}>
+                <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-lg bg-violet-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-white">L</span>
+                    </div>
+                    {!compact && <span className="text-sm font-semibold text-white">Lil PM</span>}
+                </div>
+            </div>
+
+            {/* Navigation */}
+            <div className={`flex-1 ${compact ? 'p-1' : 'p-2'} space-y-0.5`}>
+                {[
+                    { icon: Home, label: 'Home', active: false },
+                    { icon: Sparkles, label: 'Lily AI', active: false },
+                    { icon: Folder, label: 'Projects', active: true },
+                    { icon: Target, label: 'Sprints', active: false },
+                    { icon: BarChart3, label: 'Reports', active: false },
+                ].map((item) => (
+                    <div
+                        key={item.label}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors ${item.active ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:bg-white/5'
+                            }`}
+                    >
+                        <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                        {!compact && <span>{item.label}</span>}
+                    </div>
+                ))}
+            </div>
+
+            {/* User */}
+            {!compact && (
+                <div className="p-2 border-t border-white/5">
+                    <div className="flex items-center gap-2 px-2 py-1.5">
+                        <div className="h-6 w-6 rounded-full bg-violet-500 flex items-center justify-center text-[10px] text-white font-medium">JD</div>
+                        <span className="text-xs text-slate-400 truncate">john@company.com</span>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 
 // Demo Scene Components
 const scenes = [
-    // Scene 1: Lily AI Chat
+    // Scene 1: Lily AI Chat - Full app view
     {
         id: 'lily-chat',
         title: 'Chat with Lily AI',
         component: function LilyChatScene() {
-            const userMessage = "Build a user authentication system with OAuth2 and email verification";
-            const aiMessage = "I'll create a comprehensive PRD for user authentication. The system will include:\n\n✓ Email/password login with verification\n✓ OAuth2 integration (Google, GitHub)\n✓ Password reset flow\n✓ Session management\n\nGenerating 8 development tickets...";
+            const userMessage = "Create a user authentication system with OAuth2, email verification, and password reset flow";
+            const aiResponse = "I'll create a comprehensive PRD for the authentication system. Here's what I'll include:\n\n✓ Email/password authentication with bcrypt\n✓ OAuth2 integration (Google, GitHub, Apple)\n✓ Email verification with magic links\n✓ Password reset with secure tokens\n✓ Session management with JWT\n\nGenerating 12 development tickets for Sprint 2024-Q1...";
 
             const [showAI, setShowAI] = useState(false);
-            const { displayedText: userText, isComplete: userComplete } = useTypingAnimation(userMessage, 30, true);
-            const { displayedText: aiText } = useTypingAnimation(aiMessage, 20, showAI);
+            const { displayedText: userText, isComplete: userComplete } = useTypingAnimation(userMessage, 25, true);
+            const { displayedText: aiText } = useTypingAnimation(aiResponse, 15, showAI);
 
             useEffect(() => {
                 if (userComplete) {
-                    const timer = setTimeout(() => setShowAI(true), 600);
+                    const timer = setTimeout(() => setShowAI(true), 400);
                     return () => clearTimeout(timer);
                 }
             }, [userComplete]);
 
             return (
-                <div className="w-full max-w-xl mx-auto space-y-4">
-                    {/* User Message */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex justify-end"
-                    >
-                        <div className="flex items-end gap-2 max-w-[85%]">
-                            <div className="bg-gradient-to-br from-violet-600 to-purple-600 text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-lg shadow-violet-500/20">
-                                <p className="text-sm leading-relaxed">{userText}<span className="animate-pulse opacity-60">|</span></p>
+                <div className="flex h-full">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col bg-[#121215]">
+                        {/* Header */}
+                        <div className="h-11 border-b border-white/5 px-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-violet-500" />
+                                <span className="text-sm font-medium text-white">Lily AI Assistant</span>
                             </div>
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0 shadow-md">
-                                <span className="text-xs text-white font-medium">JD</span>
+                            <div className="flex items-center gap-2">
+                                <button className="text-slate-500 hover:text-white"><Bell className="h-4 w-4" /></button>
+                                <button className="text-slate-500 hover:text-white"><Settings className="h-4 w-4" /></button>
                             </div>
                         </div>
-                    </motion.div>
 
-                    {/* AI Response */}
-                    <AnimatePresence>
-                        {showAI && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="flex gap-2 max-w-[90%]"
-                            >
-                                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-violet-500/30">
-                                    <Sparkles className="h-4 w-4 text-white" />
-                                </div>
-                                <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl rounded-bl-sm px-4 py-3 shadow-xl">
-                                    <p className="text-sm leading-relaxed whitespace-pre-line">{aiText}<span className="animate-pulse text-violet-500">|</span></p>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            );
-        },
-    },
-    // Scene 2: PRD & Ticket Auto-Generation
-    {
-        id: 'auto-generation',
-        title: 'Auto-Generate PRD & Tickets',
-        component: function AutoGenerationScene() {
-            const [step, setStep] = useState(0);
-
-            useEffect(() => {
-                const timers = [
-                    setTimeout(() => setStep(1), 600),
-                    setTimeout(() => setStep(2), 1200),
-                    setTimeout(() => setStep(3), 1800),
-                    setTimeout(() => setStep(4), 2400),
-                    setTimeout(() => setStep(5), 3000),
-                ];
-                return () => timers.forEach(clearTimeout);
-            }, []);
-
-            const tickets = [
-                { id: 'AUTH-001', title: 'Implement Email Login API', priority: 'high' as const, points: 5 },
-                { id: 'AUTH-002', title: 'OAuth2 Google Integration', priority: 'high' as const, points: 8 },
-                { id: 'AUTH-003', title: 'Password Reset Flow', priority: 'medium' as const, points: 3 },
-                { id: 'AUTH-004', title: 'Email Verification Service', priority: 'medium' as const, points: 5 },
-            ];
-
-            return (
-                <div className="w-full max-w-xl mx-auto">
-                    {/* PRD Card */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 mb-4 shadow-xl"
-                    >
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
-                                <FileText className="h-5 w-5 text-violet-500" />
-                            </div>
-                            <div className="flex-1">
-                                <div className="font-semibold text-sm">User Authentication System</div>
-                                <div className="text-xs text-muted-foreground">PRD-2024-0142</div>
-                            </div>
-                            {step >= 1 && (
+                        {/* Chat Area */}
+                        <div className="flex-1 p-4 overflow-hidden">
+                            <div className="max-w-2xl mx-auto space-y-4">
+                                {/* User Message */}
                                 <motion.div
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    className="flex items-center gap-1 text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="flex justify-end"
                                 >
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                    <span className="text-xs font-medium">Generated</span>
-                                </motion.div>
-                            )}
-                        </div>
-                        {step >= 1 && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="flex items-center gap-4 text-xs text-muted-foreground border-t border-border/50 pt-3"
-                            >
-                                <span className="flex items-center gap-1"><Ticket className="h-3 w-3" /> 8 tickets</span>
-                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> ~34 story points</span>
-                                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> 2 sprints</span>
-                            </motion.div>
-                        )}
-                    </motion.div>
-
-                    {/* Generated Tickets */}
-                    <div className="space-y-2">
-                        {tickets.map((ticket, i) => (
-                            step >= i + 2 && (
-                                <motion.div
-                                    key={ticket.id}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.05 * i }}
-                                    className="bg-card/60 backdrop-blur-sm border border-border/50 rounded-lg p-3 flex items-center gap-3 shadow-lg hover:border-violet-500/30 transition-colors cursor-pointer group"
-                                >
-                                    <PriorityIndicator priority={ticket.priority} />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-[10px] text-muted-foreground font-mono">{ticket.id}</div>
-                                        <div className="text-sm font-medium truncate group-hover:text-violet-400 transition-colors">{ticket.title}</div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{ticket.points} pts</span>
-                                        <StatusBadge status="Todo" />
+                                    <div className="flex items-end gap-2 max-w-[80%]">
+                                        <div className="bg-violet-500 text-white rounded-2xl rounded-br-sm px-4 py-2.5 shadow-lg">
+                                            <p className="text-sm leading-relaxed">{userText}<span className="animate-pulse opacity-60">|</span></p>
+                                        </div>
+                                        <div className="h-7 w-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-[10px] text-white font-medium">JD</span>
+                                        </div>
                                     </div>
                                 </motion.div>
-                            )
-                        ))}
+
+                                {/* AI Response */}
+                                <AnimatePresence>
+                                    {showAI && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="flex gap-2 max-w-[85%]"
+                                        >
+                                            <div className="h-7 w-7 rounded-full bg-violet-500 flex items-center justify-center flex-shrink-0">
+                                                <Sparkles className="h-3.5 w-3.5 text-white" />
+                                            </div>
+                                            <div className="bg-[#1e1e24] border border-white/10 rounded-2xl rounded-bl-sm px-4 py-2.5">
+                                                <p className="text-sm leading-relaxed text-slate-200 whitespace-pre-line">{aiText}<span className="animate-pulse text-violet-500">|</span></p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+
+                        {/* Input */}
+                        <div className="p-4 border-t border-white/5">
+                            <div className="max-w-2xl mx-auto">
+                                <div className="bg-[#1e1e24] border border-white/10 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                                    <input type="text" placeholder="Ask Lily anything..." className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 outline-none" />
+                                    <button className="p-1.5 rounded-lg bg-violet-500 text-white"><ArrowRight className="h-4 w-4" /></button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
         },
     },
-    // Scene 3: Real-time PRD Editing
-    {
-        id: 'prd-editing',
-        title: 'Real-time PRD Editor',
-        component: function PRDEditingScene() {
-            const content = `## User Stories
-
-As a user, I want to sign in with my email and password so that I can access my account securely.
-
-## Acceptance Criteria
-
-- [ ] Email format validation (RFC 5322)
-- [ ] Password minimum 8 characters
-- [ ] Rate limiting: 5 attempts per minute
-- [ ] Session expires after 24 hours`;
-            const { displayedText } = useTypingAnimation(content, 25, true);
-
-            return (
-                <div className="w-full max-w-xl mx-auto">
-                    <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl overflow-hidden shadow-xl">
-                        {/* Editor Toolbar */}
-                        <div className="border-b border-border/50 px-4 py-2 flex items-center gap-2 bg-muted/30">
-                            <div className="flex items-center gap-1.5 text-muted-foreground">
-                                {['B', 'I', 'U'].map(item => (
-                                    <button key={item} className="h-7 w-7 rounded hover:bg-muted flex items-center justify-center text-xs font-medium">
-                                        {item}
-                                    </button>
-                                ))}
-                                <div className="h-4 w-px bg-border mx-1" />
-                                <button className="h-7 w-7 rounded hover:bg-muted flex items-center justify-center">
-                                    <Tag className="h-3.5 w-3.5" />
-                                </button>
-                            </div>
-                            <div className="flex-1" />
-                            <span className="text-xs text-emerald-500 flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                                Saving...
-                            </span>
-                        </div>
-
-                        {/* Editor Content */}
-                        <div className="p-5 min-h-[180px] font-mono text-sm whitespace-pre-wrap leading-relaxed">
-                            {displayedText}<span className="animate-pulse text-violet-500 font-bold">|</span>
-                        </div>
-                    </div>
-
-                    {/* Collaborator indicator */}
-                    <div className="mt-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="flex -space-x-2">
-                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 border-2 border-background shadow-md" />
-                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 border-2 border-background shadow-md" />
-                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 border-2 border-background shadow-md" />
-                            </div>
-                            <span className="text-xs text-muted-foreground">3 people editing</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">Last edited 2s ago</span>
-                    </div>
-                </div>
-            );
-        },
-    },
-    // Scene 4: Kanban Board
+    // Scene 2: Issue Board / Kanban
     {
         id: 'kanban',
         title: 'Kanban Board',
         component: function KanbanScene() {
-            const [draggedItem, setDraggedItem] = useState<number | null>(null);
-            const [columns, setColumns] = useState([
-                { id: 'todo', title: 'Todo', count: 3, items: ['Email Login API', 'OAuth Setup'] },
-                { id: 'progress', title: 'In Progress', count: 2, items: ['UI Components'] },
-                { id: 'review', title: 'In Review', count: 1, items: ['Database Schema'] },
-                { id: 'done', title: 'Done', count: 4, items: [] },
-            ]);
+            const [dragAnim, setDragAnim] = useState(false);
 
             useEffect(() => {
-                const timer1 = setTimeout(() => setDraggedItem(0), 1000);
-                const timer2 = setTimeout(() => {
-                    setColumns(prev => {
-                        const newCols = prev.map(col => ({ ...col, items: [...col.items] }));
-                        if (newCols[0].items.length > 0) {
-                            const item = newCols[0].items.shift()!;
-                            newCols[1].items.unshift(item);
-                        }
-                        return newCols;
-                    });
-                    setDraggedItem(null);
-                }, 2500);
-
-                return () => {
-                    clearTimeout(timer1);
-                    clearTimeout(timer2);
-                };
+                const timer = setTimeout(() => setDragAnim(true), 1000);
+                return () => clearTimeout(timer);
             }, []);
 
+            const columns = [
+                {
+                    id: 'backlog', title: 'Backlog', count: 5, issues: [
+                        { id: 'AUTH-005', title: 'Rate limiting middleware', priority: 'medium' as const },
+                        { id: 'AUTH-006', title: 'Audit logging', priority: 'low' as const },
+                    ]
+                },
+                {
+                    id: 'todo', title: 'Todo', count: 4, issues: [
+                        { id: 'AUTH-003', title: 'Password reset flow', priority: 'high' as const },
+                        { id: 'AUTH-004', title: 'Email verification service', priority: 'medium' as const },
+                    ]
+                },
+                {
+                    id: 'progress', title: 'In Progress', count: 2, issues: [
+                        { id: 'AUTH-001', title: 'Email login API endpoint', priority: 'high' as const },
+                    ]
+                },
+                {
+                    id: 'review', title: 'In Review', count: 1, issues: [
+                        { id: 'AUTH-002', title: 'OAuth2 Google integration', priority: 'high' as const },
+                    ]
+                },
+                { id: 'done', title: 'Done', count: 3, issues: [] },
+            ];
+
             return (
-                <div className="w-full max-w-xl mx-auto relative">
-                    <div className="flex gap-2">
-                        {columns.map(col => (
-                            <div key={col.id} className="flex-1 bg-muted/30 backdrop-blur-sm rounded-lg p-2 min-h-[200px]">
-                                <div className="flex items-center justify-between mb-2 px-1">
-                                    <span className="text-xs font-medium">{col.title}</span>
-                                    <span className="text-[10px] text-muted-foreground bg-muted rounded-full px-1.5">{col.count}</span>
-                                </div>
-                                <div className="space-y-2">
-                                    {col.items.map((item) => (
-                                        <motion.div
-                                            key={item}
-                                            layout
-                                            className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg p-2.5 text-xs shadow-md hover:border-violet-500/30 transition-colors cursor-pointer"
-                                        >
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <GripVertical className="h-3 w-3 text-muted-foreground" />
-                                                <span className="font-medium">{item}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 pl-5">
-                                                <PriorityIndicator priority="high" />
-                                                <span className="text-[10px] text-muted-foreground">AUTH-001</span>
-                                            </div>
-                                        </motion.div>
-                                    ))}
-                                </div>
+                <div className="flex h-full">
+                    <AppSidebar compact />
+                    <div className="flex-1 flex flex-col bg-[#121215]">
+                        {/* Header */}
+                        <div className="h-11 border-b border-white/5 px-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-white">Authentication System</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-400">Sprint 2024-Q1</span>
                             </div>
-                        ))}
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 text-slate-400 text-xs">
+                                    <Search className="h-3 w-3" />
+                                    <span>Search</span>
+                                </div>
+                                <button className="text-slate-400 hover:text-white text-xs flex items-center gap-1 px-2 py-1 rounded bg-white/5">
+                                    <Filter className="h-3 w-3" />
+                                    Filter
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Board */}
+                        <div className="flex-1 p-3 overflow-x-auto">
+                            <div className="flex gap-2.5 h-full min-w-max">
+                                {columns.map((col) => (
+                                    <div key={col.id} className="w-56 flex-shrink-0 flex flex-col bg-[#1a1a1f] rounded-lg">
+                                        <div className="px-3 py-2 flex items-center justify-between border-b border-white/5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-medium text-white">{col.title}</span>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-slate-400">{col.count}</span>
+                                            </div>
+                                            <button className="text-slate-500 hover:text-white"><Plus className="h-3.5 w-3.5" /></button>
+                                        </div>
+                                        <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                                            {col.issues.map((issue) => (
+                                                <motion.div
+                                                    key={issue.id}
+                                                    layout
+                                                    className="bg-[#121215] border border-white/5 rounded-lg p-2.5 cursor-pointer hover:border-violet-500/30 transition-colors group"
+                                                >
+                                                    <div className="flex items-start gap-2 mb-2">
+                                                        <PriorityDot priority={issue.priority} />
+                                                        <span className="text-[10px] text-slate-500 font-mono">{issue.id}</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-200 leading-relaxed group-hover:text-white">{issue.title}</p>
+                                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                                        <div className="h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center text-[8px] text-white font-medium">JD</div>
+                                                        <span className="text-[9px] text-slate-500">5 pts</span>
+                                                    </div>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
-                    {draggedItem !== null && (
+                    {dragAnim && (
                         <AnimatedCursor
                             path={[
-                                { x: 60, y: 70 },
-                                { x: 100, y: 60 },
-                                { x: 160, y: 55 },
-                                { x: 200, y: 65 },
+                                { x: 180, y: 120 },
+                                { x: 220, y: 100 },
+                                { x: 320, y: 110 },
+                                { x: 380, y: 120 },
                             ]}
-                            duration={1.5}
+                            duration={2}
                             name="You"
                             color="#8b5cf6"
                         />
@@ -423,86 +393,287 @@ As a user, I want to sign in with my email and password so that I can access my 
             );
         },
     },
-    // Scene 5: Gantt Chart
+    // Scene 3: PRD Editor
+    {
+        id: 'prd-editor',
+        title: 'PRD Editor',
+        component: function PRDEditorScene() {
+            const content = `## Overview
+This PRD outlines the implementation of a secure user authentication system.
+
+## User Stories
+**As a user**, I want to sign in with my email and password so that I can access my account securely.
+
+**As a user**, I want to sign in with Google/GitHub so that I can onboard faster.
+
+## Acceptance Criteria
+- [ ] Email format validation (RFC 5322)
+- [ ] Password minimum 8 characters with complexity
+- [x] OAuth2 flow with PKCE
+- [ ] Rate limiting: 5 attempts per minute`;
+            const { displayedText } = useTypingAnimation(content, 18, true);
+
+            return (
+                <div className="flex h-full">
+                    <AppSidebar compact />
+                    <div className="flex-1 flex flex-col bg-[#121215]">
+                        {/* Header */}
+                        <div className="h-11 border-b border-white/5 px-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-violet-500" />
+                                <span className="text-sm font-medium text-white">User Authentication PRD</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Draft</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="flex -space-x-1.5">
+                                    <div className="h-6 w-6 rounded-full bg-violet-500 border-2 border-[#121215] flex items-center justify-center text-[9px] text-white">JD</div>
+                                    <div className="h-6 w-6 rounded-full bg-blue-500 border-2 border-[#121215] flex items-center justify-center text-[9px] text-white">SK</div>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    Saving
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Toolbar */}
+                        <div className="h-9 border-b border-white/5 px-4 flex items-center gap-1">
+                            {['H1', 'H2', 'B', 'I', 'List', 'Link', 'Code'].map((item) => (
+                                <button key={item} className="px-2 py-1 text-[10px] text-slate-400 hover:text-white hover:bg-white/5 rounded">
+                                    {item}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Editor */}
+                        <div className="flex-1 p-6 overflow-auto">
+                            <div className="max-w-3xl mx-auto prose prose-invert prose-sm">
+                                <pre className="font-mono text-sm text-slate-200 whitespace-pre-wrap leading-relaxed bg-transparent p-0">
+                                    {displayedText}<span className="animate-pulse text-violet-500 font-bold">|</span>
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Panel - Comments */}
+                    <div className="w-56 bg-[#1a1a1f] border-l border-white/5 flex flex-col">
+                        <div className="p-3 border-b border-white/5">
+                            <span className="text-xs font-medium text-white">Comments</span>
+                        </div>
+                        <div className="flex-1 p-3 space-y-3">
+                            <div className="bg-[#121215] rounded-lg p-2.5">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center text-[8px] text-white">SK</div>
+                                    <span className="text-[10px] text-slate-400">Sarah K.</span>
+                                </div>
+                                <p className="text-[11px] text-slate-300">Should we add 2FA support in v1?</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        },
+    },
+    // Scene 4: Gantt Chart
     {
         id: 'gantt',
-        title: 'Gantt Chart & Timeline',
+        title: 'Timeline View',
         component: function GanttScene() {
             const [progress, setProgress] = useState(0);
 
             useEffect(() => {
                 const timer = setInterval(() => {
-                    setProgress(prev => Math.min(prev + 4, 100));
-                }, 150);
+                    setProgress(prev => Math.min(prev + 3, 100));
+                }, 100);
                 return () => clearInterval(timer);
             }, []);
 
             const tasks = [
-                { name: 'Backend API', assignee: 'JD', start: 0, width: 35, color: 'from-violet-500 to-purple-600' },
-                { name: 'OAuth Integration', assignee: 'SK', start: 25, width: 30, color: 'from-blue-500 to-cyan-500' },
-                { name: 'Frontend UI', assignee: 'MK', start: 40, width: 35, color: 'from-amber-500 to-orange-500' },
-                { name: 'QA Testing', assignee: 'HL', start: 65, width: 25, color: 'from-emerald-500 to-green-500' },
+                { id: 'AUTH-001', name: 'Email Login API', assignee: 'JD', start: 0, width: 30, deps: [] },
+                { id: 'AUTH-002', name: 'OAuth2 Integration', assignee: 'SK', start: 20, width: 35, deps: ['AUTH-001'] },
+                { id: 'AUTH-003', name: 'Password Reset', assignee: 'MK', start: 15, width: 25, deps: [] },
+                { id: 'AUTH-004', name: 'Email Verification', assignee: 'JD', start: 40, width: 30, deps: ['AUTH-002'] },
+                { id: 'AUTH-005', name: 'Session Management', assignee: 'SK', start: 55, width: 25, deps: ['AUTH-004'] },
+                { id: 'AUTH-006', name: 'QA Testing', assignee: 'HL', start: 70, width: 25, deps: ['AUTH-005'] },
             ];
 
-            const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+            const weeks = ['Jan 6', 'Jan 13', 'Jan 20', 'Jan 27', 'Feb 3', 'Feb 10'];
 
             return (
-                <div className="w-full max-w-xl mx-auto">
-                    <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl overflow-hidden shadow-xl">
-                        {/* Timeline Header */}
-                        <div className="border-b border-border/50 px-4 py-2.5 flex bg-muted/30">
-                            <div className="w-32 text-xs font-medium flex items-center gap-2">
-                                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                Sprint 2024-Q1
+                <div className="flex h-full">
+                    <AppSidebar compact />
+                    <div className="flex-1 flex flex-col bg-[#121215]">
+                        {/* Header */}
+                        <div className="h-11 border-b border-white/5 px-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Calendar className="h-4 w-4 text-violet-500" />
+                                <span className="text-sm font-medium text-white">Timeline</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-400">Sprint 2024-Q1</span>
                             </div>
-                            <div className="flex-1 flex text-[10px] text-muted-foreground">
-                                {weeks.map(w => (
-                                    <div key={w} className="flex-1 text-center">{w}</div>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-violet-500" /> In Progress</span>
+                                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Complete</span>
+                            </div>
+                        </div>
+
+                        {/* Gantt */}
+                        <div className="flex-1 flex overflow-hidden">
+                            {/* Task list */}
+                            <div className="w-48 flex-shrink-0 border-r border-white/5">
+                                <div className="h-8 border-b border-white/5 px-3 flex items-center">
+                                    <span className="text-[10px] text-slate-400 font-medium">TASK</span>
+                                </div>
+                                {tasks.map((task) => (
+                                    <div key={task.id} className="h-9 border-b border-white/5 px-3 flex items-center gap-2">
+                                        <div className="h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center text-[8px] text-white">{task.assignee}</div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[9px] text-slate-500 font-mono">{task.id}</div>
+                                            <div className="text-[10px] text-slate-200 truncate">{task.name}</div>
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
-                        </div>
 
-                        {/* Tasks */}
-                        <div className="p-3 space-y-2.5">
-                            {tasks.map(task => (
-                                <div key={task.name} className="flex items-center group">
-                                    <div className="w-32 pr-2 flex items-center gap-2">
-                                        <div className="h-5 w-5 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-[8px] text-white font-medium">
-                                            {task.assignee}
+                            {/* Timeline */}
+                            <div className="flex-1 overflow-x-auto">
+                                {/* Header */}
+                                <div className="h-8 border-b border-white/5 flex">
+                                    {weeks.map((week) => (
+                                        <div key={week} className="flex-1 min-w-20 px-2 flex items-center border-r border-white/5 last:border-r-0">
+                                            <span className="text-[10px] text-slate-400">{week}</span>
                                         </div>
-                                        <span className="text-xs truncate">{task.name}</span>
-                                    </div>
-                                    <div className="flex-1 h-7 bg-muted/30 rounded relative overflow-hidden">
-                                        {/* Grid lines */}
-                                        <div className="absolute inset-0 flex">
-                                            {weeks.map((_, i) => (
-                                                <div key={i} className="flex-1 border-l border-border/20 first:border-l-0" />
-                                            ))}
-                                        </div>
-                                        {/* Progress bar */}
-                                        <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{
-                                                width: `${Math.min(Math.max((progress - task.start) * (task.width / 40), 0), task.width)}%`,
-                                                opacity: progress >= task.start ? 1 : 0,
-                                            }}
-                                            className={`absolute h-full rounded bg-gradient-to-r ${task.color} shadow-lg`}
-                                            style={{ left: `${task.start}%` }}
-                                        />
-                                    </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
 
-                        {/* Legend */}
-                        <div className="border-t border-border/50 px-4 py-2 flex items-center justify-between text-[10px] text-muted-foreground bg-muted/20">
-                            <span>4 tasks • 21 story points</span>
-                            <span className="flex items-center gap-1">
-                                <span className="h-2 w-2 rounded-full bg-violet-500" />
-                                On track
-                            </span>
+                                {/* Bars */}
+                                <div className="relative">
+                                    {tasks.map((task, i) => (
+                                        <div key={task.id} className="h-9 border-b border-white/5 relative flex items-center">
+                                            {/* Grid lines */}
+                                            {weeks.map((_, j) => (
+                                                <div key={j} className="flex-1 min-w-20 h-full border-r border-white/5 last:border-r-0" />
+                                            ))}
+                                            {/* Bar */}
+                                            <motion.div
+                                                initial={{ width: 0, opacity: 0 }}
+                                                animate={{
+                                                    width: `${Math.min(Math.max((progress - task.start) * (task.width / 35), 0), task.width)}%`,
+                                                    opacity: progress >= task.start ? 1 : 0,
+                                                }}
+                                                className="absolute h-5 rounded-md bg-violet-500 shadow-lg"
+                                                style={{ left: `${task.start}%` }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div>
+            );
+        },
+    },
+    // Scene 5: Issue Detail
+    {
+        id: 'issue-detail',
+        title: 'Issue Detail',
+        component: function IssueDetailScene() {
+            return (
+                <div className="flex h-full">
+                    <AppSidebar compact />
+                    <div className="flex-1 flex bg-[#121215]">
+                        {/* Main Content */}
+                        <div className="flex-1 flex flex-col">
+                            {/* Header */}
+                            <div className="h-11 border-b border-white/5 px-4 flex items-center gap-3">
+                                <span className="text-[10px] text-slate-500 font-mono">AUTH-001</span>
+                                <StatusBadge status="In Progress" />
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 p-5 overflow-auto">
+                                <h1 className="text-lg font-semibold text-white mb-3">Implement Email Login API Endpoint</h1>
+
+                                <div className="prose prose-invert prose-sm max-w-none">
+                                    <p className="text-sm text-slate-300 leading-relaxed mb-4">
+                                        Build a secure authentication endpoint that accepts email and password credentials, validates them against the database, and returns a JWT token for session management.
+                                    </p>
+
+                                    <h3 className="text-sm font-medium text-white mb-2">Acceptance Criteria</h3>
+                                    <div className="space-y-1.5 mb-4">
+                                        {[
+                                            { done: true, text: 'Email format validation using RFC 5322' },
+                                            { done: true, text: 'Password hashing with bcrypt (cost factor 12)' },
+                                            { done: false, text: 'JWT token with 24h expiration' },
+                                            { done: false, text: 'Refresh token rotation' },
+                                        ].map((item, i) => (
+                                            <div key={i} className="flex items-center gap-2 text-sm">
+                                                {item.done ? (
+                                                    <CheckCircle className="h-4 w-4 text-emerald-500" />
+                                                ) : (
+                                                    <Circle className="h-4 w-4 text-slate-500" />
+                                                )}
+                                                <span className={item.done ? 'text-slate-500 line-through' : 'text-slate-300'}>{item.text}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <h3 className="text-sm font-medium text-white mb-2">Activity</h3>
+                                    <div className="space-y-2">
+                                        <div className="flex items-start gap-2">
+                                            <div className="h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center text-[8px] text-white mt-0.5">JD</div>
+                                            <div>
+                                                <p className="text-[11px] text-slate-400"><span className="text-white">John D.</span> moved to In Progress</p>
+                                                <p className="text-[10px] text-slate-500">2 hours ago</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sidebar */}
+                        <div className="w-56 border-l border-white/5 p-4 space-y-4">
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase mb-1.5 block">Status</label>
+                                <StatusBadge status="In Progress" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase mb-1.5 block">Priority</label>
+                                <div className="flex items-center gap-2">
+                                    <PriorityDot priority="high" />
+                                    <span className="text-xs text-slate-300">High</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase mb-1.5 block">Assignee</label>
+                                <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-full bg-violet-500 flex items-center justify-center text-[9px] text-white">JD</div>
+                                    <span className="text-xs text-slate-300">John Doe</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase mb-1.5 block">Story Points</label>
+                                <span className="text-xs text-slate-300">5 points</span>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase mb-1.5 block">Sprint</label>
+                                <span className="text-xs text-slate-300">2024-Q1</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <AnimatedCursor
+                        path={[
+                            { x: 200, y: 150 },
+                            { x: 280, y: 180 },
+                            { x: 350, y: 160 },
+                            { x: 400, y: 200 },
+                        ]}
+                        duration={3}
+                        name="Sarah K."
+                        color="#8b5cf6"
+                    />
                 </div>
             );
         },
@@ -513,52 +684,93 @@ As a user, I want to sign in with my email and password so that I can access my 
         title: 'Real-time Collaboration',
         component: function CollaborationScene() {
             return (
-                <div className="w-full max-w-xl mx-auto relative min-h-[220px]">
-                    {/* Issue Card */}
-                    <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-5 shadow-xl">
-                        <div className="flex items-center justify-between mb-4">
+                <div className="flex h-full">
+                    <AppSidebar compact />
+                    <div className="flex-1 flex flex-col bg-[#121215] relative">
+                        {/* Header */}
+                        <div className="h-11 border-b border-white/5 px-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Users className="h-4 w-4 text-violet-500" />
+                                <span className="text-sm font-medium text-white">Team Workspace</span>
+                            </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground font-mono">AUTH-001</span>
-                                <StatusBadge status="In Progress" />
-                            </div>
-                            <div className="flex -space-x-2">
-                                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 border-2 border-background flex items-center justify-center text-[10px] text-white font-medium shadow-md">JD</div>
-                                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 border-2 border-background flex items-center justify-center text-[10px] text-white font-medium shadow-md">SK</div>
-                                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 border-2 border-background flex items-center justify-center text-[10px] text-white font-medium shadow-md">MK</div>
+                                <div className="flex -space-x-2">
+                                    <div className="h-6 w-6 rounded-full bg-violet-500 border-2 border-[#121215] flex items-center justify-center text-[9px] text-white">JD</div>
+                                    <div className="h-6 w-6 rounded-full bg-blue-500 border-2 border-[#121215] flex items-center justify-center text-[9px] text-white">SK</div>
+                                    <div className="h-6 w-6 rounded-full bg-emerald-500 border-2 border-[#121215] flex items-center justify-center text-[9px] text-white">MK</div>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    3 online
+                                </span>
                             </div>
                         </div>
-                        <h3 className="text-lg font-semibold mb-2">Implement Email Login API</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Build secure authentication endpoint with JWT tokens and refresh token rotation.</p>
 
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1.5">
-                                <PriorityIndicator priority="high" />
-                                High Priority
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <Clock className="h-3 w-3" />
-                                5 story points
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <Users className="h-3 w-3" />
-                                3 viewing
-                            </span>
+                        {/* Content */}
+                        <div className="flex-1 p-4 grid grid-cols-2 gap-4">
+                            {/* Recent Issues */}
+                            <div className="bg-[#1a1a1f] rounded-xl p-4">
+                                <h3 className="text-xs font-medium text-white mb-3">Active Issues</h3>
+                                <div className="space-y-2">
+                                    {[
+                                        { id: 'AUTH-001', title: 'Email Login API', status: 'In Progress', user: 'JD' },
+                                        { id: 'AUTH-002', title: 'OAuth2 Integration', status: 'In Review', user: 'SK' },
+                                        { id: 'AUTH-003', title: 'Password Reset', status: 'Todo', user: 'MK' },
+                                    ].map((issue) => (
+                                        <div key={issue.id} className="bg-[#121215] rounded-lg p-2.5 flex items-center gap-2">
+                                            <div className="h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center text-[8px] text-white">{issue.user}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-[10px] text-slate-500 font-mono">{issue.id}</div>
+                                                <div className="text-xs text-slate-200 truncate">{issue.title}</div>
+                                            </div>
+                                            <StatusBadge status={issue.status} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Sprint Progress */}
+                            <div className="bg-[#1a1a1f] rounded-xl p-4">
+                                <h3 className="text-xs font-medium text-white mb-3">Sprint Progress</h3>
+                                <div className="mb-4">
+                                    <div className="flex justify-between text-[10px] text-slate-400 mb-1.5">
+                                        <span>Progress</span>
+                                        <span>68%</span>
+                                    </div>
+                                    <div className="h-2 bg-[#121215] rounded-full overflow-hidden">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            animate={{ width: '68%' }}
+                                            transition={{ duration: 1.5, ease: 'easeOut' }}
+                                            className="h-full bg-violet-500 rounded-full"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="bg-[#121215] rounded-lg p-2">
+                                        <div className="text-lg font-bold text-violet-400">5</div>
+                                        <div className="text-[9px] text-slate-500">In Progress</div>
+                                    </div>
+                                    <div className="bg-[#121215] rounded-lg p-2">
+                                        <div className="text-lg font-bold text-violet-400">8</div>
+                                        <div className="text-[9px] text-slate-500">Completed</div>
+                                    </div>
+                                    <div className="bg-[#121215] rounded-lg p-2">
+                                        <div className="text-lg font-bold text-slate-400">3</div>
+                                        <div className="text-[9px] text-slate-500">Remaining</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-
-                    {/* Live indicator */}
-                    <div className="absolute -top-2 -right-2 flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] px-2 py-1 rounded-full shadow-lg">
-                        <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                        Live
                     </div>
 
                     {/* Multiple Cursors */}
                     <AnimatedCursor
                         path={[
-                            { x: 80, y: 50 },
-                            { x: 140, y: 70 },
-                            { x: 200, y: 55 },
-                            { x: 260, y: 80 },
+                            { x: 120, y: 100 },
+                            { x: 180, y: 130 },
+                            { x: 220, y: 110 },
+                            { x: 280, y: 140 },
                         ]}
                         duration={3}
                         name="John D."
@@ -566,12 +778,12 @@ As a user, I want to sign in with my email and password so that I can access my 
                     />
                     <AnimatedCursor
                         path={[
-                            { x: 300, y: 100 },
-                            { x: 250, y: 120 },
-                            { x: 220, y: 105 },
-                            { x: 280, y: 130 },
+                            { x: 400, y: 120 },
+                            { x: 450, y: 150 },
+                            { x: 420, y: 180 },
+                            { x: 480, y: 160 },
                         ]}
-                        duration={4}
+                        duration={3.5}
                         name="Sarah K."
                         color="#3b82f6"
                     />
@@ -585,12 +797,12 @@ export function ProductDemoShowcase() {
     const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
     const [key, setKey] = useState(0);
 
-    // Auto-advance scenes every 5 seconds
+    // Auto-advance scenes every 6 seconds
     useEffect(() => {
         const interval = setInterval(() => {
             setCurrentSceneIndex(prev => (prev + 1) % scenes.length);
             setKey(prev => prev + 1);
-        }, 5500);
+        }, 6000);
         return () => clearInterval(interval);
     }, []);
 
@@ -598,36 +810,32 @@ export function ProductDemoShowcase() {
     const SceneComponent = currentScene.component;
 
     return (
-        <div className="relative rounded-2xl border border-border/50 bg-card/50 backdrop-blur-xl overflow-hidden shadow-2xl shadow-violet-500/10">
-            {/* Gradient border effect */}
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-blue-500/10 pointer-events-none" />
-            <div className="absolute inset-[1px] rounded-2xl bg-background/80 backdrop-blur-xl -z-10" />
-
+        <div className="relative rounded-xl border border-white/10 bg-[#0d0d0f] overflow-hidden shadow-2xl">
             {/* Mac-style window chrome */}
-            <div className="border-b border-border/50 px-4 py-3 flex items-center gap-3 bg-muted/30 backdrop-blur-sm">
-                <div className="flex gap-2">
-                    <div className="h-3 w-3 rounded-full bg-[#ff5f57] shadow-inner" />
-                    <div className="h-3 w-3 rounded-full bg-[#febc2e] shadow-inner" />
-                    <div className="h-3 w-3 rounded-full bg-[#28c840] shadow-inner" />
+            <div className="h-9 border-b border-white/10 px-3 flex items-center gap-2 bg-[#1a1a1f]">
+                <div className="flex gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                    <div className="px-4 py-1.5 rounded-lg bg-muted/50 text-xs text-muted-foreground flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <div className="px-3 py-1 rounded-md bg-white/5 text-[10px] text-slate-400 flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                         app.lilpm.ai
                     </div>
                 </div>
-                <div className="w-16" />
+                <div className="w-12" />
             </div>
 
-            {/* Scene Content */}
-            <div className="relative min-h-[320px] p-6">
+            {/* Scene Content - Fixed height */}
+            <div className="h-[420px] relative">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={`${currentSceneIndex}-${key}`}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.4 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
                         className="h-full"
                     >
                         <SceneComponent />
@@ -636,12 +844,12 @@ export function ProductDemoShowcase() {
             </div>
 
             {/* Scene Progress */}
-            <div className="border-t border-border/50 px-6 py-4 flex items-center justify-between bg-muted/20 backdrop-blur-sm">
+            <div className="h-11 border-t border-white/10 px-4 flex items-center justify-between bg-[#1a1a1f]">
                 <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-violet-500" />
-                    <span className="text-sm font-medium">{currentScene.title}</span>
+                    <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                    <span className="text-xs font-medium text-white">{currentScene.title}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                     {scenes.map((scene, index) => (
                         <button
                             key={scene.id}
@@ -649,9 +857,9 @@ export function ProductDemoShowcase() {
                                 setCurrentSceneIndex(index);
                                 setKey(prev => prev + 1);
                             }}
-                            className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${index === currentSceneIndex
-                                    ? 'w-8 bg-gradient-to-r from-violet-500 to-purple-600'
-                                    : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                            className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${index === currentSceneIndex
+                                    ? 'w-6 bg-violet-500'
+                                    : 'w-1.5 bg-white/20 hover:bg-white/40'
                                 }`}
                         />
                     ))}
