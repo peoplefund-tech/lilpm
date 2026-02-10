@@ -34,14 +34,19 @@ npm run build  # Vite 프로덕션 빌드
 ## Supabase (백엔드)
 
 ### Edge Functions 배포
+
+모든 Edge Functions는 `_shared/` 공유 모듈에 의존합니다. 배포 시 공유 모듈이 자동으로 번들됩니다.
+
 ```bash
 # 개별 배포
 supabase functions deploy accept-invite-v2 --no-verify-jwt
 supabase functions deploy lily-chat --no-verify-jwt
 
-# 전체 배포
+# 전체 배포 (권장 - _shared/ 모듈 변경 시 모든 함수 재배포 필요)
 supabase functions deploy --no-verify-jwt
 ```
+
+> **중요**: `_shared/` 모듈 변경 시 의존하는 모든 Edge Functions를 재배포해야 합니다.
 
 ### 마이그레이션 적용
 ```bash

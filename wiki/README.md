@@ -255,6 +255,7 @@ LilPM/
 ├── supabase/                    # Supabase 백엔드
 │   ├── config.toml              # Edge Function 설정
 │   ├── functions/               # Edge Functions (9개)
+│   │   ├── _shared/             # 공유 모듈 (CORS, env, email, response, supabase)
 │   │   ├── accept-invite-v2/    # 초대 수락 (인증/매직링크/회원가입)
 │   │   ├── delete-users/        # 유저 완전 삭제
 │   │   ├── get-invite-preview/  # 초대 미리보기
@@ -304,12 +305,13 @@ VITE_LIVEBLOCKS_PUBLIC_KEY=pk_...
 
 ## 최근 업데이트 (2026-02-10)
 
-### 전체 스택 리팩토링 & 성능 최적화
-- **[상세 리팩토링 리포트](./REFACTORING-2026-02-10.md)** - 전체 변경 사항 상세 문서
+### 전체 스택 리팩토링 & 메이저 업그레이드
+- **[상세 리팩토링 리포트](./REFACTORING-2026-02-10.md)** - Phase 1~4 전체 변경 사항
+- **메이저 업그레이드** - Vite 5→7, React 18→19, Tailwind 3→4, TypeScript strict
 - **Edge Functions 리팩토링** - `_shared/` 모듈로 중복 코드 제거 (~300줄 절감)
 - **DB 성능 인덱스** - 16개 새 인덱스 (Composite, Partial, GIN)
-- **프론트엔드 최적화** - 14개 그래뉼러 코드 스플릿, React Query 캐싱, React.memo
-- **빌드 최적화** - ES2022 타겟, Lightning CSS, 의존성 프리번들링
+- **프론트엔드 최적화** - Virtual Scrolling, React.memo, useCallback, React Query 10개 훅
+- **빌드 성능** - 5.56s → 3.86s (-31%), react-vendor 162KB → 20KB (-87%)
 
 ### 초대 시스템 개선
 - **프로젝트별 초대** - 초대 시 특정 프로젝트만 할당 가능 (`project_ids` 컬럼)

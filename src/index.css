@@ -1,6 +1,210 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --color-linear-bg: hsl(var(--linear-bg));
+  --color-linear-bg-elevated: hsl(var(--linear-bg-elevated));
+  --color-linear-bg-hover: hsl(var(--linear-bg-hover));
+  --color-linear-border: hsl(var(--linear-border));
+  --color-linear-text-primary: hsl(var(--linear-text-primary));
+  --color-linear-text-secondary: hsl(var(--linear-text-secondary));
+  --color-linear-text-tertiary: hsl(var(--linear-text-tertiary));
+  --color-linear-accent: hsl(var(--linear-accent));
+  --color-linear-accent-hover: hsl(var(--linear-accent-hover));
+  --color-linear-success: hsl(var(--linear-success));
+  --color-linear-warning: hsl(var(--linear-warning));
+  --color-linear-danger: hsl(var(--linear-danger));
+
+  --color-status-backlog: hsl(var(--status-backlog));
+  --color-status-todo: hsl(var(--status-todo));
+  --color-status-in-progress: hsl(var(--status-in-progress));
+  --color-status-done: hsl(var(--status-done));
+  --color-status-cancelled: hsl(var(--status-cancelled));
+
+  --color-priority-urgent: hsl(var(--priority-urgent));
+  --color-priority-high: hsl(var(--priority-high));
+  --color-priority-medium: hsl(var(--priority-medium));
+  --color-priority-low: hsl(var(--priority-low));
+  --color-priority-none: hsl(var(--priority-none));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-slide-in-from-right: slide-in-from-right 0.3s ease-out;
+  --animate-slide-in-from-bottom: slide-in-from-bottom 0.2s ease-out;
+  --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slide-in-from-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes slide-in-from-bottom {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility focus-ring {
+  /* Focus ring - Violet */
+  @apply focus:outline-hidden focus-visible:ring-2 focus-visible:ring-violet-500/20 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+@utility kbd {
+  /* Keyboard shortcut badge */
+  @apply inline-flex items-center justify-center rounded border border-white/10 bg-[#1a1a1f] px-1.5 py-0.5 text-xs font-medium text-slate-400;
+}
+
+@utility hover-bg {
+  /* Glassmorphism hover effect */
+  @apply transition-colors hover:bg-white/5;
+}
+
+@utility active-bg {
+  /* Active state */
+  @apply bg-white/5;
+}
+
+@utility glass-card {
+  /* Glassmorphism card */
+  @apply bg-[#1a1a1f]/80 backdrop-blur-xl border border-white/10 rounded-xl;
+}
+
+@utility btn-gradient {
+  /* Violet gradient button */
+  @apply bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20;
+}
+
+@utility animate-in {
+  /* Animation utilities */
+  animation: animate-in 0.2s ease-out;
+}
+
+@utility animate-slide-in-right {
+  animation: slide-in-right 0.2s ease-out;
+}
+
+@utility backdrop-blur-glass {
+  /* Glassmorphism blur */
+  @apply backdrop-blur-xl backdrop-saturate-150;
+}
 
 /* Dark theme design system - Glassmorphism with Violet accents */
 
@@ -191,45 +395,7 @@
   }
 }
 
-@layer components {
-
-  /* Focus ring - Violet */
-  .focus-ring {
-    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/20 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
-  }
-
-  /* Keyboard shortcut badge */
-  .kbd {
-    @apply inline-flex items-center justify-center rounded border border-white/10 bg-[#1a1a1f] px-1.5 py-0.5 text-xs font-medium text-slate-400;
-  }
-
-  /* Glassmorphism hover effect */
-  .hover-bg {
-    @apply transition-colors hover:bg-white/5;
-  }
-
-  /* Active state */
-  .active-bg {
-    @apply bg-white/5;
-  }
-
-  /* Glassmorphism card */
-  .glass-card {
-    @apply bg-[#1a1a1f]/80 backdrop-blur-xl border border-white/10 rounded-xl;
-  }
-
-  /* Violet gradient button */
-  .btn-gradient {
-    @apply bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20;
-  }
-}
-
 @layer utilities {
-
-  /* Animation utilities */
-  .animate-in {
-    animation: animate-in 0.2s ease-out;
-  }
 
   @keyframes animate-in {
     from {
@@ -243,10 +409,6 @@
     }
   }
 
-  .animate-slide-in-right {
-    animation: slide-in-right 0.2s ease-out;
-  }
-
   @keyframes slide-in-right {
     from {
       opacity: 0;
@@ -257,10 +419,5 @@
       opacity: 1;
       transform: translateX(0);
     }
-  }
-
-  /* Glassmorphism blur */
-  .backdrop-blur-glass {
-    @apply backdrop-blur-xl backdrop-saturate-150;
   }
 }

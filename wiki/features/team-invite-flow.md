@@ -87,6 +87,10 @@ const acceptInvite = async () => {
 ## accept-invite-v2 Edge Function
 
 **파일**: `supabase/functions/accept-invite-v2/index.ts`
+**버전**: `2026-02-10.2` (공유 모듈 리팩토링)
+**공유 모듈**: `handleCors`, `env`, `createAdminClient`, `sendGmailEmail`, `versionedResponse`
+
+> 리팩토링으로 508줄 → 355줄로 축소. 인라인 SMTP 코드를 `_shared/email.ts`의 `sendGmailEmail`으로 교체.
 
 ### Request/Response
 ```typescript
@@ -106,7 +110,7 @@ interface AcceptInviteResponse {
   email?: string;
   magicLinkSent?: boolean;
   error?: string;
-  version: string;
+  version: string;  // 예: "2026-02-10.2"
 }
 ```
 

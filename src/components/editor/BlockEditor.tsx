@@ -403,8 +403,21 @@ export function BlockEditor({
         codeBlock: false, // Use CodeBlockLowlight instead
       }),
       Placeholder.configure({
-        placeholder,
+        placeholder: ({ node, editor: editorInstance }) => {
+          if (node.type.name === 'heading') {
+            return `Heading ${node.attrs.level}`;
+          }
+          // Show main placeholder only for the first empty paragraph of an empty doc
+          if (editorInstance.isEmpty) {
+            return placeholder;
+          }
+          return "Type '/' for commands...";
+        },
         emptyEditorClass: 'is-editor-empty',
+        emptyNodeClass: 'is-empty',
+        showOnlyWhenEditable: true,
+        showOnlyCurrent: true,
+        includeChildren: true,
       }),
       TaskList,
       TaskItem.configure({
@@ -670,6 +683,34 @@ export function BlockEditor({
       unsubscribe?.();
     };
   }, [editor, remoteCursors]);
+
+  // Restrict drag handle to only show when mouse is in the left margin (first 40px)
+  useEffect(() => {
+    if (!editor) return;
+    const editorDom = editor.view.dom;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const dragHandle = document.querySelector('.drag-handle') as HTMLElement;
+      if (!dragHandle) return;
+      
+      const editorRect = editorDom.getBoundingClientRect();
+      const mouseXRelative = e.clientX - editorRect.left;
+      
+      // Only show drag handle when mouse is in the left margin (< 0, i.e. left of content)
+      // or within the first 10px of content area
+      if (mouseXRelative < 10) {
+        dragHandle.style.pointerEvents = 'auto';
+        // Don't force visibility - let the library handle it
+      } else {
+        // Hide the drag handle when mouse is over content
+        dragHandle.classList.remove('visible');
+        dragHandle.style.opacity = '0';
+      }
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, [editor]);
 
   // Ref to track if we're currently updating from remote content
   const lastContentRef = useRef(content);
@@ -1399,10 +1440,8 @@ export function BlockEditor({
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div
-              onContextMenu={(e) => {
-                // Store info about what was right-clicked for context menu
-                const target = e.target as HTMLElement;
-                // Let the context menu handle all cases now
+              onContextMenu={() => {
+                // Context menu will detect the current block type from editor selection
               }}
             >
               <EditorContent editor={editor} />
@@ -1422,146 +1461,151 @@ export function BlockEditor({
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent className="w-64">
-            {/* Text Formatting */}
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleBold().run()}
-              disabled={!editor?.can().toggleBold()}
-            >
-              <Bold className="h-4 w-4 mr-2" />
-              Bold
-              <span className="ml-auto text-xs text-slate-400">⌘B</span>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleItalic().run()}
-              disabled={!editor?.can().toggleItalic()}
-            >
-              <Italic className="h-4 w-4 mr-2" />
-              Italic
-              <span className="ml-auto text-xs text-slate-400">⌘I</span>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleStrike().run()}
-              disabled={!editor?.can().toggleStrike()}
-            >
-              <Strikethrough className="h-4 w-4 mr-2" />
-              Strikethrough
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleCode().run()}
-              disabled={!editor?.can().toggleCode()}
-            >
-              <Code className="h-4 w-4 mr-2" />
-              Inline Code
-              <span className="ml-auto text-xs text-slate-400">⌘E</span>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-
-            {/* Turn Into */}
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().setParagraph().run()}
-            >
-              <AlignLeft className="h-4 w-4 mr-2" />
-              Text
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-            >
-              <Heading1 className="h-4 w-4 mr-2" />
-              Heading 1
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-            >
-              <Heading2 className="h-4 w-4 mr-2" />
-              Heading 2
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-            >
-              <Heading3 className="h-4 w-4 mr-2" />
-              Heading 3
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-
-            {/* List Actions */}
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            >
-              <List className="h-4 w-4 mr-2" />
-              Bullet List
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-            >
-              <ListOrdered className="h-4 w-4 mr-2" />
-              Numbered List
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleTaskList().run()}
-            >
-              <ListTodo className="h-4 w-4 mr-2" />
-              To-do List
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-
-            {/* Block Actions */}
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-            >
-              <Quote className="h-4 w-4 mr-2" />
-              Quote
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-            >
-              <CodeSquare className="h-4 w-4 mr-2" />
-              Code Block
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-
-            {/* Table Operations (if in table) */}
-            {editor?.can().deleteRow() && (
+            {/* Text Formatting — only for text-based blocks (not images, code blocks, etc.) */}
+            {!editor?.isActive('image') && !editor?.isActive('video') && !editor?.isActive('horizontalRule') && (
               <>
                 <ContextMenuItem
-                  onClick={() => editor?.chain().focus().addRowBefore().run()}
+                  onClick={() => editor?.chain().focus().toggleBold().run()}
+                  disabled={!editor?.can().toggleBold()}
                 >
-                  Add Row Above
+                  <Bold className="h-4 w-4 mr-2" />
+                  Bold
+                  <span className="ml-auto text-xs text-slate-400">⌘B</span>
                 </ContextMenuItem>
                 <ContextMenuItem
-                  onClick={() => editor?.chain().focus().addRowAfter().run()}
+                  onClick={() => editor?.chain().focus().toggleItalic().run()}
+                  disabled={!editor?.can().toggleItalic()}
                 >
-                  Add Row Below
+                  <Italic className="h-4 w-4 mr-2" />
+                  Italic
+                  <span className="ml-auto text-xs text-slate-400">⌘I</span>
                 </ContextMenuItem>
                 <ContextMenuItem
-                  onClick={() => editor?.chain().focus().addColumnBefore().run()}
+                  onClick={() => editor?.chain().focus().toggleStrike().run()}
+                  disabled={!editor?.can().toggleStrike()}
                 >
-                  Add Column Left
+                  <Strikethrough className="h-4 w-4 mr-2" />
+                  Strikethrough
                 </ContextMenuItem>
                 <ContextMenuItem
-                  onClick={() => editor?.chain().focus().addColumnAfter().run()}
+                  onClick={() => editor?.chain().focus().toggleCode().run()}
+                  disabled={!editor?.can().toggleCode()}
                 >
-                  Add Column Right
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => editor?.chain().focus().deleteRow().run()}
-                  className="text-red-500"
-                >
-                  Delete Row
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => editor?.chain().focus().deleteColumn().run()}
-                  className="text-red-500"
-                >
-                  Delete Column
+                  <Code className="h-4 w-4 mr-2" />
+                  Inline Code
+                  <span className="ml-auto text-xs text-slate-400">⌘E</span>
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>
             )}
 
-            {/* Clipboard & Delete */}
+            {/* Turn Into — only for paragraph/heading/list blocks (not tables, images, code) */}
+            {!editor?.isActive('table') && !editor?.isActive('image') && !editor?.isActive('codeBlock') && (
+              <>
+                <ContextMenuItem onClick={() => editor?.chain().focus().setParagraph().run()}>
+                  <AlignLeft className="h-4 w-4 mr-2" />
+                  Text
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>
+                  <Heading1 className="h-4 w-4 mr-2" />
+                  Heading 1
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>
+                  <Heading2 className="h-4 w-4 mr-2" />
+                  Heading 2
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>
+                  <Heading3 className="h-4 w-4 mr-2" />
+                  Heading 3
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+
+                {/* List Actions */}
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleBulletList().run()}>
+                  <List className="h-4 w-4 mr-2" />
+                  Bullet List
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleOrderedList().run()}>
+                  <ListOrdered className="h-4 w-4 mr-2" />
+                  Numbered List
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleTaskList().run()}>
+                  <ListTodo className="h-4 w-4 mr-2" />
+                  To-do List
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+
+                {/* Block Actions */}
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleBlockquote().run()}>
+                  <Quote className="h-4 w-4 mr-2" />
+                  Quote
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>
+                  <CodeSquare className="h-4 w-4 mr-2" />
+                  Code Block
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+
+            {/* Code Block specific actions */}
+            {editor?.isActive('codeBlock') && (
+              <>
+                <ContextMenuItem onClick={() => editor?.chain().focus().setParagraph().run()}>
+                  <AlignLeft className="h-4 w-4 mr-2" />
+                  Turn into Text
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+
+            {/* Image specific actions */}
+            {editor?.isActive('image') && (
+              <>
+                <ContextMenuItem onClick={() => {
+                  const attrs = editor?.getAttributes('image');
+                  if (attrs?.src) {
+                    window.open(attrs.src, '_blank');
+                  }
+                }}>
+                  Open Original
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+
+            {/* Table Operations — only when cursor is inside a table */}
+            {editor?.can().deleteRow() && (
+              <>
+                <ContextMenuItem onClick={() => editor?.chain().focus().addRowBefore().run()}>
+                  Add Row Above
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().addRowAfter().run()}>
+                  Add Row Below
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().addColumnBefore().run()}>
+                  Add Column Left
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().addColumnAfter().run()}>
+                  Add Column Right
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem onClick={() => editor?.chain().focus().deleteRow().run()} className="text-red-500">
+                  Delete Row
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().deleteColumn().run()} className="text-red-500">
+                  Delete Column
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => editor?.chain().focus().deleteTable().run()} className="text-red-500">
+                  Delete Table
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+
+            {/* Clipboard & Delete — always shown */}
             <ContextMenuItem
               onClick={() => {
-                // Copy block content
                 const { from, to } = editor?.state.selection || {};
                 if (from !== undefined && to !== undefined) {
                   const text = editor?.state.doc.textBetween(from, to, '\n');
@@ -1575,14 +1619,11 @@ export function BlockEditor({
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => {
-                // Duplicate current block
                 const { $from, $to } = editor?.state.selection || {};
                 if ($from && $to) {
-                  const nodeAfter = $to.nodeAfter;
-                  const nodeBefore = $from.nodeBefore;
-                  const content = editor?.state.doc.slice($from.pos, $to.pos);
-                  if (content) {
-                    editor?.chain().focus().insertContentAt($to.pos, content.content.toJSON()).run();
+                  const slice = editor?.state.doc.slice($from.pos, $to.pos);
+                  if (slice) {
+                    editor?.chain().focus().insertContentAt($to.pos, slice.content.toJSON()).run();
                   }
                 }
               }}
@@ -1609,12 +1650,26 @@ export function BlockEditor({
           outline: none;
         }
         
-        .ProseMirror p.is-editor-empty:first-child::before {
+        /* Placeholder for completely empty editor */
+        .ProseMirror.is-editor-empty > p:first-child::before,
+        .ProseMirror > p.is-editor-empty:first-child::before,
+        .ProseMirror p.is-empty:first-child::before {
           color: hsl(var(--muted-foreground));
           content: attr(data-placeholder);
           float: left;
           height: 0;
           pointer-events: none;
+          opacity: 0.5;
+        }
+        
+        /* Also support the placeholder on the editor root element */
+        .ProseMirror.is-editor-empty::before {
+          color: hsl(var(--muted-foreground));
+          content: attr(data-placeholder);
+          float: left;
+          height: 0;
+          pointer-events: none;
+          opacity: 0.5;
         }
 
         .ProseMirror ul[data-type="taskList"] {

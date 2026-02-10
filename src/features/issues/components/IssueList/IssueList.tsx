@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Issue, IssueStatus } from '@/types';
 import { IssueRow } from './IssueRow';
+import { VirtualizedIssueRows } from './VirtualizedIssueRows';
 import { StatusIcon, statusLabels, allStatuses } from '@/features/issues/components/shared/IssueIcons';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -117,31 +118,30 @@ export function IssueList({
   }, [issues, groupBy]);
 
   if (groupBy === 'none') {
+    if (issues.length === 0) {
+      return (
+        <div className="py-12 text-center text-slate-400">
+          <p>{t('issues.noIssues')}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => onCreateIssue?.()}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {t('issues.newIssue')}
+          </Button>
+        </div>
+      );
+    }
+
     return (
-      <div className="divide-y divide-border">
-        {issues.map((issue) => (
-          <IssueRow
-            key={issue.id}
-            issue={issue}
-            isSelected={selectedIssues.has(issue.id)}
-            onSelect={onSelectIssue}
-          />
-        ))}
-        {issues.length === 0 && (
-          <div className="py-12 text-center text-slate-400">
-            <p>{t('issues.noIssues')}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => onCreateIssue?.()}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t('issues.newIssue')}
-            </Button>
-          </div>
-        )}
-      </div>
+      <VirtualizedIssueRows
+        issues={issues}
+        selectedIssues={selectedIssues}
+        onSelectIssue={onSelectIssue}
+        maxHeight={700}
+      />
     );
   }
 
@@ -221,20 +221,19 @@ export function IssueList({
 
             {/* Group Content */}
             {!isCollapsed && (
-              <div className="divide-y divide-border">
-                {groupIssues.map((issue) => (
-                  <IssueRow
-                    key={issue.id}
-                    issue={issue}
-                    isSelected={selectedIssues.has(issue.id)}
-                    onSelect={onSelectIssue}
+              <>
+                {groupIssues.length > 0 ? (
+                  <VirtualizedIssueRows
+                    issues={groupIssues}
+                    selectedIssues={selectedIssues}
+                    onSelectIssue={onSelectIssue}
                     draggable={isDragEnabled}
-                    onDragStart={isDragEnabled ? (e) => handleDragStart(e, issue.id) : undefined}
+                    onDragStart={isDragEnabled ? handleDragStart : undefined}
                     onDragEnd={isDragEnabled ? handleDragEnd : undefined}
-                    isDragging={draggingIssueId === issue.id}
+                    draggingIssueId={draggingIssueId}
+                    maxHeight={500}
                   />
-                ))}
-                {groupIssues.length === 0 && (
+                ) : (
                   <div className={cn(
                     "py-8 text-center text-sm transition-colors",
                     isDragOver ? "text-primary font-medium" : "text-slate-400"
@@ -245,7 +244,7 @@ export function IssueList({
                     }
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         );

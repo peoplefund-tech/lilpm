@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AppLayout } from '@/components/layout';
 import { IssueList, IssueBoard, GanttChart, CreateIssueModal } from '@/components/issues';
@@ -42,6 +42,7 @@ type DbViewType = 'calendar' | 'timeline' | 'gallery' | 'chart';
 export function IssuesPage() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
+  const { cycleId: urlCycleId } = useParams<{ cycleId?: string }>();
   const { currentTeam } = useTeamStore();
   const {
     issues,
@@ -79,6 +80,13 @@ export function IssuesPage() {
     }
   }, [searchParams, setViewPreferences]);
 
+  // When navigating to /cycle/:cycleId, auto-set sprint view to 'active'
+  useEffect(() => {
+    if (urlCycleId) {
+      setSprintView('active');
+    }
+  }, [urlCycleId]);
+
   useEffect(() => {
     if (currentTeam) {
       loadIssues(currentTeam.id, {
@@ -96,12 +104,19 @@ export function IssuesPage() {
 
   // Client-side filtering for unassigned, no-project, and sprint view
   const filteredIssues = issues.filter(issue => {
-    // Sprint view filter
-    if (sprintView === 'active' && !issue.cycleId) {
-      return false; // Only show issues with a sprint
-    }
-    if (sprintView === 'backlog' && issue.cycleId) {
-      return false; // Only show issues without a sprint
+    // When viewing a specific cycle from URL, only show issues in that cycle
+    if (urlCycleId) {
+      if (issue.cycleId !== urlCycleId) {
+        return false;
+      }
+    } else {
+      // Sprint view filter (only when not viewing a specific cycle)
+      if (sprintView === 'active' && !issue.cycleId) {
+        return false; // Only show issues with a sprint
+      }
+      if (sprintView === 'backlog' && issue.cycleId) {
+        return false; // Only show issues without a sprint
+      }
     }
 
     if (filters.assigneeId.includes('unassigned') && issue.assigneeId) {
@@ -397,6 +412,7 @@ export function IssuesPage() {
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
         initialStatus={initialStatus}
+        initialCycleId={urlCycleId}
         onSubmit={handleCreateIssue}
       />
 

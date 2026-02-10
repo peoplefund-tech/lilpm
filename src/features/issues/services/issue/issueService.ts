@@ -249,4 +249,48 @@ export const issueService = {
         if (error) throw error;
         return (data || []) as Issue[];
     },
+
+    /** Archive a single issue by setting archived_at timestamp */
+    async archiveIssue(issueId: string): Promise<void> {
+        const { error } = await supabase
+            .from('issues')
+            .update({ archived_at: new Date().toISOString() })
+            .eq('id', issueId);
+
+        if (error) throw error;
+    },
+
+    /** Archive multiple issues at once */
+    async archiveIssues(issueIds: string[]): Promise<void> {
+        if (issueIds.length === 0) return;
+
+        const { error } = await supabase
+            .from('issues')
+            .update({ archived_at: new Date().toISOString() })
+            .in('id', issueIds);
+
+        if (error) throw error;
+    },
+
+    /** Restore a single archived issue */
+    async restoreIssue(issueId: string): Promise<void> {
+        const { error } = await supabase
+            .from('issues')
+            .update({ archived_at: null })
+            .eq('id', issueId);
+
+        if (error) throw error;
+    },
+
+    /** Restore multiple archived issues */
+    async restoreIssues(issueIds: string[]): Promise<void> {
+        if (issueIds.length === 0) return;
+
+        const { error } = await supabase
+            .from('issues')
+            .update({ archived_at: null })
+            .in('id', issueIds);
+
+        if (error) throw error;
+    },
 };

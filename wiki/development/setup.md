@@ -94,22 +94,59 @@ npm run preview
 
 | 명령어 | 설명 |
 |--------|------|
-| `npm run dev` | 개발 서버 실행 |
-| `npm run build` | 프로덕션 빌드 |
+| `npm run dev` | 개발 서버 실행 (localhost:5173) |
+| `npm run build` | 프로덕션 빌드 (Vite) |
 | `npm run preview` | 빌드 미리보기 |
 | `npm run lint` | ESLint 실행 |
-| `npm run type-check` | TypeScript 타입 체크 |
+| `npm run test` | Vitest 테스트 실행 |
+| `npm run test:coverage` | 테스트 커버리지 |
+
+## Edge Functions 개발
+
+```bash
+# Supabase CLI 로그인
+supabase login
+
+# Edge Functions 로컬 실행
+supabase functions serve
+
+# 개별 Edge Function 배포
+supabase functions deploy accept-invite-v2 --no-verify-jwt
+
+# 전체 Edge Function 배포
+supabase functions deploy --no-verify-jwt
+
+# 마이그레이션 적용
+supabase db push
+```
+
+### Edge Functions 공유 모듈
+
+모든 Edge Functions는 `supabase/functions/_shared/` 공유 모듈을 사용합니다:
+- `cors.ts` - CORS 처리
+- `env.ts` - 환경 변수
+- `email.ts` - 이메일 발송 (Gmail + Resend)
+- `response.ts` - 응답 헬퍼
+- `supabase.ts` - Admin 클라이언트
 
 ## 프로젝트 구조
 
 ```
 lilpm/
-├── src/                # 소스 코드
-├── public/             # 정적 파일
-├── supabase/           # Supabase 설정
-│   ├── functions/      # Edge Functions
+├── src/                # 프론트엔드 소스 코드
+│   ├── components/     # 재사용 컴포넌트 (ui/, editor/, layout/)
+│   ├── features/       # 기능 모듈 (issues/, lily/, prd/, projects/, team/)
+│   ├── hooks/          # 커스텀 훅 (collaboration/, data/)
+│   ├── lib/            # 서비스 + API 클라이언트
+│   ├── pages/          # 페이지 컴포넌트 (auth/, settings/, onboarding/)
+│   ├── stores/         # Zustand 전역 스토어
+│   └── types/          # TypeScript 타입
+├── supabase/           # Supabase 백엔드
+│   ├── functions/      # Edge Functions (9개 + _shared/)
+│   │   └── _shared/    # 공유 모듈 (CORS, email, env, response, supabase)
 │   └── migrations/     # DB 마이그레이션
-├── wiki/               # 문서
+├── workers/            # Cloudflare Workers (Yjs 협업)
+├── wiki/               # 프로젝트 위키 문서
 └── package.json
 ```
 

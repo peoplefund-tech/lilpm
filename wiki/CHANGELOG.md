@@ -1,6 +1,80 @@
 # 최근 기능 업데이트 로그
 
-## 2026-02-10 (Evening) - Full Stack Refactoring
+## 2026-02-10 (Evening Phase 4) - Major Version Upgrades
+
+### 패키지 업그레이드
+| 패키지 | Before | After |
+|--------|--------|-------|
+| Vite | 5.4.19 | **7.3.1** |
+| React | 18.3.1 | **19.2.4** |
+| React DOM | 18.3.1 | **19.2.4** |
+| Tailwind CSS | 3.4.17 | **4.1.18** |
+| @tailwindcss/vite | - | **4.1.18** (신규) |
+| TypeScript strict | false | **true** |
+
+### 주요 변경
+| 변경 | 설명 |
+|------|------|
+| `vite.config.ts` | `@tailwindcss/vite` 플러그인 추가 |
+| `postcss.config.js` | tailwindcss, autoprefixer 제거 (Vite 플러그인이 처리) |
+| `tsconfig.app.json` | `strict: true` 활성화 |
+| 빌드 시간 | 5.56s → **3.86s** (-31%) |
+| react-vendor 청크 | 162KB → **20KB** (-87%) |
+
+---
+
+## 2026-02-10 (Evening Phase 3) - Virtual Scrolling, Kanban, React Query
+
+### Virtual Scrolling
+| 변경 | 설명 |
+|------|------|
+| `@tanstack/react-virtual` | 패키지 설치 |
+| `VirtualizedIssueRows.tsx` | 30+ 아이템 자동 가상화 컴포넌트 (44px 행, 10개 overscan) |
+| `IssueList.tsx` | 그룹/비그룹 모드 모두 가상화 적용 |
+
+### Kanban Board 최적화
+| 변경 | 설명 |
+|------|------|
+| `IssueBoard.tsx` | `KanbanColumn` React.memo 분리, 6개 핸들러 useCallback, useMemo |
+
+### React Query Hooks
+| 변경 | 설명 |
+|------|------|
+| `useNotifications.ts` | 4개 훅 (조회, 미읽음 카운트, 읽음 처리, 전체 읽음) - 옵티미스틱 업데이트 |
+| `useTeamMembers.ts` | 2개 훅 (멤버 조회, 캐시 무효화) |
+| `useProjects.ts` | 4개 훅 (목록, 상세, 생성, 수정) - 자동 캐시 무효화 |
+| `hooks/data/index.ts` | 10개 새 훅 익스포트 추가 |
+
+---
+
+## 2026-02-10 (Evening Phase 2) - Deep Optimization
+
+### lily-chat 완전 리팩토링
+| 변경 | 설명 |
+|------|------|
+| `lily-chat/index.ts` | `createAdminClient()`, `env` 공유 모듈 사용, 버전 2026-02-10.7 |
+
+### 컴포넌트 최적화
+| 변경 | 설명 |
+|------|------|
+| `IssueList.tsx` | 6개 이벤트 핸들러 `useCallback` 래핑 (toggleGroup, drag handlers) |
+| `issueService.ts` | `archiveIssue`, `archiveIssues`, `restoreIssue`, `restoreIssues` 메서드 추가 |
+| `store.ts` | 직접 Supabase 호출 → `issueService` 사용으로 변경 |
+
+### React Query 인프라
+| 변경 | 설명 |
+|------|------|
+| `useQueryKeys.ts` | 중앙 집중식 쿼리 키 팩토리 (teams, issues, projects, cycles 등) |
+| `hooks/data/index.ts` | queryKeys 익스포트 추가 |
+
+### Supabase 클라이언트 최적화
+| 변경 | 설명 |
+|------|------|
+| `lib/supabase.ts` | `x-client-info` 헤더, realtime eventsPerSecond, `isAuthenticated()` 헬퍼 |
+
+---
+
+## 2026-02-10 (Evening Phase 1) - Full Stack Refactoring
 
 ### Edge Functions 리팩토링
 | 변경 | 설명 |
@@ -39,6 +113,33 @@
 
 ## 2026-02-10
 
+### Edge Functions 공유 모듈 리팩토링 (가장 큰 변경)
+
+모든 Edge Functions를 `_shared/` 공유 모듈로 리팩토링:
+
+| 공유 모듈 | 설명 |
+|-----------|------|
+| `_shared/cors.ts` | CORS 헤더 + OPTIONS 핸들링 |
+| `_shared/env.ts` | 환경 변수 중앙 관리 (typed getter) |
+| `_shared/supabase.ts` | Admin 클라이언트 팩토리 (Service Role) |
+| `_shared/email.ts` | 이메일 발송 (Gmail SMTP + Resend 폴백) |
+| `_shared/response.ts` | JSON/에러 응답 헬퍼 (버전 포함) |
+| `_shared/mod.ts` | 배럴 익스포트 |
+
+**리팩토링된 함수들:**
+- `accept-invite-v2` (508→355 라인, version: 2026-02-10.2)
+- `delete-users` (version: 2026-02-10.1)
+- `get-invite-preview` (version: 2026-02-10.1)
+- `send-member-removed`
+- `send-mention-email`
+- `send-notification-email`
+- `send-team-invite`
+
+### 성능 인덱스 마이그레이션
+| 변경 | 설명 |
+|------|------|
+| `20260210160000_performance_indexes.sql` | 15+ 복합/부분/GIN 인덱스 추가 (notifications, activities, issues, database_rows 등) |
+
 ### 초대 시스템 - 프로젝트별 할당
 | 변경 | 설명 |
 |------|------|
@@ -53,15 +154,17 @@
 
 ### accept-invite-v2 주요 로직
 ```
-초대 수락 시:
-1. 토큰으로 초대 조회
-2. 만료 확인 (24시간)
-3. 유저 인증 상태에 따라:
-   A. 인증됨 → 직접 팀 멤버 추가
-   B. 기존 유저 → 매직 링크 발송
-   C. 신규 유저 → 회원가입 안내
-4. project_ids가 있으면 선택된 프로젝트만 할당 (나머지 제거)
-5. 알림 이메일 발송
+초대 수락 시 (_shared/ 모듈 사용):
+1. handleCors(req) → CORS 처리
+2. createAdminClient() → Service Role 클라이언트
+3. 토큰으로 초대 조회
+4. 만료 확인 (24시간)
+5. 유저 인증 상태에 따라:
+   A. 인증됨 → 직접 팀 멤버 추가 → sendGmailEmail로 팀원 알림
+   B. 기존 유저 → 매직 링크 생성 → sendGmailEmail로 발송
+   C. 신규 유저 → needs_signup 반환
+6. project_ids가 있으면 선택된 프로젝트만 할당 (나머지 제거)
+7. versionedResponse로 응답
 ```
 
 ---

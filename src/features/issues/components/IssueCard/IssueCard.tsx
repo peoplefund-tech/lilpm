@@ -5,6 +5,7 @@ import { IssueTypeIcon, issueTypeConfig } from '@/features/issues/components/sha
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { IssueFocusIndicator } from '@/components/collaboration';
 import { cn } from '@/lib/utils';
+import { Zap } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -63,7 +64,7 @@ export const IssueCard = React.memo(function IssueCard({ issue, onClick, onDragS
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        {/* Labels */}
+        {/* Labels & Sprint Badge */}
         <div className="flex items-center gap-1 flex-1 min-w-0">
           {issue.labels.slice(0, 2).map((label) => (
             <span
@@ -77,6 +78,17 @@ export const IssueCard = React.memo(function IssueCard({ issue, onClick, onDragS
               {label.name}
             </span>
           ))}
+          {issue.cycleId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-2xs font-medium bg-green-500/10 text-green-500">
+                  <Zap className="h-2.5 w-2.5" />
+                  Sprint
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Assigned to a sprint</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         {/* Assignee */}

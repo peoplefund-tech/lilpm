@@ -315,11 +315,7 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
     }));
 
     try {
-      // Set archived_at timestamp
-      await supabase
-        .from('issues')
-        .update({ archived_at: new Date().toISOString() })
-        .eq('id', issueId);
+      await issueService.archiveIssue(issueId);
     } catch (error) {
       console.error('Failed to archive issue:', error);
       // Revert on failure
@@ -342,11 +338,7 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
     }));
 
     try {
-      // Set archived_at timestamp for all issues
-      await supabase
-        .from('issues')
-        .update({ archived_at: new Date().toISOString() })
-        .in('id', issueIds);
+      await issueService.archiveIssues(issueIds);
     } catch (error) {
       console.error('Failed to archive issues:', error);
       // Revert on failure

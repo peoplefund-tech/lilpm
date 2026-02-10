@@ -920,19 +920,48 @@ CREATE POLICY "Anyone can view invite by token" ON team_invites
 
 ## 인덱스 전략
 
+### 기본 인덱스
 ```sql
--- 자주 사용하는 쿼리 패턴
 CREATE INDEX idx_issues_team_status ON issues(team_id, status);
 CREATE INDEX idx_issues_assignee ON issues(assignee_id);
 CREATE INDEX idx_issues_dates ON issues(start_date, due_date);
 CREATE INDEX idx_team_members_user ON team_members(user_id);
 CREATE INDEX idx_team_invites_token ON team_invites(token);
-CREATE INDEX idx_notifications_unread ON notifications(user_id, read) WHERE read = false;
-CREATE INDEX idx_activity_logs_team ON activity_logs(team_id);
-CREATE INDEX idx_activity_logs_created ON activity_logs(created_at DESC);
 CREATE INDEX idx_project_members_project ON project_members(project_id);
 CREATE INDEX idx_project_members_user ON project_members(user_id);
 ```
+
+### 성능 최적화 인덱스 (20260210160000_performance_indexes.sql)
+
+15+ 추가 복합/부분 인덱스:
+
+```sql
+-- 부분 인덱스 (아카이브 제외)
+CREATE INDEX idx_issues_project_status ON issues(project_id, status) WHERE archived_at IS NULL;
+CREATE INDEX idx_issues_assignee_status ON issues(assignee_id, status) WHERE archived_at IS NULL AND assignee_id IS NOT NULL;
+CREATE INDEX idx_prd_documents_team_created ON prd_documents(team_id, created_at DESC) WHERE archived_at IS NULL;
+CREATE INDEX idx_team_invites_status_pending ON team_invites(team_id) WHERE status = 'pending';
+
+-- 복합 인덱스 (정렬 포함)
+CREATE INDEX idx_notifications_user_read_created ON notifications(user_id, read, created_at DESC);
+CREATE INDEX idx_activities_issue_created ON activities(issue_id, created_at DESC);
+CREATE INDEX idx_activity_logs_team_created ON activity_logs(team_id, created_at DESC);
+CREATE INDEX idx_comments_issue_created ON comments(issue_id, created_at DESC);
+CREATE INDEX idx_messages_conversation_created ON messages(conversation_id, created_at ASC);
+CREATE INDEX idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+
+-- GIN 인덱스 (JSONB)
+CREATE INDEX idx_database_rows_properties_gin ON database_rows USING GIN (properties);
+CREATE INDEX idx_database_rows_db_position ON database_rows(database_id, position);
+
+-- 기타
+CREATE INDEX idx_issues_parent_id ON issues(parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX idx_issues_cycle_status ON issues(cycle_id, status) WHERE cycle_id IS NOT NULL;
+CREATE INDEX idx_block_comments_document ON block_comments(document_type, document_id);
+CREATE INDEX idx_project_members_project_user ON project_members(project_id, user_id);
+```
+
+> 자세한 내용: [성능 최적화 가이드](./performance.md)
 
 ---
 

@@ -65,11 +65,9 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   const dateLocale = i18n.language === 'ko' ? ko : enUS;
 
 
-  // Refs for scroll sync
-  const scrollContainerRef = useRef<HTMLDivElement>(null); // Timeline
-  const sidebarRef = useRef<HTMLDivElement>(null); // Sidebar
-  const isSyncingLeft = useRef(false);
-  const isSyncingRight = useRef(false);
+  // Refs
+  const scrollContainerRef = useRef<HTMLDivElement>(null); // Single scroll container
+  const sidebarRef = useRef<HTMLDivElement>(null); // Sidebar (sticky left)
   const wasDraggedRef = useRef(false); // Track if row was just dragged to prevent click-after-drag
   const hasInitialScrolled = useRef(false); // Track if initial focus on today has happened
 
@@ -101,36 +99,7 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   // Track optimistically deleted dependencies to prevent resurrection from stale props
   const deletedDepKeysRef = useRef<Set<string>>(new Set());
 
-  // Scroll Sync Effect
-  useEffect(() => {
-    const right = scrollContainerRef.current;
-    const left = sidebarRef.current;
-    if (!right || !left) return;
-
-    const handleLeftScroll = () => {
-      if (!isSyncingLeft.current) {
-        isSyncingRight.current = true;
-        right.scrollTop = left.scrollTop;
-      }
-      isSyncingLeft.current = false;
-    };
-
-    const handleRightScroll = () => {
-      if (!isSyncingRight.current) {
-        isSyncingLeft.current = true;
-        left.scrollTop = right.scrollTop;
-      }
-      isSyncingRight.current = false;
-    };
-
-    left.addEventListener('scroll', handleLeftScroll);
-    right.addEventListener('scroll', handleRightScroll);
-
-    return () => {
-      left.removeEventListener('scroll', handleLeftScroll);
-      right.removeEventListener('scroll', handleRightScroll);
-    };
-  }, []); // For snapping dependency lines
+  // Scroll sync removed — single scroll container with sticky sidebar handles both axes
 
 
   // Sync dependencies from issues (DB persistence)
@@ -412,19 +381,42 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
       const deltaY = e.clientY - dragState.startY;
       setDragDeltaY(deltaY);
 
-      // Find drop target using elementFromPoint
-      // We temporarily hide the dragged element pointer events via CSS/style in render, 
-      // so elementFromPoint hits what's underneath.
-      const element = document.elementFromPoint(e.clientX, e.clientY);
-      const row = element?.closest('[data-issue-index]');
+      // Find drop target — constrain to sidebar elements only for accuracy.
+      // The sidebar is sticky, so its visual bounds are always reliable.
+      const sidebarEl = sidebarRef.current;
+      let row: Element | null = null;
+
+      if (sidebarEl) {
+        // Primary probe: use the sidebar's horizontal center so we always hit a sidebar row,
+        // even if the mouse is over the timeline area during drag.
+        const sidebarRect = sidebarEl.getBoundingClientRect();
+        const probeX = sidebarRect.left + sidebarRect.width / 2;
+        const probeElement = document.elementFromPoint(probeX, e.clientY);
+        if (probeElement && sidebarEl.contains(probeElement)) {
+          row = probeElement.closest('[data-issue-index]');
+        }
+      }
+
+      // Fallback: try the actual mouse position but only accept sidebar elements
+      if (!row && sidebarEl) {
+        const element = document.elementFromPoint(e.clientX, e.clientY);
+        const candidate = element?.closest('[data-issue-index]');
+        if (candidate && sidebarEl.contains(candidate)) {
+          row = candidate;
+        }
+      }
 
       if (row) {
         const index = parseInt(row.getAttribute('data-issue-index') || '0', 10);
         const rect = row.getBoundingClientRect();
         const isAbove = e.clientY < (rect.top + rect.height / 2);
 
-        setRowDropTargetIndex(index);
-        setRowDropPosition(isAbove ? 'above' : 'below');
+        // Safety check: ensure the drop target Y is within the sidebar's visible bounds
+        const sidebarRect = sidebarEl?.getBoundingClientRect();
+        if (sidebarRect && e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
+          setRowDropTargetIndex(index);
+          setRowDropPosition(isAbove ? 'above' : 'below');
+        }
       }
       return;
     }
@@ -706,6 +698,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
   };
 
   const totalWidth = dateRange.days.length * cellWidth;
+  const sidebarWidth = 288; // w-72 = 18rem = 288px
+  const headerHeight = 64 + (cycles.length > 0 ? 24 : 0); // h-16 + optional cycles row (h-6)
 
   // Get week/month markers for header using imported utility
   const getHeaderMarkers = useCallback(
@@ -890,23 +884,25 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* Fixed Issue Column */}
-        <div className="w-72 flex-shrink-0 border-r border-white/10 flex flex-col bg-[#0d0d0f] z-10 shadow-sm relative">
-          {/* Column Header */}
-          <div className="h-16 border-b border-white/10 px-3 flex items-end pb-2 bg-[#0d0d0f] z-20">
-            <span className="text-sm font-medium text-slate-400">
-              {t('gantt.issues', 'Issues')} ({totalIssuesWithDates})
-            </span>
+      {/* Main Content - Single scroll container for both sidebar and timeline */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto pb-4">
+        <div className="inline-flex min-w-full" style={{ minHeight: '100%' }}>
+        {/* Sticky Left Column - stays fixed during horizontal scroll */}
+        <div ref={sidebarRef} className="w-72 flex-shrink-0 sticky left-0 z-10 bg-[#0d0d0f] border-r border-white/10 shadow-[2px_0_8px_rgba(0,0,0,0.3)]">
+          {/* Column Header - sticky in both directions (top + inherits left from parent) */}
+          <div className="bg-[#0d0d0f] sticky top-0 z-20 border-b border-white/10">
+            <div className="h-16 px-3 flex items-end pb-2">
+              <span className="text-sm font-medium text-slate-400">
+                {t('gantt.issues', 'Issues')} ({totalIssuesWithDates})
+              </span>
+            </div>
+            {cycles.length > 0 && (
+              <div className="h-6 bg-white/[3%] border-t border-white/10/30" />
+            )}
           </div>
 
-          {/* Issue List - Scrollbar hidden, synced with timeline */}
-          <div
-            ref={sidebarRef}
-            className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
+          {/* Issue List */}
+          <div>
             {totalIssuesWithDates === 0 ? (
               <div className="flex items-center justify-center py-16 text-slate-400">
                 <div className="text-center px-4">
@@ -923,7 +919,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                   {/* Group Header */}
                   {groupBy !== 'none' && (
                     <div
-                      className="h-8 px-3 flex items-center gap-2 bg-white/5 border-b border-white/10 cursor-pointer hover:bg-white/10 sticky top-0 z-10"
+                      className="h-8 px-3 flex items-center gap-2 bg-white/5 border-b border-white/10 cursor-pointer hover:bg-white/10 sticky z-[5]"
+                      style={{ top: `${headerHeight}px` }}
                       onClick={() => toggleGroup(group.key)}
                     >
                       <ChevronRight className={cn(
@@ -1034,12 +1031,8 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
           </div>
         </div>
 
-        {/* Scrollable Timeline */}
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-auto"
-        >
-          <div style={{ width: `${totalWidth}px`, minWidth: '100%' }} className="relative">
+        {/* Timeline - flows naturally next to sticky sidebar */}
+        <div style={{ width: `${totalWidth}px` }} className="relative z-0">
             {/* Dependency Lines - SVG Overlay with clipping */}
             <svg
               className="absolute top-0 left-0 w-full h-full pointer-events-none z-40"
@@ -1102,7 +1095,6 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                 }
 
                 // Calculate actual pixel positions relative to timeline
-                const headerHeight = 64; // Approx height of headers including month/day rows
                 const rowHeight = 40;
 
                 // End of source bar
@@ -1237,7 +1229,6 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                   }
 
                   const fromPos = getBarPosition(fromIssue);
-                  const headerHeight = 64;
                   const rowHeight = 40;
 
                   const fromX = linkingFromSide === 'right'
@@ -1280,7 +1271,9 @@ export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, o
                     // scrollContainerRef.current
                     if (scrollContainerRef.current) {
                       const rect = scrollContainerRef.current.getBoundingClientRect();
-                      toX = mousePosition.x - rect.left + scrollContainerRef.current.scrollLeft;
+                      // Subtract sidebarWidth because SVG is inside the timeline div,
+                      // which starts at sidebarWidth offset within the scroll content
+                      toX = mousePosition.x - rect.left + scrollContainerRef.current.scrollLeft - sidebarWidth;
                       toY = mousePosition.y - rect.top + scrollContainerRef.current.scrollTop;
                       // Adjust for header if needed? Header is inside scroll container?
                       // The SVG is inside the inner div.

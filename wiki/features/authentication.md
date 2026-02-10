@@ -184,8 +184,11 @@ if (!isAuthenticated) {
 
 | 함수명 | 용도 |
 |--------|------|
-| `get-invite-preview` | 비인증 유저의 초대 미리보기 (--no-verify-jwt) |
-| `send-team-invite` | 팀 초대 이메일 발송 |
+| `accept-invite-v2` | 초대 수락 (인증/매직링크/회원가입) - `_shared/` 모듈 사용 |
+| `get-invite-preview` | 비인증 유저의 초대 미리보기 (Service Role) |
+| `send-team-invite` | 팀 초대 이메일 발송 (`_shared/email.ts` 사용) |
+
+> 모든 Edge Functions는 `_shared/` 공유 모듈(CORS, env, email, response, supabase)을 사용합니다.
 
 ## 보안 고려사항
 

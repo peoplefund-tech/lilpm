@@ -233,11 +233,13 @@ export function PRDDetailPage() {
     enabled: !!(prdId && currentTeam?.id && user?.id && !isLoading),
   });
 
-  // Supabase Realtime for presence only (who's online on this page)
+  // Supabase Realtime for presence and content sync fallback (when Yjs is unavailable)
   const {
     isConnected: isSupabaseCollabConnected,
     presenceUsers,
     updateCursorPosition: supabaseUpdateCursorPosition,
+    broadcastContentChange,
+    onRemoteContentChange,
   } = useSupabaseCollaboration({
     entityType: 'prd',
     entityId: prdId || '',
@@ -274,6 +276,18 @@ export function PRDDetailPage() {
     yjsUpdateCursorPosition(position, blockId);
     supabaseUpdateCursorPosition(position, blockId);
   }, [yjsUpdateCursorPosition, supabaseUpdateCursorPosition]);
+
+  // Register callback for Supabase content sync (fallback when Yjs is unavailable)
+  useEffect(() => {
+    if (!useYjsForCollab) {
+      onRemoteContentChange((remoteContent: string, fromUserId: string) => {
+        // Only apply if it's different from what we have
+        if (remoteContent !== content) {
+          setContent(remoteContent);
+        }
+      });
+    }
+  }, [useYjsForCollab, onRemoteContentChange, content]);
 
   // Provider display names
   const PROVIDER_LABELS: Record<AIProvider, string> = {
@@ -500,6 +514,7 @@ export function PRDDetailPage() {
         }
       } catch (error) {
         console.error('Failed to auto-save:', error);
+        toast.error(t('prd.saveFailed', 'Failed to save. Please try again.'));
       } finally {
         setIsSavingContent(false);
       }
@@ -617,6 +632,11 @@ export function PRDDetailPage() {
     // Persist to DB (debounced) - Yjs CRDT handles real-time sync between users,
     // but we still need to save to DB for non-collaboration reads and backup
     debouncedSaveContent(value, true);
+
+    // When Yjs is NOT active, use Supabase broadcast to sync content to other users
+    if (!useYjsForCollab) {
+      broadcastContentChange(value);
+    }
   };
 
   const handleStatusChange = async (newStatus: PRDStatus) => {

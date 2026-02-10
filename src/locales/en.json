@@ -22,7 +22,8 @@
     "user": "User",
     "system": "System",
     "enabled": "Enabled",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "duplicate": "Duplicate"
   },
   "search": {
     "placeholder": "Search...",

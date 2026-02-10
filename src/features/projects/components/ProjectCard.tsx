@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Project } from '@/types/database';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,15 +34,17 @@ const PROJECT_ICONS: Record<string, string> = {
   heart: '❤️',
 };
 
-const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
-  planned: { label: '계획됨', variant: 'outline' },
-  in_progress: { label: '진행 중', variant: 'default' },
-  paused: { label: '일시 정지', variant: 'secondary' },
-  completed: { label: '완료', variant: 'secondary' },
-  cancelled: { label: '취소됨', variant: 'destructive' },
-};
-
 export function ProjectCard({ project, onEdit, onDelete, onArchive, onClick }: ProjectCardProps) {
+  const { t } = useTranslation();
+
+  const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+    planned: { label: t('projects.planned', 'Planned'), variant: 'outline' },
+    in_progress: { label: t('projects.in_progress', 'In Progress'), variant: 'default' },
+    paused: { label: t('projects.paused', 'Paused'), variant: 'secondary' },
+    completed: { label: t('projects.completed', 'Completed'), variant: 'secondary' },
+    cancelled: { label: t('projects.cancelled', 'Cancelled'), variant: 'destructive' },
+  };
+
   const statusInfo = STATUS_LABELS[project.status] || STATUS_LABELS.planned;
   const icon = PROJECT_ICONS[project.icon || 'folder'] || '📁';
 
@@ -80,11 +83,11 @@ export function ProjectCard({ project, onEdit, onDelete, onArchive, onClick }: P
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => onEdit?.(project)}>
                 <Pencil className="h-4 w-4 mr-2" />
-                수정
+                {t('common.edit', 'Edit')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onArchive?.(project)}>
                 <Archive className="h-4 w-4 mr-2" />
-                보관
+                {t('common.archive', 'Archive')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
@@ -92,7 +95,7 @@ export function ProjectCard({ project, onEdit, onDelete, onArchive, onClick }: P
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                삭제
+                {t('common.delete', 'Delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
