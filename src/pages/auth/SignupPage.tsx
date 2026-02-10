@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,6 +27,9 @@ export function SignupPage() {
 
   const returnUrl = searchParams.get('returnUrl');
   const prefilledEmail = searchParams.get('email');
+  const isInvite = searchParams.get('invite') === 'true';
+  const teamName = searchParams.get('teamName');
+  const inviterName = searchParams.get('inviterName');
 
   const signupSchema = z.object({
     name: z.string().min(2, t('auth.nameTooShort')),
@@ -55,10 +58,16 @@ export function SignupPage() {
       setError(null);
       await signup(data.email, data.password, data.name, returnUrl || undefined);
       toast.success(t('auth.signupSuccess'));
-      const verifyUrl = returnUrl
-        ? `/auth/verify-email?returnUrl=${encodeURIComponent(returnUrl)}`
-        : '/auth/verify-email';
-      navigate(verifyUrl);
+
+      if (isInvite && returnUrl) {
+        // Invite signup: skip email verification, go directly to accept invite
+        navigate(returnUrl);
+      } else {
+        const verifyUrl = returnUrl
+          ? `/auth/verify-email?returnUrl=${encodeURIComponent(returnUrl)}`
+          : '/auth/verify-email';
+        navigate(verifyUrl);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.signupError'));
     }
@@ -100,26 +109,45 @@ export function SignupPage() {
         </div>
       </nav>
 
-      <div className="pt-16 min-h-screen flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-md space-y-8">
+      <div className="pt-16 min-h-screen flex items-center justify-center px-4 py-6">
+        <div className="w-full max-w-md space-y-5">
           {/* Card Container */}
-          <div className="bg-[#1a1a1f] border border-white/10 rounded-2xl p-8 shadow-2xl">
-            {/* Logo */}
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center h-14 w-14 rounded-xl bg-violet-500 mb-4">
-                <Sparkles className="h-7 w-7 text-white" />
-              </div>
-              <h1 className="text-2xl font-semibold text-white">{t('auth.createAccount')}</h1>
-              <p className="text-slate-400 mt-2">
-                {t('auth.enterInfoToStart')}
-              </p>
+          <div className="bg-[#1a1a1f] border border-white/10 rounded-2xl p-6 shadow-2xl">
+            {/* Header - Invite context or default */}
+            <div className="text-center mb-5">
+              {isInvite ? (
+                <>
+                  <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-violet-500/20 mb-3">
+                    <Users className="h-6 w-6 text-violet-400" />
+                  </div>
+                  <h1 className="text-xl font-semibold text-white">
+                    {t('auth.createAccount', 'Create your account')}
+                  </h1>
+                  <div className="mt-2 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                    <p className="text-sm text-violet-300">
+                      회원 가입을 해서 {inviterName ? <strong>{inviterName}</strong> : '팀원'}이 초대한{' '}
+                      {teamName ? <strong className="text-violet-200">{teamName}</strong> : '팀'}팀으로 작업을 시작해 보세요! 🚀
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-violet-500 mb-3">
+                    <Sparkles className="h-6 w-6 text-white" />
+                  </div>
+                  <h1 className="text-xl font-semibold text-white">{t('auth.createAccount')}</h1>
+                  <p className="text-slate-400 mt-1 text-sm">
+                    {t('auth.enterInfoToStart')}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Form */}
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
                 {error && (
-                  <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                     {error}
                   </div>
                 )}
@@ -129,12 +157,12 @@ export function SignupPage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-slate-300">{t('auth.name')}</FormLabel>
+                      <FormLabel className="text-slate-300 text-sm">{t('auth.name')}</FormLabel>
                       <FormControl>
                         <Input
                           placeholder={t('auth.namePlaceholder')}
                           autoComplete="name"
-                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-xl"
+                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-10 rounded-xl"
                           {...field}
                         />
                       </FormControl>
@@ -148,13 +176,15 @@ export function SignupPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-slate-300">{t('auth.email')}</FormLabel>
+                      <FormLabel className="text-slate-300 text-sm">{t('auth.email')}</FormLabel>
                       <FormControl>
                         <Input
                           type="email"
                           placeholder="name@company.com"
                           autoComplete="email"
-                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-xl"
+                          readOnly={isInvite && !!prefilledEmail}
+                          className={`bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-10 rounded-xl ${isInvite && prefilledEmail ? 'opacity-60 cursor-not-allowed' : ''
+                            }`}
                           {...field}
                         />
                       </FormControl>
@@ -168,13 +198,13 @@ export function SignupPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-slate-300">{t('auth.password')}</FormLabel>
+                      <FormLabel className="text-slate-300 text-sm">{t('auth.password')}</FormLabel>
                       <FormControl>
                         <Input
                           type="password"
                           placeholder="••••••••"
                           autoComplete="new-password"
-                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-xl"
+                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-10 rounded-xl"
                           {...field}
                         />
                       </FormControl>
@@ -188,13 +218,13 @@ export function SignupPage() {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-slate-300">{t('auth.confirmPassword')}</FormLabel>
+                      <FormLabel className="text-slate-300 text-sm">{t('auth.confirmPassword')}</FormLabel>
                       <FormControl>
                         <Input
                           type="password"
                           placeholder="••••••••"
                           autoComplete="new-password"
-                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-xl"
+                          className="bg-[#121215] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-violet-500/20 h-10 rounded-xl"
                           {...field}
                         />
                       </FormControl>
@@ -205,7 +235,7 @@ export function SignupPage() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-violet-500 hover:bg-violet-400 text-white h-11 rounded-xl font-medium mt-2"
+                  className="w-full bg-violet-500 hover:bg-violet-400 text-white h-10 rounded-xl font-medium mt-1"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -221,7 +251,7 @@ export function SignupPage() {
             </Form>
 
             {/* Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-white/10" />
               </div>
@@ -233,10 +263,10 @@ export function SignupPage() {
             </div>
 
             {/* Social Login */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Button
                 variant="outline"
-                className="w-full bg-[#121215] border-white/10 text-slate-300 hover:bg-white/5 hover:text-white h-11 rounded-xl"
+                className="w-full bg-[#121215] border-white/10 text-slate-300 hover:bg-white/5 hover:text-white h-10 rounded-xl"
                 type="button"
               >
                 <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
@@ -289,3 +319,4 @@ export function SignupPage() {
     </div>
   );
 }
+

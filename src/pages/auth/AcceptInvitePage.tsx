@@ -191,9 +191,15 @@ export function AcceptInvitePage() {
         }
 
         case 'needs_signup': {
-          // New user - redirect to signup
-          const signupUrl = `/signup?email=${encodeURIComponent(result.email || '')}&returnUrl=${encodeURIComponent(`/invite/accept?token=${token}&auto=true`)}`;
-          navigate(signupUrl);
+          // New user - redirect to signup with invite context
+          const params = new URLSearchParams({
+            email: result.email || '',
+            returnUrl: `/invite/accept?token=${token}&auto=true`,
+            invite: 'true',
+            ...(invitePreview.teamName ? { teamName: invitePreview.teamName } : {}),
+            ...(invitePreview.inviterName ? { inviterName: invitePreview.inviterName } : {}),
+          });
+          navigate(`/signup?${params.toString()}`);
           break;
         }
 
@@ -217,8 +223,14 @@ export function AcceptInvitePage() {
 
   const handleSignupRedirect = () => {
     const returnUrl = `/invite/accept?token=${token}&auto=true`;
-    const email = invitePreview.email || '';
-    navigate(`/signup?email=${encodeURIComponent(email)}&returnUrl=${encodeURIComponent(returnUrl)}`);
+    const params = new URLSearchParams({
+      email: invitePreview.email || '',
+      returnUrl,
+      invite: 'true',
+      ...(invitePreview.teamName ? { teamName: invitePreview.teamName } : {}),
+      ...(invitePreview.inviterName ? { inviterName: invitePreview.inviterName } : {}),
+    });
+    navigate(`/signup?${params.toString()}`);
   };
 
   // Loading state
