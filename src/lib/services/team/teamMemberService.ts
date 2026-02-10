@@ -12,17 +12,31 @@ export interface TeamMemberWithProfile extends TeamMember {
 
 export const teamMemberService = {
     async getMembers(teamId: string): Promise<TeamMemberWithProfile[]> {
-        const { data, error } = await supabase
+        // Step 1: Get team members
+        const { data: membersData, error: membersError } = await supabase
             .from('team_members')
-            .select(`
-        *,
-        profile:profiles!team_members_user_id_fkey(id, name, email, avatar_url)
-      `)
+            .select('*')
             .eq('team_id', teamId)
             .order('joined_at', { ascending: true });
 
-        if (error) throw error;
-        return (data || []) as unknown as TeamMemberWithProfile[];
+        if (membersError) throw membersError;
+        if (!membersData || membersData.length === 0) return [];
+
+        // Step 2: Get profiles for all member user_ids
+        const userIds = membersData.map(m => m.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, name, email, avatar_url')
+            .in('id', userIds);
+
+        if (profilesError) throw profilesError;
+
+        // Step 3: Merge members with profiles
+        const profileMap = new Map((profilesData || []).map(p => [p.id, p]));
+        return membersData.map(member => ({
+            ...member,
+            profile: profileMap.get(member.user_id) || { id: member.user_id, name: null, email: null, avatar_url: null },
+        })) as unknown as TeamMemberWithProfile[];
     },
 
     async addMember(teamId: string, userId: string, role: TeamRole = 'member'): Promise<TeamMember> {
@@ -71,8 +85,7 @@ export const teamMemberService = {
             .from('team_members')
             .select(`
         *,
-        team:teams(id, name),
-        profile:profiles!team_members_user_id_fkey(id, email, name)
+        team:teams(id, name)
       `)
             .eq('id', memberId)
             .single();
@@ -84,8 +97,16 @@ export const teamMemberService = {
         const teamId = typedMember.team_id;
         const removedUserId = typedMember.user_id;
         const teamName = typedMember.team?.name || 'the team';
-        const userEmail = typedMember.profile?.email;
-        const userName = typedMember.profile?.name || userEmail;
+
+        // Get profile separately (FK hint doesn't work for auth.users → profiles)
+        const { data: memberProfile } = await supabase
+            .from('profiles')
+            .select('id, email, name')
+            .eq('id', removedUserId)
+            .maybeSingle();
+
+        const userEmail = memberProfile?.email;
+        const userName = memberProfile?.name || userEmail;
         const userRole = typedMember.role;
 
         // Delete the member

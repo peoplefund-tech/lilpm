@@ -30,7 +30,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, style, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -43,6 +43,13 @@ const DialogContent = React.forwardRef<
         "sm:rounded-xl",
         className,
       )}
+      style={{
+        '--tw-enter-translate-x': '-50%',
+        '--tw-enter-translate-y': '-50%',
+        '--tw-exit-translate-x': '-50%',
+        '--tw-exit-translate-y': '-50%',
+        ...style,
+      } as React.CSSProperties}
       {...props}
     >
       {children}

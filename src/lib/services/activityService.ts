@@ -42,15 +42,17 @@ export async function logActivity(entry: ActivityLogEntry): Promise<void> {
             .insert({
                 user_id: user?.id,
                 team_id: entry.teamId,
-                project_id: entry.projectId,
                 action_type: entry.actionType,
                 target_type: entry.targetType,
                 target_id: entry.targetId,
-                target_email: entry.targetEmail,
-                target_user_id: entry.targetUserId,
-                old_value: entry.oldValue,
-                new_value: entry.newValue,
-                metadata: entry.metadata || {},
+                description: `${entry.actionType} on ${entry.targetType}`,
+                metadata: {
+                    ...(entry.metadata || {}),
+                    ...(entry.targetEmail ? { target_email: entry.targetEmail } : {}),
+                    ...(entry.targetUserId ? { target_user_id: entry.targetUserId } : {}),
+                    ...(entry.oldValue ? { old_value: entry.oldValue } : {}),
+                    ...(entry.newValue ? { new_value: entry.newValue } : {}),
+                },
             });
 
         if (error) {
