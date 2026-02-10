@@ -3,3 +3,24 @@ verify_jwt = false
 
 [functions.send-team-invite]
 verify_jwt = false
+
+[functions.accept-invite-v2]
+verify_jwt = false
+
+[functions.get-invite-preview]
+verify_jwt = false
+
+[functions.send-member-removed]
+verify_jwt = false
+
+[functions.send-mention-email]
+verify_jwt = false
+
+[functions.send-notification-email]
+verify_jwt = false
+
+[functions.mcp-proxy]
+verify_jwt = false
+
+[functions.delete-users]
+verify_jwt = false
