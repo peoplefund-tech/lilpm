@@ -497,7 +497,7 @@ export function PRDDetailPage() {
       try {
         // Update both content and overview for list preview sync
         const overview = extractOverview(value);
-        await prdService.updatePRD(prdId, { content: value, overview });
+        await prdService.updatePRD(currentTeam!.id, prdId, { content: value, overview });
         setLastSaved(new Date());
         setContentSaved(true);
         setTimeout(() => setContentSaved(false), 2000);
@@ -506,7 +506,7 @@ export function PRDDetailPage() {
         const now = Date.now();
         if (now - lastVersionTimeRef.current > VERSION_INTERVAL) {
           try {
-            await prdVersionService.createVersion(prdId, value, title, 'Auto-saved');
+            await prdVersionService.createVersion(currentTeam!.id, prdId, value, title, 'Auto-saved');
             lastVersionTimeRef.current = now;
           } catch (versionError) {
             console.error('Failed to create version:', versionError);
@@ -528,7 +528,7 @@ export function PRDDetailPage() {
       if (!prdId || !value.trim()) return;
       setIsSavingTitle(true);
       try {
-        await prdService.updatePRD(prdId, { title: value.trim() });
+        await prdService.updatePRD(currentTeam!.id, prdId, { title: value.trim() });
         setLastSaved(new Date());
         setTitleSaved(true);
         setTimeout(() => setTitleSaved(false), 2000);
@@ -544,10 +544,13 @@ export function PRDDetailPage() {
   useEffect(() => {
     const loadPRD = async () => {
       if (!prdId) return;
-
+      if (!currentTeam?.id) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       try {
-        const data = await prdService.getPRD(prdId);
+        const data = await prdService.getPRD(currentTeam.id, prdId);
         if (data) {
           setPrd(data);
           setTitle(data.title);
@@ -565,7 +568,7 @@ export function PRDDetailPage() {
 
           // Load linked projects for this PRD
           try {
-            const linked = await prdService.getLinkedProjects(prdId);
+            const linked = await prdService.getLinkedProjects(currentTeam.id, prdId);
             setLinkedProjects(linked);
           } catch (e) {
             console.log('No linked projects found');
@@ -643,7 +646,7 @@ export function PRDDetailPage() {
     if (!prdId) return;
     setStatus(newStatus);
     try {
-      await prdService.updateStatus(prdId, newStatus);
+      await prdService.updateStatus(currentTeam!.id, prdId, newStatus);
       setLastSaved(new Date());
       toast.success(t('prd.statusUpdated', 'Status updated'));
     } catch (error) {
@@ -656,11 +659,11 @@ export function PRDDetailPage() {
     const isLinked = linkedProjects.some(p => p.id === projectId);
     try {
       if (isLinked) {
-        await prdService.unlinkFromProject(prdId, projectId);
+        await prdService.unlinkFromProject(currentTeam!.id, prdId, projectId);
         setLinkedProjects(prev => prev.filter(p => p.id !== projectId));
         toast.success(t('prd.projectUnlinked', 'Project unlinked'));
       } else {
-        await prdService.linkToProject(prdId, projectId);
+        await prdService.linkToProject(currentTeam!.id, prdId, projectId);
         const project = allProjects.find(p => p.id === projectId);
         if (project) {
           setLinkedProjects(prev => [...prev, project]);
@@ -673,11 +676,11 @@ export function PRDDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!prdId || !title.trim()) return;
+    if (!prdId || !currentTeam?.id || !title.trim()) return;
 
     setIsSaving(true);
     try {
-      await prdService.updatePRD(prdId, {
+      await prdService.updatePRD(currentTeam.id, prdId, {
         title: title.trim(),
         content,
         status,
@@ -1167,6 +1170,7 @@ Respond in the same language as the user's message.`
 
                 <div className="flex items-center gap-3">
                   <VersionHistoryPanel
+                    teamId={currentTeam!.id}
                     prdId={prd.id}
                     currentContent={content}
                     onRestore={(restoredContent, restoredTitle) => {

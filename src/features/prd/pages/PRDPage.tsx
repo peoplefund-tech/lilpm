@@ -147,7 +147,7 @@ export function PRDPage() {
 
   const handleDeletePRD = async (prdId: string) => {
     try {
-      await prdService.deletePRD(prdId);
+      await prdService.deletePRD(currentTeam.id, prdId);
       toast.success(t('prd.deleted', 'PRD deleted'));
       loadPRDs();
     } catch (error) {
@@ -157,7 +157,7 @@ export function PRDPage() {
 
   const handleStatusChange = async (prdId: string, status: PRDStatus) => {
     try {
-      await prdService.updateStatus(prdId, status);
+      await prdService.updateStatus(currentTeam.id, prdId, status);
       toast.success(t('prd.statusUpdated', 'Status updated'));
       loadPRDs();
     } catch (error) {

@@ -14,8 +14,8 @@ export const prdService = {
     return res.data;
   },
 
-  async getPRD(prdId: string): Promise<PRDWithRelations | null> {
-    const res = await apiClient.get<PRDWithRelations>(`/prd/${prdId}`);
+  async getPRD(teamId: string, prdId: string): Promise<PRDWithRelations | null> {
+    const res = await apiClient.get<PRDWithRelations>(`/${teamId}/prd/${prdId}`);
     if (res.error) throw new Error(res.error);
     return res.data;
   },
@@ -48,9 +48,9 @@ export const prdService = {
     return res.data;
   },
 
-  async updatePRD(prdId: string, updates: Partial<PRDDocument>): Promise<PRDDocument> {
+  async updatePRD(teamId: string, prdId: string, updates: Partial<PRDDocument>): Promise<PRDDocument> {
     console.log('[prdService] Updating PRD:', prdId, updates);
-    const res = await apiClient.put<PRDDocument>(`/prd/${prdId}`, updates);
+    const res = await apiClient.put<PRDDocument>(`/${teamId}/prd/${prdId}`, updates);
     if (res.error) {
       console.error('[prdService] Update failed:', res.error);
       throw new Error(res.error);
@@ -59,18 +59,18 @@ export const prdService = {
     return res.data;
   },
 
-  async deletePRD(prdId: string): Promise<void> {
-    const res = await apiClient.delete<void>(`/prd/${prdId}`);
+  async deletePRD(teamId: string, prdId: string): Promise<void> {
+    const res = await apiClient.delete<void>(`/${teamId}/prd/${prdId}`);
     if (res.error) throw new Error(res.error);
   },
 
-  async updateStatus(prdId: string, status: PRDStatus): Promise<PRDDocument> {
-    return this.updatePRD(prdId, { status });
+  async updateStatus(teamId: string, prdId: string, status: PRDStatus): Promise<PRDDocument> {
+    return this.updatePRD(teamId, prdId, { status });
   },
 
   // PRD-Project linking functions (many-to-many)
-  async linkToProject(prdId: string, projectId: string): Promise<void> {
-    const res = await apiClient.post<void>(`/prd/${prdId}/projects`, {
+  async linkToProject(teamId: string, prdId: string, projectId: string): Promise<void> {
+    const res = await apiClient.post<void>(`/${teamId}/prd/${prdId}/projects`, {
       projectId,
     });
     if (res.error && !res.error.includes('duplicate')) {
@@ -78,13 +78,13 @@ export const prdService = {
     }
   },
 
-  async unlinkFromProject(prdId: string, projectId: string): Promise<void> {
-    const res = await apiClient.delete<void>(`/prd/${prdId}/projects/${projectId}`);
+  async unlinkFromProject(teamId: string, prdId: string, projectId: string): Promise<void> {
+    const res = await apiClient.delete<void>(`/${teamId}/prd/${prdId}/projects/${projectId}`);
     if (res.error) throw new Error(res.error);
   },
 
-  async getLinkedProjects(prdId: string): Promise<Array<{ id: string; name: string; icon?: string }>> {
-    const res = await apiClient.get<Array<{ id: string; name: string; icon?: string }>>(`/prd/${prdId}/projects`);
+  async getLinkedProjects(teamId: string, prdId: string): Promise<Array<{ id: string; name: string; icon?: string }>> {
+    const res = await apiClient.get<Array<{ id: string; name: string; icon?: string }>>(`/${teamId}/prd/${prdId}/projects`);
     if (res.error) throw new Error(res.error);
     return res.data;
   },
@@ -95,8 +95,8 @@ export const prdService = {
     return res.data;
   },
 
-  async updateProjectLinks(prdId: string, projectIds: string[]): Promise<void> {
-    const res = await apiClient.put<void>(`/prd/${prdId}/projects`, {
+  async updateProjectLinks(teamId: string, prdId: string, projectIds: string[]): Promise<void> {
+    const res = await apiClient.put<void>(`/${teamId}/prd/${prdId}/projects`, {
       projectIds,
     });
     if (res.error) throw new Error(res.error);

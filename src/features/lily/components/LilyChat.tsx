@@ -463,7 +463,7 @@ export function LilyChat({ projectContext }: LilyChatProps) {
 
       // Update PRD with full content
       if (prd) {
-        await prdService.updatePRD(prd.id, { content });
+        await prdService.updatePRD(currentTeam.id, prd.id, { content });
         toast.success(t('lily.prdCreated', 'PRD가 생성되었습니다'));
         // Store the PRD id for this message (enables "View PRD" button)
         setSavedPRDMap(prev => ({ ...prev, [messageId]: prd.id }));

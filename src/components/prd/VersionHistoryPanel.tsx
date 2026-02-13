@@ -26,6 +26,7 @@ import { prdVersionService, type PRDVersionWithCreator } from '@/features/prd';
 import { cn } from '@/lib/utils';
 
 interface VersionHistoryPanelProps {
+    teamId: string;
     prdId: string;
     currentContent?: string;
     onRestore?: (content: string, title: string) => void;
@@ -33,6 +34,7 @@ interface VersionHistoryPanelProps {
 }
 
 export function VersionHistoryPanel({
+    teamId,
     prdId,
     currentContent,
     onRestore,
@@ -55,7 +57,7 @@ export function VersionHistoryPanel({
     const loadVersions = async () => {
         setIsLoading(true);
         try {
-            const data = await prdVersionService.getVersions(prdId);
+            const data = await prdVersionService.getVersions(teamId, prdId);
             setVersions(data);
         } catch (error) {
             console.error('Failed to load versions:', error);
@@ -69,7 +71,7 @@ export function VersionHistoryPanel({
 
         setIsRestoring(true);
         try {
-            await prdVersionService.restoreVersion(prdId, selectedVersion.id);
+            await prdVersionService.restoreVersion(teamId, prdId, selectedVersion.id);
 
             if (onRestore) {
                 onRestore(selectedVersion.content || '', selectedVersion.title);
