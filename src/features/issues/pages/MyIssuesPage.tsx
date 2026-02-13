@@ -62,7 +62,7 @@ export function MyIssuesPage() {
           total: number;
           limit: number;
           offset: number;
-        }>(`/teams/${team.id}/issues?assigneeId=${user.id}&sort=updatedAt&order=desc&limit=200`);
+        }>(`/${team.id}/issues?assigneeId=${user.id}&sort=updatedAt&order=desc&limit=200`);
 
         if (!response.success) {
           console.error(`Failed to fetch issues for team ${team.id}:`, response.error);
