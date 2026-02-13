@@ -21,15 +21,6 @@ Current skills:
 
 See `skills/README.md` for detailed information.
 
-## Project Context
-
-The main project context is maintained in the root `CLAUDE.md` file, which includes:
-- Project overview and architecture
-- Current progress status
-- File structure
-- Migration patterns
-- How to resume work
-
 ## Local Development
 
 Quick start:
@@ -52,8 +43,6 @@ open http://localhost:8080
 
 ## Documentation
 
-- `CLAUDE.md` - Project context and progress
-- `MIGRATION_PROGRESS.md` - Current migration status
 - `.claude/skills/` - Reusable skills and guides
-- `server/README.md` - API server documentation
-- `collab-server/README.md` - Collab server documentation
+- `server/README.md` - API server documentation (if exists)
+- `collab-server/README.md` - Collab server documentation (if exists)
