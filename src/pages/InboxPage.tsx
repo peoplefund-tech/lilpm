@@ -29,7 +29,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
+import { notificationService } from '@/lib/services/notificationService';
 import { teamInviteService } from '@/lib/services';
 import { toast } from 'sonner';
 import type { Profile } from '@/types/database';
@@ -107,39 +108,23 @@ export function InboxPage() {
 
     setIsLoading(true);
     try {
-      // Load from database notifications table
-      const { data: notifications, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(100);
+      // Load notifications from API
+      const response = await notificationService.getNotifications(user.id, {
+        limit: 100,
+      });
 
-      if (error) throw error;
+      const notifications = response.notifications;
 
       if (notifications && notifications.length > 0) {
-        // Fetch actor profiles
-        const actorIds = [...new Set(notifications.map((n: any) => n.actor_id).filter(Boolean))];
-        let profilesMap = new Map();
-
-        if (actorIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('id', actorIds);
-
-          profilesMap = new Map((profiles || []).map(p => [p.id, p]));
-        }
-
         const enriched = notifications.map((notif: any) => ({
           id: notif.id,
           user_id: notif.user_id,
           type: notif.type as InboxItemType,
           title: notif.title,
-          message: notif.message,
-          body: notif.message, // For backward compatibility
+          message: notif.body || notif.message,
+          body: notif.body || notif.message, // For backward compatibility
           actor_id: notif.actor_id,
-          actor: notif.actor_id ? profilesMap.get(notif.actor_id) || null : null,
+          actor: notif.actor || null,
           entity_type: notif.entity_type,
           entity_id: notif.entity_id,
           entity_identifier: notif.entity_identifier,
@@ -239,10 +224,7 @@ export function InboxPage() {
 
   const markAsRead = async (itemId: string) => {
     try {
-      await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', itemId);
+      await notificationService.markAsRead(itemId);
 
       setItems(prev => prev.map(i =>
         i.id === itemId ? { ...i, read: true } : i
@@ -293,11 +275,7 @@ export function InboxPage() {
     if (!user?.id) return;
 
     try {
-      await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
+      await notificationService.markAllAsRead();
 
       setItems(prev => prev.map(i => ({ ...i, read: true })));
       toast.success('All notifications marked as read');
@@ -318,10 +296,11 @@ export function InboxPage() {
         }
       }
 
-      await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', itemId);
+      const res = await apiClient.delete(`/notifications/${itemId}`);
+
+      if (res.error) {
+        throw new Error(res.error);
+      }
 
       setItems(prev => prev.filter(i => i.id !== itemId));
     } catch (error) {
@@ -334,10 +313,11 @@ export function InboxPage() {
     if (!user?.id) return;
 
     try {
-      await supabase
-        .from('notifications')
-        .delete()
-        .eq('user_id', user.id);
+      const res = await apiClient.delete('/notifications');
+
+      if (res.error) {
+        throw new Error(res.error);
+      }
 
       setItems([]);
       toast.success('All notifications cleared');

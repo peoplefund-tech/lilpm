@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { 
-  Loader2, 
-  Settings, 
-  Key, 
-  Eye, 
-  EyeOff, 
+import {
+  Loader2,
+  Settings,
+  Key,
+  Eye,
+  EyeOff,
   ArrowLeft,
   Sparkles,
   Check,
@@ -42,9 +42,9 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AppLayout } from '@/components/layout';
-import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
+import { userAISettingsService } from '@/lib/services';
 import type { AIProvider } from '@/types';
 
 const aiSettingsSchema = z.object({
@@ -103,16 +103,10 @@ export function AISettingsPage() {
   // Load existing settings
   useEffect(() => {
     async function loadSettings() {
-      if (!user) return;
-
       try {
-        const { data, error } = await supabase
-          .from('user_ai_settings')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+        const data = await userAISettingsService.getSettings();
 
-        if (data && !error) {
+        if (data) {
           setExistingSettings(data);
           form.reset({
             anthropic_api_key: data.anthropic_api_key || '',
@@ -130,27 +124,18 @@ export function AISettingsPage() {
     }
 
     loadSettings();
-  }, [user, form]);
+  }, [form]);
 
   const onSubmit = async (data: AISettingsForm) => {
-    if (!user) return;
-
     setIsSaving(true);
     try {
-      const settingsData = {
-        user_id: user.id,
-        anthropic_api_key: data.anthropic_api_key || null,
-        openai_api_key: data.openai_api_key || null,
-        gemini_api_key: data.gemini_api_key || null,
+      await userAISettingsService.upsertSettings({
+        anthropic_api_key: data.anthropic_api_key || undefined,
+        openai_api_key: data.openai_api_key || undefined,
+        gemini_api_key: data.gemini_api_key || undefined,
         default_provider: data.default_provider,
         auto_mode_enabled: data.auto_mode_enabled,
-      };
-
-      const { error } = await supabase
-        .from('user_ai_settings')
-        .upsert(settingsData, { onConflict: 'user_id' });
-
-      if (error) throw error;
+      });
 
       toast.success('AI 설정이 저장되었습니다');
       setExistingSettings(data);

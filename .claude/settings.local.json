@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git remote set-url:*)",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__list_allowed_directories",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "mcp__filesystem__read_text_file",
+      "Bash(npm run type-check:*)",
+      "Bash(git add:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(git reset:*)",
+      "Bash(ls:*)",
+      "Bash(node:*)",
+      "Bash(find:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(pg_isready:*)",
+      "Bash(redis-cli:*)",
+      "Bash(psql:*)",
+      "Bash(npx drizzle-kit push)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm install:*)",
+      "Bash(pkill:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(redis-server:*)",
+      "Bash(brew install:*)",
+      "Bash(brew services start:*)",
+      "Bash(redis-cli ping:*)",
+      "Bash(npm install)",
+      "Bash(npm run db:generate:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(npm run dev:*)",
+      "Bash(python3:*)",
+      "Bash(npm run db:studio:*)",
+      "Bash(cat:*)"
+    ]
+  }
+}

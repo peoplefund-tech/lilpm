@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  namespace: lilpm
+  labels:
+    app.kubernetes.io/name: api-server
+    app.kubernetes.io/part-of: lilpm
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-server
+        app.kubernetes.io/part-of: lilpm
+        app.kubernetes.io/component: backend
+    spec:
+      containers:
+        - name: api-server
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/lilpm-api-server:latest
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: lilpm-config
+            - secretRef:
+                name: lilpm-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-server
+  namespace: lilpm
+  labels:
+    app.kubernetes.io/name: api-server
+    app.kubernetes.io/part-of: lilpm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: api-server
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http

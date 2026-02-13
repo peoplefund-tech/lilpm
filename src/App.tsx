@@ -161,12 +161,22 @@ function OnboardingCheck({ children }: { children: React.ReactNode }) {
   // CRITICAL FIX: Wait for teams to be loaded at least once before making redirect decisions.
   // Without this, there's a race condition where teams.length === 0 because loadTeams()
   // hasn't completed yet, causing spurious redirects to onboarding or verify-email.
+  // Also check for error state to avoid infinite loading spinners
+  const { error: teamError } = useTeamStore();
+
   if (!teamsInitializedRef.current && (teamsLoading || teams.length === 0)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0d0d0f]">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
+    // If there's an error loading teams (e.g. 401), we should probably let the user continue
+    // or the auth store will handle the logout. Stuck spinner is the worst outcome.
+    if (teamError) {
+      console.warn('OnboardingCheck: Team load failed, bypassing spinner:', teamError);
+      // Fall through to render children (or redirect if needed)
+    } else {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-[#0d0d0f]">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      );
+    }
   }
 
   // Check if email is verified (for new signups)

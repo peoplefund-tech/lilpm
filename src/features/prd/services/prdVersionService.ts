@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 
 export interface PRDVersion {
     id: string;
@@ -25,34 +25,18 @@ export const prdVersionService = {
      * Get all versions for a PRD (newest first)
      */
     async getVersions(prdId: string): Promise<PRDVersionWithCreator[]> {
-        const { data, error } = await supabase
-            .from('prd_versions')
-            .select(`
-        *,
-        creator:profiles(id, name, email, avatar_url)
-      `)
-            .eq('prd_id', prdId)
-            .order('version_number', { ascending: false });
-
-        if (error) throw error;
-        return (data || []) as unknown as PRDVersionWithCreator[];
+        const res = await apiClient.get<PRDVersionWithCreator[]>(`/prd/${prdId}/versions`);
+        if (res.error) throw new Error(res.error);
+        return res.data || [];
     },
 
     /**
      * Get a specific version by ID
      */
     async getVersion(versionId: string): Promise<PRDVersionWithCreator | null> {
-        const { data, error } = await supabase
-            .from('prd_versions')
-            .select(`
-        *,
-        creator:profiles(id, name, email, avatar_url)
-      `)
-            .eq('id', versionId)
-            .single();
-
-        if (error) throw error;
-        return data as unknown as PRDVersionWithCreator;
+        const res = await apiClient.get<PRDVersionWithCreator>(`/prd/versions/${versionId}`);
+        if (res.error) throw new Error(res.error);
+        return res.data || null;
     },
 
     /**
@@ -64,35 +48,13 @@ export const prdVersionService = {
         title: string,
         changeSummary?: string
     ): Promise<PRDVersion> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        // Get next version number
-        const { data: latestVersion } = await supabase
-            .from('prd_versions')
-            .select('version_number')
-            .eq('prd_id', prdId)
-            .order('version_number', { ascending: false })
-            .limit(1)
-            .single();
-
-        const nextVersionNumber = (latestVersion?.version_number || 0) + 1;
-
-        const { data, error } = await supabase
-            .from('prd_versions')
-            .insert({
-                prd_id: prdId,
-                content,
-                title,
-                version_number: nextVersionNumber,
-                created_by: user.id,
-                change_summary: changeSummary || `Version ${nextVersionNumber}`,
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data as PRDVersion;
+        const res = await apiClient.post<PRDVersion>(`/prd/${prdId}/versions`, {
+            content,
+            title,
+            description: changeSummary,
+        });
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 
     /**
@@ -104,16 +66,11 @@ export const prdVersionService = {
         if (!version) throw new Error('Version not found');
 
         // Update the PRD with version content
-        const { error: updateError } = await supabase
-            .from('prd_documents')
-            .update({
-                content: version.content,
-                title: version.title,
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', prdId);
-
-        if (updateError) throw updateError;
+        const updateRes = await apiClient.put(`/prd/${prdId}`, {
+            content: version.content,
+            title: version.title,
+        });
+        if (updateRes.error) throw new Error(updateRes.error);
 
         // Create a new version noting the restore
         await this.createVersion(
@@ -128,14 +85,10 @@ export const prdVersionService = {
      * Get the latest version number for a PRD
      */
     async getLatestVersionNumber(prdId: string): Promise<number> {
-        const { data } = await supabase
-            .from('prd_versions')
-            .select('version_number')
-            .eq('prd_id', prdId)
-            .order('version_number', { ascending: false })
-            .limit(1)
-            .single();
-
-        return data?.version_number || 0;
+        const res = await apiClient.get<PRDVersionWithCreator[]>(`/prd/${prdId}/versions`);
+        if (res.error) throw new Error(res.error);
+        const versions = res.data || [];
+        if (versions.length === 0) return 0;
+        return versions[0].version_number || 0;
     },
 };

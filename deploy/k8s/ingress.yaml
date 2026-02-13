@@ -1,0 +1,52 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lilpm-ingress
+  namespace: lilpm
+  labels:
+    app.kubernetes.io/name: lilpm-ingress
+    app.kubernetes.io/part-of: lilpm
+  annotations:
+    # ---------- AWS ALB Controller ----------
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:<REGION>:<AWS_ACCOUNT_ID>:certificate/<CERTIFICATE_ID>"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+
+    # ---------- Sticky sessions for WebSocket ----------
+    alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=86400
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+spec:
+  rules:
+    - host: lilpm.example.com
+      http:
+        paths:
+          # API server: /api/*
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-server
+                port:
+                  number: 3000
+
+          # Collaboration WebSocket server: /collab/*
+          - path: /collab
+            pathType: Prefix
+            backend:
+              service:
+                name: collab-server
+                port:
+                  number: 3001
+
+          # Frontend SPA: everything else
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

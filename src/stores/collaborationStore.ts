@@ -1,6 +1,8 @@
 import { create } from 'zustand';
-import { supabase } from '@/lib/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+
+// TODO: Migrate to collab-server WebSocket at ws://localhost:3001
+// Realtime collaboration is currently disabled during EKS migration
+// This store maintains the interface but all operations are no-ops
 
 export interface Presence {
   odId: string;
@@ -19,7 +21,7 @@ export interface Presence {
 interface CollaborationStore {
   isConnected: boolean;
   roomId: string | null;
-  channel: RealtimeChannel | null;
+  channel: unknown | null; // TODO: Replace with WebSocket type when migrating to collab-server
   users: Presence[];
   sidebarPresenceUsers: Presence[]; // Separate state for sidebar presence (won't conflict with room users)
   myPresence: Partial<Presence>;
@@ -73,10 +75,9 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   followingUserId: null,
   cursorVisibleTo: JSON.parse(localStorage.getItem('cursorVisibleTo') || '[]'),
 
+  // TODO: Implement WebSocket connection to collab-server at ws://localhost:3001
   joinRoom: async (roomId: string, userInfo: { id: string; name: string; avatarUrl?: string }) => {
-    // Leave existing room first
-    get().leaveRoom();
-
+    // No-op during migration - realtime disabled
     const myPresence: Presence = {
       odId: userInfo.id,
       name: userInfo.name,
@@ -84,102 +85,28 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       color: get().myPresence.color || getRandomColor(),
     };
 
-    // Create Supabase Realtime channel with Presence
-    const channel = supabase.channel(`room:${roomId}`, {
-      config: {
-        presence: {
-          key: userInfo.id,
-        },
-      },
-    });
+    set({ isConnected: false, roomId, myPresence });
 
-    // Handle presence sync
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState<Presence>();
-      const users: Presence[] = [];
-
-      Object.entries(state).forEach(([key, presences]) => {
-        if (key !== userInfo.id && presences.length > 0) {
-          users.push(presences[0] as unknown as Presence);
-        }
-      });
-
-      set({ users });
-    });
-
-    // Handle presence join
-    channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-      if (key !== userInfo.id && newPresences.length > 0) {
-        const presence = newPresences[0] as unknown as Presence;
-        set((state) => ({
-          users: [...state.users.filter((u) => u.odId !== presence.odId), presence],
-        }));
-
-        // Emit join event for toast notification
-        window.dispatchEvent(new CustomEvent('collaboration:user:joined', {
-          detail: { name: presence.name }
-        }));
-      }
-    });
-
-    // Handle presence leave
-    channel.on('presence', { event: 'leave' }, ({ key }) => {
-      const leavingUser = get().users.find(u => u.odId === key);
-      set((state) => ({
-        users: state.users.filter((u) => u.odId !== key),
-      }));
-
-      // Emit leave event for toast notification
-      if (leavingUser) {
-        window.dispatchEvent(new CustomEvent('collaboration:user:left', {
-          detail: { name: leavingUser.name }
-        }));
-      }
-    });
-
-    // Handle broadcast messages (issue updates)
-    channel.on('broadcast', { event: 'issue:update' }, ({ payload }) => {
-      // Emit custom event that issueStore can listen to
-      window.dispatchEvent(new CustomEvent('realtime:issue:update', { detail: payload }));
-    });
-
-    // Handle cursor updates via broadcast
-    channel.on('broadcast', { event: 'cursor:update' }, ({ payload }) => {
-      const { odId, cursor } = payload as { odId: string; cursor: { x: number; y: number } };
-      set((state) => ({
-        users: state.users.map((u) =>
-          u.odId === odId ? { ...u, cursor } : u
-        ),
-      }));
-    });
-
-    // Subscribe to channel
-    await channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        // Track presence
-        await channel.track(myPresence);
-        set({ isConnected: true, roomId, channel, myPresence });
-      }
-    });
+    // TODO: Connect to collab-server WebSocket
+    // const ws = new WebSocket(`ws://localhost:3001/collab/room/${roomId}`);
+    // ws.onmessage = (event) => {
+    //   const message = JSON.parse(event.data);
+    //   // Handle presence sync, join, leave events
+    //   // Handle cursor updates and issue broadcasts
+    // };
   },
 
   leaveRoom: () => {
-    const { channel } = get();
-    if (channel) {
-      channel.untrack();
-      supabase.removeChannel(channel);
-    }
+    // TODO: Disconnect WebSocket when implemented
     set({ isConnected: false, roomId: null, channel: null, users: [] });
   },
 
   updatePresence: (presence: Partial<Presence>) => {
-    const { channel, myPresence } = get();
+    const { myPresence } = get();
     const newPresence = { ...myPresence, ...presence };
     set({ myPresence: newPresence });
 
-    if (channel) {
-      channel.track(newPresence);
-    }
+    // TODO: Send presence update via WebSocket
   },
 
   setFocusedIssue: (issueId: string | null) => {
@@ -199,33 +126,18 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   },
 
   updateCursor: (position: { x: number; y: number }) => {
-    const { channel, myPresence } = get();
-
-    // Use broadcast for cursor (more efficient than presence for high-frequency updates)
-    if (channel) {
-      channel.send({
-        type: 'broadcast',
-        event: 'cursor:update',
-        payload: { odId: myPresence.odId, cursor: position },
-      });
-    }
-
-    // Also update local state
+    // TODO: Send cursor update via WebSocket broadcast
     set((state) => ({
       myPresence: { ...state.myPresence, cursor: position },
     }));
   },
 
   broadcastIssueUpdate: (issueId: string, changes: Record<string, unknown>) => {
-    const { channel, myPresence } = get();
-
-    if (channel) {
-      channel.send({
-        type: 'broadcast',
-        event: 'issue:update',
-        payload: { issueId, changes, updatedBy: myPresence.odId },
-      });
-    }
+    // TODO: Send issue update via WebSocket broadcast
+    // For now, emit local event only
+    window.dispatchEvent(new CustomEvent('realtime:issue:update', {
+      detail: { issueId, changes, updatedBy: get().myPresence.odId }
+    }));
   },
 
   // Follow mode - Figma-style "follow" another user's viewport
@@ -251,18 +163,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   },
 
   updateTextCursor: (position: { line: number; column: number; selection?: string }) => {
-    const { channel, myPresence } = get();
-
-    // Broadcast text cursor position
-    if (channel) {
-      channel.send({
-        type: 'broadcast',
-        event: 'textCursor:update',
-        payload: { odId: myPresence.odId, textCursor: position },
-      });
-    }
-
-    // Update local presence
+    // TODO: Send text cursor update via WebSocket broadcast
     get().updatePresence({ textCursor: position });
   },
 

@@ -11,6 +11,17 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/collab": {
+        target: "ws://localhost:3001",
+        ws: true,
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [tailwindcss(), react()],
   resolve: {

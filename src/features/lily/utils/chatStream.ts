@@ -1,10 +1,9 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient, API_BASE_URL } from '@/lib/api/client';
 import type { AIProvider } from '@/types';
 import type { MCPConnector } from '@/types/mcp';
 
-// Fallback to hardcoded URL if env var is undefined
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
-const CHAT_URL = `${SUPABASE_URL}/functions/v1/lily-chat`;
+// API endpoint for lily-chat
+const CHAT_ENDPOINT = '/lily-chat';
 
 // File attachment type for API
 export interface FileAttachment {
@@ -41,8 +40,6 @@ export async function streamChat({
     onError,
     signal,
 }: StreamChatOptions) {
-    const { data: { session } } = await supabase.auth.getSession();
-
     // Prepare active MCP tools info for the AI
     const activeMcpTools = mcpConnectors?.filter(c => c.enabled).map(c => ({
         name: c.name,
@@ -60,11 +57,11 @@ export async function streamChat({
         category: f.category,
     }));
 
-    const resp = await fetch(CHAT_URL, {
+    // Use apiClient.fetchRaw for SSE streaming with automatic auth handling
+    const resp = await apiClient.fetchRaw(CHAT_ENDPOINT, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
             messages,
@@ -180,4 +177,4 @@ export async function streamChat({
     onDone(fullContent);
 }
 
-export { CHAT_URL };
+export { CHAT_ENDPOINT, API_BASE_URL };

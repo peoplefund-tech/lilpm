@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lilpm
+  labels:
+    app.kubernetes.io/part-of: lilpm
+    app.kubernetes.io/managed-by: kubectl

@@ -1,12 +1,9 @@
 /**
  * MCP (Model Context Protocol) utilities for Lily AI chat
  */
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { MCPConnector } from '@/types/mcp';
 import type { Issue } from '@/types';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const MCP_PROXY_URL = `${SUPABASE_URL}/functions/v1/mcp-proxy`;
 
 /**
  * MCP Tool Call structure
@@ -97,7 +94,7 @@ export function extractMCPConfig(connector: MCPConnector): { endpoint: string; a
 }
 
 /**
- * Call MCP server through Edge Function proxy (avoids CORS)
+ * Call MCP server through API proxy (avoids CORS)
  */
 export async function callMCPServer(
     connector: MCPConnector,
@@ -113,25 +110,23 @@ export async function callMCPServer(
 
         console.log('[MCP] Calling via proxy:', endpoint, action);
 
-        // Get auth token for Edge Function
-        const { data: { session } } = await supabase.auth.getSession();
-
-        // Call through Edge Function proxy to avoid CORS
-        const response = await fetch(MCP_PROXY_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-            },
-            body: JSON.stringify({
-                endpoint,
-                apiKey,
-                action,
-                params,
-            }),
+        // Call through API proxy to avoid CORS
+        const res = await apiClient.post<{ success: boolean; data?: unknown; error?: string; attempts?: unknown }>('/mcp-proxy', {
+            endpoint,
+            apiKey,
+            action,
+            params,
         });
 
-        const result = await response.json();
+        if (res.error) {
+            console.error('[MCP] Call failed:', res.error);
+            return {
+                success: false,
+                error: res.error,
+            };
+        }
+
+        const result = res.data;
         console.log('[MCP] Proxy response:', result);
 
         if (result.success) {

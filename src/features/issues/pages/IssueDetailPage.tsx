@@ -21,7 +21,6 @@ import { useIssueFocus, useRealtimeIssueUpdates } from '@/hooks/useRealtimeColla
 import { useSupabaseCollaboration } from '@/hooks/collaboration/useSupabaseCollaboration';
 import { useCloudflareCollaboration } from '@/hooks/collaboration/useCloudflareCollaboration';
 import type { RemoteCursor } from '@/hooks/collaboration/useCloudflareCollaboration';
-import { supabase } from '@/lib/supabase';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { Button } from '@/components/ui/button';
@@ -475,11 +474,7 @@ export function IssueDetailPage() {
   const handleArchive = async () => {
     if (!issue) return;
     try {
-      const { error } = await supabase.rpc('archive_item', {
-        p_item_type: 'issue',
-        p_item_id: issue.id,
-      });
-      if (error) throw error;
+      await issueService.archiveIssue(issue.id);
       toast.success(t('issues.archived', 'Issue archived'));
       navigate('/issues');
     } catch (error) {

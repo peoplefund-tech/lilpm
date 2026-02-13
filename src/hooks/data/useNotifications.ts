@@ -1,11 +1,12 @@
 /**
  * React Query hooks for notifications
  * Provides caching, automatic refetching, and optimistic updates
+ * Migrated from Supabase to apiClient via notificationService
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './useQueryKeys';
-import { supabase } from '@/lib/supabase';
+import { notificationService, type Notification } from '@/lib/services/notificationService';
 
 export interface NotificationRow {
   id: string;
@@ -18,29 +19,32 @@ export interface NotificationRow {
   created_at: string;
 }
 
-/** Fetch notifications from Supabase notifications table */
+/** Fetch notifications from API via notificationService */
 async function fetchNotifications(userId: string): Promise<NotificationRow[]> {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50);
+  const response = await notificationService.getNotifications(userId, {
+    limit: 50,
+  });
 
-  if (error) throw error;
-  return (data || []) as NotificationRow[];
+  return response.notifications.map((n: Notification) => ({
+    id: n.id,
+    user_id: n.user_id,
+    type: n.type,
+    title: n.title,
+    message: n.body,
+    data: n.data,
+    read: n.read,
+    created_at: n.created_at,
+  }));
 }
 
 /** Fetch unread count only (lightweight query) */
 async function fetchUnreadCount(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('read', false);
+  const response = await notificationService.getNotifications(userId, {
+    unreadOnly: true,
+    limit: 1,
+  });
 
-  if (error) throw error;
-  return count || 0;
+  return response.unreadCount;
 }
 
 /**
@@ -80,11 +84,7 @@ export function useMarkNotificationRead() {
 
   return useMutation({
     mutationFn: async ({ notificationId, userId }: { notificationId: string; userId: string }) => {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-      if (error) throw error;
+      await notificationService.markAsRead(notificationId);
     },
     onMutate: async ({ notificationId, userId }) => {
       // Cancel outgoing refetches
@@ -138,12 +138,7 @@ export function useMarkAllNotificationsRead() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', userId)
-        .eq('read', false);
-      if (error) throw error;
+      await notificationService.markAllAsRead();
     },
     onMutate: async (userId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notifications.all(userId) });

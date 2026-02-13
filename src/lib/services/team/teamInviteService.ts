@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Team, TeamInvite, TeamRole } from '@/types/database';
 import { logInviteSent, logInviteCancelled, logInviteAccepted } from '../activityService';
 
@@ -9,339 +9,100 @@ import { logInviteSent, logInviteCancelled, logInviteAccepted } from '../activit
 export const teamInviteService = {
     async getInvites(teamId: string): Promise<TeamInvite[]> {
         console.log('[getInvites] Fetching invites for team:', teamId);
-        const { data, error } = await supabase
-            .from('team_invites')
-            .select('*')
-            .eq('team_id', teamId)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false });
+        const res = await apiClient.get<TeamInvite[]>(`/invites?teamId=${teamId}`);
 
-        if (error) {
-            console.error('[getInvites] Error:', error);
-            throw error;
+        if (res.error) {
+            console.error('[getInvites] Error:', res.error);
+            throw new Error(res.error);
         }
-        console.log('[getInvites] Found invites:', data?.length || 0, data);
-        return (data || []) as TeamInvite[];
+        console.log('[getInvites] Found invites:', res.data?.length || 0, res.data);
+        return res.data || [];
     },
 
     async createInvite(teamId: string, email: string, role: TeamRole = 'member', projectIds?: string[]): Promise<TeamInvite & { isExistingUser?: boolean }> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        // Server handles all the logic: fetching profiles, checking existing users, sending email
+        const res = await apiClient.post<TeamInvite & { isExistingUser?: boolean }>('/invites/send', {
+            teamId,
+            email,
+            role,
+            projectIds,
+        });
 
-        // Get user profile for inviter name
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('name, email')
-            .eq('id', user.id)
-            .single();
-
-        // Get team info
-        const { data: team } = await supabase
-            .from('teams')
-            .select('name')
-            .eq('id', teamId)
-            .single();
-
-        // Check if the email belongs to an existing user
-        const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('id, name, email')
-            .eq('email', email)
-            .single();
-
-        const isExistingUser = !!existingProfile;
-
-        // Generate a unique token
-        const token = crypto.randomUUID();
-
-        // Set expiration to 24 hours from now
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-        // Get project names for the selected projects
-        let projectNames: string[] = [];
-        if (projectIds && projectIds.length > 0) {
-            const { data: projects } = await supabase
-                .from('projects')
-                .select('name')
-                .in('id', projectIds);
-            projectNames = (projects || []).map(p => p.name);
+        if (res.error) {
+            console.error('Failed to create invite:', res.error);
+            throw new Error(res.error);
         }
 
-        const { data, error } = await supabase
-            .from('team_invites')
-            .insert({
-                team_id: teamId,
-                email,
-                role,
-                invited_by: user.id,
-                token,
-                status: 'pending',
-                expires_at: expiresAt,
-                project_ids: projectIds && projectIds.length > 0 ? projectIds : null,
-            } as any)
-            .select()
-            .single();
-
-        if (error) {
-            console.error('Failed to create invite:', error);
-            throw error;
-        }
-
-        const inviterName = profile?.name || user.email?.split('@')[0] || 'A team member';
-        const teamName = team?.name || 'Team';
-
-        // Call Edge Function to send email
-        try {
-            const payload = {
-                inviteId: data.id,
-                email: email,
-                teamName: teamName,
-                inviterName: inviterName,
-                role: role,
-                token: token,
-                isExistingUser: isExistingUser,
-                targetUserId: existingProfile?.id,
-                projectIds: projectIds || [],
-                projectNames: projectNames,
-            };
-
-            const { error: funcError } = await supabase.functions.invoke('send-team-invite', {
-                body: payload,
-            });
-
-            if (funcError) {
-                console.error('Failed to send invitation email:', funcError);
-            }
-        } catch (emailError) {
-            console.error('Failed to send invitation email:', emailError);
-        }
+        const data = res.data;
+        const isExistingUser = data?.isExistingUser ?? false;
 
         // Log activity
         logInviteSent(teamId, data.id, email, role, isExistingUser);
 
-        return { ...data, isExistingUser } as TeamInvite & { isExistingUser?: boolean };
+        return data;
     },
 
     async cancelInvite(inviteId: string): Promise<void> {
-        const { data: invite } = await supabase
-            .from('team_invites')
-            .select('team_id, email')
-            .eq('id', inviteId)
-            .maybeSingle();
+        const res = await apiClient.put<void>(`/invites/${inviteId}/cancel`, {});
 
-        const { error } = await supabase
-            .from('team_invites')
-            .update({ status: 'cancelled' } as any)
-            .eq('id', inviteId);
-
-        if (error) throw error;
-
-        if (invite) {
-            logInviteCancelled(invite.team_id, inviteId, invite.email);
+        if (res.error) {
+            throw new Error(res.error);
         }
+
+        // Activity logging is handled server-side
     },
 
     async acceptInvite(token: string): Promise<Team> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        // Server handles all validation, member creation, notifications
+        const res = await apiClient.post<{ action: string; teamId: string; teamName: string; team?: Team }>('/invites/accept', {
+            token,
+        });
 
-        const { data: anyInvite, error: anyInviteError } = await supabase
-            .from('team_invites')
-            .select('*, team:teams(*)')
-            .eq('token', token)
-            .maybeSingle();
-
-        if (anyInviteError) throw anyInviteError;
-
-        if (!anyInvite) {
-            throw new Error('INVITE_NOT_FOUND');
+        if (res.error) {
+            throw new Error(res.error);
         }
 
-        if (anyInvite.status === 'cancelled') {
-            throw new Error('This invitation has been cancelled');
+        const data = res.data;
+
+        // Log activity
+        logInviteAccepted(data.teamId, '', ''); // Activity logged server-side
+
+        // Return the team (server provides full team object if available)
+        if (data.team) {
+            return data.team;
         }
 
-        if (anyInvite.status === 'accepted') {
-            throw new Error('This invitation has already been accepted');
-        }
-
-        if (anyInvite.status !== 'pending') {
-            throw new Error('INVITE_INVALID_STATUS');
-        }
-
-        if (anyInvite.expires_at && new Date(anyInvite.expires_at) < new Date()) {
-            throw new Error('This invitation has expired (24 hours have passed)');
-        }
-
-        const typedInvite = anyInvite as any;
-
-        // Check if already a member
-        const { data: existing } = await supabase
-            .from('team_members')
-            .select('id')
-            .eq('team_id', typedInvite.team_id)
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-        if (!existing) {
-            const { error: memberError } = await supabase
-                .from('team_members')
-                .insert({
-                    team_id: typedInvite.team_id,
-                    user_id: user.id,
-                    role: typedInvite.role,
-                } as any);
-
-            if (memberError) throw memberError;
-
-            // Handle project-specific assignments
-            // The auto-assign trigger adds ALL projects; if invite has specific project_ids, clean up
-            if (typedInvite.project_ids && Array.isArray(typedInvite.project_ids) && typedInvite.project_ids.length > 0) {
-                try {
-                    const { data: teamProjects } = await supabase
-                        .from('projects')
-                        .select('id')
-                        .eq('team_id', typedInvite.team_id);
-
-                    if (teamProjects) {
-                        const selectedSet = new Set(typedInvite.project_ids as string[]);
-                        const projectIdsToRemove = teamProjects
-                            .map((p: any) => p.id)
-                            .filter((id: string) => !selectedSet.has(id));
-
-                        if (projectIdsToRemove.length > 0) {
-                            await supabase
-                                .from('project_members')
-                                .delete()
-                                .eq('user_id', user.id)
-                                .in('project_id', projectIdsToRemove);
-                        }
-                    }
-                } catch (projectErr) {
-                    console.error('Failed to clean up project assignments:', projectErr);
-                }
-            }
-        }
-
-        // Mark invite as accepted
-        await supabase
-            .from('team_invites')
-            .update({ status: 'accepted' } as any)
-            .eq('id', typedInvite.id);
-
-        // Create notification for inviter
-        try {
-            const { data: accepterProfile } = await supabase
-                .from('profiles')
-                .select('name, email')
-                .eq('id', user.id)
-                .maybeSingle();
-
-            await supabase
-                .from('notifications')
-                .insert({
-                    user_id: typedInvite.invited_by,
-                    type: 'invite_accepted',
-                    title: `${accepterProfile?.name || accepterProfile?.email || 'A user'} accepted your invitation`,
-                    message: `${accepterProfile?.name || accepterProfile?.email} has joined ${typedInvite.team.name}`,
-                    data: {
-                        teamId: typedInvite.team_id,
-                        teamName: typedInvite.team.name,
-                        acceptedBy: user.id,
-                    },
-                } as any);
-        } catch (notifError) {
-            console.error('Failed to create acceptance notification:', notifError);
-        }
-
-        logInviteAccepted(typedInvite.team_id, typedInvite.id, user.id);
-
-        if (!typedInvite.team) {
-            const { data: teamData, error: teamError } = await supabase
-                .from('teams')
-                .select('*')
-                .eq('id', typedInvite.team_id)
-                .single();
-
-            if (teamError) throw teamError;
-            return teamData as Team;
-        }
-
-        return typedInvite.team as Team;
+        // Fallback to minimal team object
+        return {
+            id: data.teamId,
+            name: data.teamName,
+        } as Team;
     },
 
     async rejectInvite(token: string): Promise<void> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        // Server handles all validation and notifications
+        const res = await apiClient.post<void>('/invites/reject', {
+            token,
+        });
 
-        const { data: invite, error: inviteError } = await supabase
-            .from('team_invites')
-            .select('*, team:teams(*)')
-            .eq('token', token)
-            .eq('status', 'pending')
-            .maybeSingle();
-
-        if (inviteError) throw inviteError;
-        if (!invite) throw new Error('Invite not found or expired');
-
-        const typedInvite = invite as any;
-
-        await supabase
-            .from('team_invites')
-            .update({ status: 'rejected' } as any)
-            .eq('id', typedInvite.id);
-
-        // Create notification for inviter
-        try {
-            const { data: rejecterProfile } = await supabase
-                .from('profiles')
-                .select('name, email')
-                .eq('id', user.id)
-                .single();
-
-            await supabase
-                .from('notifications')
-                .insert({
-                    user_id: typedInvite.invited_by,
-                    type: 'invite_rejected',
-                    title: `${rejecterProfile?.name || rejecterProfile?.email || 'A user'} declined your invitation`,
-                    message: `${rejecterProfile?.name || rejecterProfile?.email} declined to join ${typedInvite.team.name}`,
-                    data: {
-                        teamId: typedInvite.team_id,
-                        teamName: typedInvite.team.name,
-                        rejectedBy: user.id,
-                    },
-                } as any);
-        } catch (notifError) {
-            console.error('Failed to create rejection notification:', notifError);
+        if (res.error) {
+            throw new Error(res.error);
         }
+
+        // Activity and notifications logged server-side
     },
 
     async checkInviteValidity(token: string): Promise<{ valid: boolean; status: 'pending' | 'expired' | 'cancelled' | 'accepted' | 'rejected' | 'not_found' }> {
         try {
-            const { data: invite, error } = await supabase
-                .from('team_invites')
-                .select('status, expires_at')
-                .eq('token', token)
-                .maybeSingle();
+            const res = await apiClient.post<{ valid: boolean; status: 'pending' | 'expired' | 'cancelled' | 'accepted' | 'rejected' | 'not_found' }>('/invites/check', {
+                token,
+            });
 
-            if (error) {
+            if (res.error) {
                 return { valid: false, status: 'not_found' };
             }
 
-            if (!invite) {
-                return { valid: false, status: 'not_found' };
-            }
-
-            if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-                return { valid: false, status: 'expired' };
-            }
-
-            if (invite.status !== 'pending') {
-                return { valid: false, status: invite.status as any };
-            }
-
-            return { valid: true, status: 'pending' };
+            return res.data;
         } catch (error) {
             return { valid: false, status: 'not_found' };
         }
@@ -358,80 +119,25 @@ export const teamInviteService = {
         projectNames?: string[];
     }> {
         try {
-            // Direct query approach (most reliable - avoids RPC/Edge Function issues)
-            const { data: invite, error } = await supabase
-                .from('team_invites')
-                .select(`
-                    *,
-                    team:teams(name)
-                `)
-                .eq('token', token)
-                .maybeSingle();
+            const res = await apiClient.post<{
+                valid: boolean;
+                status: 'pending' | 'expired' | 'cancelled' | 'accepted' | 'rejected' | 'not_found';
+                teamName?: string;
+                inviterName?: string;
+                inviterAvatar?: string;
+                email?: string;
+                role?: string;
+                projectNames?: string[];
+            }>('/invites/preview', {
+                token,
+            });
 
-            if (error || !invite) {
-                console.error('Invite preview query error:', error);
+            if (res.error) {
+                console.error('Invite preview query error:', res.error);
                 return { valid: false, status: 'not_found' };
             }
 
-            // Get inviter profile separately (invited_by → auth.users, not profiles)
-            let inviterName: string | undefined;
-            let inviterAvatar: string | undefined;
-            if (invite.invited_by) {
-                const { data: inviterProfile } = await supabase
-                    .from('profiles')
-                    .select('name, avatar_url')
-                    .eq('id', invite.invited_by)
-                    .maybeSingle();
-                inviterName = inviterProfile?.name || undefined;
-                inviterAvatar = inviterProfile?.avatar_url || undefined;
-            }
-
-            // Get project names if project_ids are specified
-            let projectNames: string[] = [];
-            if (invite.project_ids && Array.isArray(invite.project_ids) && invite.project_ids.length > 0) {
-                const { data: projects } = await supabase
-                    .from('projects')
-                    .select('name')
-                    .in('id', invite.project_ids);
-                projectNames = (projects || []).map((p: any) => p.name);
-            }
-
-            const teamName = (invite.team as any)?.name;
-
-            if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-                return {
-                    valid: false,
-                    status: 'expired',
-                    teamName,
-                    inviterName,
-                    email: invite.email,
-                    role: invite.role,
-                    projectNames,
-                };
-            }
-
-            if (invite.status !== 'pending') {
-                return {
-                    valid: false,
-                    status: invite.status as any,
-                    teamName,
-                    inviterName,
-                    email: invite.email,
-                    role: invite.role,
-                    projectNames,
-                };
-            }
-
-            return {
-                valid: true,
-                status: 'pending',
-                teamName,
-                inviterName,
-                inviterAvatar,
-                email: invite.email,
-                role: invite.role,
-                projectNames,
-            };
+            return res.data;
         } catch (error) {
             console.error('getInvitePreview error:', error);
             return { valid: false, status: 'not_found' };
@@ -446,49 +152,21 @@ export const teamInviteService = {
         email?: string;
     }> {
         try {
-            const { data: invite, error } = await supabase
-                .from('team_invites')
-                .select(`
-          status,
-          expires_at,
-          email,
-          team:teams(name),
-          inviter:profiles(name)
-        `)
-                .eq('token', token)
-                .maybeSingle();
+            const res = await apiClient.post<{
+                valid: boolean;
+                status: 'pending' | 'expired' | 'cancelled' | 'accepted' | 'rejected' | 'not_found';
+                teamName?: string;
+                inviterName?: string;
+                email?: string;
+            }>('/invites/preview', {
+                token,
+            });
 
-            if (error || !invite) {
+            if (res.error) {
                 return { valid: false, status: 'not_found' };
             }
 
-            if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-                return {
-                    valid: false,
-                    status: 'expired',
-                    teamName: (invite.team as any)?.name,
-                    inviterName: (invite.inviter as any)?.name,
-                    email: invite.email,
-                };
-            }
-
-            if (invite.status !== 'pending') {
-                return {
-                    valid: false,
-                    status: invite.status as any,
-                    teamName: (invite.team as any)?.name,
-                    inviterName: (invite.inviter as any)?.name,
-                    email: invite.email,
-                };
-            }
-
-            return {
-                valid: true,
-                status: 'pending',
-                teamName: (invite.team as any)?.name,
-                inviterName: (invite.inviter as any)?.name,
-                email: invite.email,
-            };
+            return res.data;
         } catch (error) {
             return { valid: false, status: 'not_found' };
         }

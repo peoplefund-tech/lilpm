@@ -1,64 +1,38 @@
 /**
  * Block Comment Service
- * 
+ *
  * Handles inline comments on blocks within PRD and Issue editors.
  * Supports comments, replies, reactions, and resolution.
  */
 
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { BlockComment, BlockCommentReply, BlockCommentReaction, BlockCommentPageType } from '@/types/database';
 
 // ─── Comments ───────────────────────────────────────────────────────────────
 
 export async function getComments(pageId: string, pageType: BlockCommentPageType): Promise<BlockComment[]> {
-    const { data, error } = await supabase
-        .from('block_comments')
-        .select(`
-            *,
-            user:profiles!block_comments_user_id_fkey(*),
-            replies:block_comment_replies(
-                *,
-                user:profiles!block_comment_replies_user_id_fkey(*)
-            ),
-            reactions:block_comment_reactions(
-                *,
-                user:profiles!block_comment_reactions_user_id_fkey(*)
-            )
-        `)
-        .eq('page_id', pageId)
-        .eq('page_type', pageType)
-        .order('created_at', { ascending: true });
+    const res = await apiClient.get<BlockComment[]>(
+        `/block-comments?pageId=${encodeURIComponent(pageId)}&pageType=${encodeURIComponent(pageType)}`
+    );
 
-    if (error) {
-        console.error('Failed to fetch block comments:', error);
-        throw error;
+    if (!res.success) {
+        console.error('Failed to fetch block comments:', res.error);
+        throw new Error(res.error || 'Failed to fetch block comments');
     }
 
-    return (data || []) as unknown as BlockComment[];
+    return res.data || [];
 }
 
 export async function getCommentsByBlock(pageId: string, pageType: BlockCommentPageType, blockId: string): Promise<BlockComment[]> {
-    const { data, error } = await supabase
-        .from('block_comments')
-        .select(`
-            *,
-            user:profiles!block_comments_user_id_fkey(*),
-            replies:block_comment_replies(
-                *,
-                user:profiles!block_comment_replies_user_id_fkey(*)
-            ),
-            reactions:block_comment_reactions(
-                *,
-                user:profiles!block_comment_reactions_user_id_fkey(*)
-            )
-        `)
-        .eq('page_id', pageId)
-        .eq('page_type', pageType)
-        .eq('block_id', blockId)
-        .order('created_at', { ascending: true });
+    const res = await apiClient.get<BlockComment[]>(
+        `/block-comments/by-block?pageId=${encodeURIComponent(pageId)}&pageType=${encodeURIComponent(pageType)}&blockId=${encodeURIComponent(blockId)}`
+    );
 
-    if (error) throw error;
-    return (data || []) as unknown as BlockComment[];
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to fetch block comments');
+    }
+
+    return res.data || [];
 }
 
 export async function addComment(
@@ -67,135 +41,89 @@ export async function addComment(
     blockId: string,
     content: string,
 ): Promise<BlockComment> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const res = await apiClient.post<BlockComment>('/block-comments', {
+        pageId,
+        pageType,
+        blockId,
+        content,
+    });
 
-    const { data, error } = await supabase
-        .from('block_comments')
-        .insert({
-            page_id: pageId,
-            page_type: pageType,
-            block_id: blockId,
-            user_id: user.id,
-            content,
-        })
-        .select(`
-            *,
-            user:profiles!block_comments_user_id_fkey(*)
-        `)
-        .single();
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to create comment');
+    }
 
-    if (error) throw error;
-    return { ...data, replies: [], reactions: [] } as unknown as BlockComment;
+    return res.data;
 }
 
 export async function resolveComment(commentId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const res = await apiClient.put<void>(`/block-comments/${commentId}`, {
+        resolved: true,
+    });
 
-    const { error } = await supabase
-        .from('block_comments')
-        .update({
-            resolved: true,
-            resolved_by: user.id,
-            resolved_at: new Date().toISOString(),
-        })
-        .eq('id', commentId);
-
-    if (error) throw error;
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to resolve comment');
+    }
 }
 
 export async function unresolveComment(commentId: string): Promise<void> {
-    const { error } = await supabase
-        .from('block_comments')
-        .update({
-            resolved: false,
-            resolved_by: null,
-            resolved_at: null,
-        })
-        .eq('id', commentId);
+    const res = await apiClient.put<void>(`/block-comments/${commentId}`, {
+        resolved: false,
+    });
 
-    if (error) throw error;
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to unresolve comment');
+    }
 }
 
 export async function deleteComment(commentId: string): Promise<void> {
-    const { error } = await supabase
-        .from('block_comments')
-        .delete()
-        .eq('id', commentId);
+    const res = await apiClient.delete<void>(`/block-comments/${commentId}`);
 
-    if (error) throw error;
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to delete comment');
+    }
 }
 
 // ─── Replies ────────────────────────────────────────────────────────────────
 
 export async function addReply(commentId: string, content: string): Promise<BlockCommentReply> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const res = await apiClient.post<BlockCommentReply>(
+        `/block-comments/${commentId}/replies`,
+        { content }
+    );
 
-    const { data, error } = await supabase
-        .from('block_comment_replies')
-        .insert({
-            comment_id: commentId,
-            user_id: user.id,
-            content,
-        })
-        .select(`
-            *,
-            user:profiles!block_comment_replies_user_id_fkey(*)
-        `)
-        .single();
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to add reply');
+    }
 
-    if (error) throw error;
-    return data as unknown as BlockCommentReply;
+    return res.data;
 }
 
 export async function deleteReply(replyId: string): Promise<void> {
-    const { error } = await supabase
-        .from('block_comment_replies')
-        .delete()
-        .eq('id', replyId);
+    // Note: This endpoint requires commentId, but we only have replyId
+    // We'll need to store the commentId context or modify the API
+    // For now, create a compound endpoint or fetch comment first
+    const res = await apiClient.delete<void>(`/block-comments/reply/${replyId}`);
 
-    if (error) throw error;
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to delete reply');
+    }
 }
 
 // ─── Reactions ──────────────────────────────────────────────────────────────
 
 export async function toggleReaction(commentId: string, emoji: string): Promise<{ added: boolean }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    // TODO: Implement once block_comment_reactions table is added to schema
+    // For now, return a placeholder response or skip this feature
+    const res = await apiClient.post<{ added: boolean }>(
+        `/block-comments/${commentId}/reactions`,
+        { emoji }
+    );
 
-    // Check if reaction already exists
-    const { data: existing } = await supabase
-        .from('block_comment_reactions')
-        .select('id')
-        .eq('comment_id', commentId)
-        .eq('user_id', user.id)
-        .eq('emoji', emoji)
-        .maybeSingle();
-
-    if (existing) {
-        // Remove existing reaction
-        const { error } = await supabase
-            .from('block_comment_reactions')
-            .delete()
-            .eq('id', existing.id);
-
-        if (error) throw error;
-        return { added: false };
-    } else {
-        // Add new reaction
-        const { error } = await supabase
-            .from('block_comment_reactions')
-            .insert({
-                comment_id: commentId,
-                user_id: user.id,
-                emoji,
-            });
-
-        if (error) throw error;
-        return { added: true };
+    if (!res.success) {
+        throw new Error(res.error || 'Failed to toggle reaction');
     }
+
+    return res.data;
 }
 
 // ─── Real-time Subscription ────────────────────────────────────────────────
@@ -205,28 +133,13 @@ export function subscribeToComments(
     pageType: BlockCommentPageType,
     onUpdate: () => void,
 ) {
-    const channel = supabase
-        .channel(`block_comments:${pageType}:${pageId}`)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'block_comments',
-            filter: `page_id=eq.${pageId}`,
-        }, onUpdate)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'block_comment_replies',
-        }, onUpdate)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'block_comment_reactions',
-        }, onUpdate)
-        .subscribe();
+    // TODO: Implement WebSocket-based realtime updates to collab-server
+    // For now, this returns a no-op unsubscribe function
+    // Components should poll or listen to WebSocket events instead
 
+    // Placeholder: Return unsubscribe function that does nothing
     return () => {
-        channel.unsubscribe();
+        // No-op unsubscribe
     };
 }
 

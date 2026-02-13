@@ -1,27 +1,17 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Project, ProjectStatus } from '@/types/database';
 
 export const projectService = {
   async getProjects(teamId: string): Promise<Project[]> {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('team_id', teamId)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return (data || []) as Project[];
+    const res = await apiClient.get<Project[]>(`/${teamId}/projects`);
+    if (res.error) throw new Error(res.error);
+    return res.data || [];
   },
 
   async getProject(projectId: string): Promise<Project | null> {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .single();
-    
-    if (error) throw error;
-    return data as Project | null;
+    const res = await apiClient.get<Project>(`/projects/${projectId}`);
+    if (res.error) throw new Error(res.error);
+    return res.data || null;
   },
 
   async createProject(
@@ -38,46 +28,32 @@ export const projectService = {
     }
   ): Promise<Project> {
     const slug = projectData.slug || projectData.name.toLowerCase().replace(/\s+/g, '-');
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .insert({
-        team_id: teamId,
-        name: projectData.name,
-        slug,
-        description: projectData.description,
-        color: projectData.color || '#6366F1',
-        icon: projectData.icon,
-        lead_id: projectData.lead_id,
-        start_date: projectData.start_date,
-        target_date: projectData.target_date,
-        status: 'planned' as ProjectStatus,
-      } as any)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Project;
+
+    const payload = {
+      name: projectData.name,
+      slug,
+      description: projectData.description,
+      color: projectData.color || '#6366F1',
+      icon: projectData.icon,
+      leadId: projectData.lead_id,
+      startDate: projectData.start_date,
+      targetDate: projectData.target_date,
+      status: 'planned' as ProjectStatus,
+    };
+
+    const res = await apiClient.post<Project>(`/${teamId}/projects`, payload);
+    if (res.error) throw new Error(res.error);
+    return res.data;
   },
 
   async updateProject(projectId: string, updates: Partial<Project>): Promise<Project> {
-    const { data, error } = await supabase
-      .from('projects')
-      .update(updates as any)
-      .eq('id', projectId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Project;
+    const res = await apiClient.put<Project>(`/projects/${projectId}`, updates);
+    if (res.error) throw new Error(res.error);
+    return res.data;
   },
 
   async deleteProject(projectId: string): Promise<void> {
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', projectId);
-    
-    if (error) throw error;
+    const res = await apiClient.delete<void>(`/projects/${projectId}`);
+    if (res.error) throw new Error(res.error);
   },
 };

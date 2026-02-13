@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 
 interface AuthState {
   user: User | null;
@@ -19,92 +19,93 @@ interface AuthStore extends AuthState {
   resendVerificationEmail: () => Promise<void>;
 }
 
-const mapSupabaseUser = (supabaseUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown>; created_at?: string }): User => ({
-  id: supabaseUser.id,
-  email: supabaseUser.email || '',
-  name: (supabaseUser.user_metadata?.name as string) || supabaseUser.email?.split('@')[0] || '',
-  avatarUrl: supabaseUser.user_metadata?.avatar_url as string | undefined,
-  role: 'member',
-  createdAt: supabaseUser.created_at || new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-});
-
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
-      // Start as false - the persist middleware will hydrate user/isAuthenticated from localStorage
-      // synchronously. loadUser() will verify the session in the background.
-      // This prevents the "black screen" flash caused by showing spinners while
-      // we already have valid cached auth state.
+      // Start as false - the persist middleware will hydrate user/isAuthenticated
+      // from localStorage synchronously. loadUser() verifies in the background.
       isLoading: false,
       isEmailVerified: false,
 
       login: async (email: string, password: string) => {
         set({ isLoading: true });
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const result = await apiClient.post<{
+          user: { id: string; email: string; emailVerified: boolean; name: string; avatarUrl?: string };
+          accessToken: string;
+          refreshToken: string;
+        }>('/auth/login', { email, password });
 
-        if (error) {
+        if (!result.success) {
           set({ isLoading: false });
-          throw new Error(error.message);
+          throw new Error(result.error || 'Login failed');
         }
 
-        if (data.user) {
-          const emailVerified = !!data.user.email_confirmed_at;
-          set({
-            user: mapSupabaseUser(data.user),
-            isAuthenticated: true,
-            isLoading: false,
-            isEmailVerified: emailVerified,
-          });
-        }
+        const { user: userData, accessToken, refreshToken } = result.data;
+        apiClient.setTokens(accessToken, refreshToken);
+
+        set({
+          user: {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name || userData.email.split('@')[0],
+            avatarUrl: userData.avatarUrl,
+            role: 'member',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          isAuthenticated: true,
+          isLoading: false,
+          isEmailVerified: userData.emailVerified,
+        });
       },
 
-      signup: async (email: string, password: string, name: string, returnUrl?: string, isInvite?: boolean) => {
+      signup: async (email: string, password: string, name: string, _returnUrl?: string, isInvite?: boolean) => {
         set({ isLoading: true });
 
-        // Use environment variable for production URL, fallback to current origin
-        const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-        // If returnUrl provided (invite flow), use it. Otherwise default to team creation.
-        const redirectUrl = returnUrl
-          ? `${siteUrl}${returnUrl}`
-          : `${siteUrl}/onboarding/create-team`;
+        const result = await apiClient.post<{
+          user: { id: string; email: string };
+          accessToken: string;
+          refreshToken: string;
+        }>('/auth/signup', { email, password, name });
 
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name },
-            emailRedirectTo: redirectUrl,
-          },
-        });
-
-        if (error) {
+        if (!result.success) {
           set({ isLoading: false });
-          throw new Error(error.message);
+          throw new Error(result.error || 'Signup failed');
         }
 
-        if (data.user) {
-          const user = mapSupabaseUser(data.user);
-          user.name = name;
+        const { user: userData, accessToken, refreshToken } = result.data;
+        apiClient.setTokens(accessToken, refreshToken);
+
+        set({
+          user: {
+            id: userData.id,
+            email: userData.email,
+            name,
+            role: 'member',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          isAuthenticated: true,
+          isLoading: false,
           // Invite signups are considered email-verified (they clicked the invite email)
-          // Regular signups need email verification
-          set({
-            user,
-            isAuthenticated: true,
-            isLoading: false,
-            isEmailVerified: isInvite ? true : false,
-          });
-        }
+          isEmailVerified: isInvite ? true : false,
+        });
       },
 
       logout: async () => {
-        await supabase.auth.signOut();
+        try {
+          await apiClient.post('/auth/logout', {
+            refreshToken: localStorage.getItem('auth_refresh_token'),
+          });
+        } catch {
+          // ignore logout API errors
+        }
+
+        apiClient.setTokens(null, null);
+
         set({
           user: null,
           isAuthenticated: false,
@@ -115,78 +116,53 @@ export const useAuthStore = create<AuthStore>()(
 
       loadUser: async () => {
         // Only show loading spinner if we don't have a cached user session.
-        // If we have a persisted session, trust it temporarily and verify in background.
         const currentState = get();
         if (!currentState.isAuthenticated) {
           set({ isLoading: true });
         }
 
+        // If no token stored, nothing to load
+        const token = apiClient.getAccessToken();
+        if (!token) {
+          set({ user: null, isAuthenticated: false, isLoading: false, isEmailVerified: false });
+          return;
+        }
+
         try {
-          // Set up auth state listener (only once)
-          const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (session?.user) {
-              const emailVerified = !!session.user.email_confirmed_at;
-              set({
-                user: mapSupabaseUser(session.user),
-                isAuthenticated: true,
-                isLoading: false,
-                isEmailVerified: emailVerified,
-              });
-            } else {
-              set({
-                user: null,
-                isAuthenticated: false,
-                isLoading: false,
-                isEmailVerified: false,
-              });
-            }
-          });
+          const result = await apiClient.get<{
+            id: string;
+            email: string;
+            emailVerified: boolean;
+            name: string;
+            avatarUrl?: string;
+          }>('/auth/me');
 
-          // Get initial session
-          const { data: { session }, error } = await supabase.auth.getSession();
-
-          // Handle auth errors (like 403) by clearing corrupted session
-          if (error) {
-            console.warn('Auth session error, clearing local auth state:', error.message);
-            // Clear any corrupted auth state from localStorage
-            localStorage.removeItem('sb-lbzjnhlribtfwnoydpdv-auth-token');
-            localStorage.removeItem('auth-storage');
-            set({
-              user: null,
-              isAuthenticated: false,
-              isLoading: false,
-              isEmailVerified: false,
-            });
+          if (!result.success) {
+            // Token is invalid and refresh also failed — clear state
+            apiClient.setTokens(null, null);
+            set({ user: null, isAuthenticated: false, isLoading: false, isEmailVerified: false });
             return;
           }
 
-          if (session?.user) {
-            const emailVerified = !!session.user.email_confirmed_at;
-            set({
-              user: mapSupabaseUser(session.user),
-              isAuthenticated: true,
-              isLoading: false,
-              isEmailVerified: emailVerified,
-            });
-          } else {
-            set({
-              user: null,
-              isAuthenticated: false,
-              isLoading: false,
-              isEmailVerified: false,
-            });
-          }
+          const userData = result.data;
+          set({
+            user: {
+              id: userData.id,
+              email: userData.email,
+              name: userData.name || userData.email.split('@')[0],
+              avatarUrl: userData.avatarUrl,
+              role: 'member',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            isAuthenticated: true,
+            isLoading: false,
+            isEmailVerified: userData.emailVerified,
+          });
         } catch (error: any) {
           console.error('Failed to load user:', error);
-          // On any error, clear auth state to prevent loops
-          localStorage.removeItem('sb-lbzjnhlribtfwnoydpdv-auth-token');
-          localStorage.removeItem('auth-storage');
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-            isEmailVerified: false,
-          });
+          apiClient.setTokens(null, null);
+          set({ user: null, isAuthenticated: false, isLoading: false, isEmailVerified: false });
         }
       },
 
@@ -196,19 +172,12 @@ export const useAuthStore = create<AuthStore>()(
           throw new Error('No user email found');
         }
 
-        const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-        const redirectUrl = `${siteUrl}/onboarding/create-team`;
-
-        const { error } = await supabase.auth.resend({
-          type: 'signup',
+        const result = await apiClient.post('/auth/resend-verification', {
           email: currentUser.email,
-          options: {
-            emailRedirectTo: redirectUrl,
-          },
         });
 
-        if (error) {
-          throw new Error(error.message);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to resend verification email');
         }
       },
 
@@ -228,3 +197,8 @@ export const useAuthStore = create<AuthStore>()(
     }
   )
 );
+
+// Register auth failure handler — auto-logout when refresh token expires
+apiClient.onAuthError(() => {
+  useAuthStore.getState().logout();
+});

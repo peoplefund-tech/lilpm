@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Profile, Issue } from '@/types/database';
 
 export type NotificationType =
@@ -29,254 +29,183 @@ export interface NotificationWithActor extends Notification {
   actor?: Profile | null;
 }
 
-// Note: This service uses local state since we don't have a notifications table yet
-// In production, you would create a notifications table in Supabase
-
-let localNotifications: Notification[] = [];
+export interface NotificationResponse {
+  notifications: Notification[];
+  unreadCount: number;
+  limit: number;
+  offset: number;
+}
 
 export const notificationService = {
-  async getNotifications(userId: string): Promise<Notification[]> {
-    // For now, return from local storage or mock data
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-    return [];
-  },
-
-  async createNotification(
+  async getNotifications(
     userId: string,
-    type: NotificationType,
-    title: string,
-    body: string,
-    data: Record<string, unknown> = {}
-  ): Promise<Notification> {
-    const notification: Notification = {
-      id: crypto.randomUUID(),
-      user_id: userId,
-      type,
-      title,
-      body,
-      data,
-      read: false,
-      created_at: new Date().toISOString(),
-    };
+    options?: {
+      teamId?: string;
+      limit?: number;
+      offset?: number;
+      unreadOnly?: boolean;
+    }
+  ): Promise<NotificationResponse> {
+    const queryParams = new URLSearchParams();
 
-    // Store in local storage
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    const notifications = stored ? JSON.parse(stored) : [];
-    notifications.unshift(notification);
+    if (options?.teamId) {
+      queryParams.append('teamId', options.teamId);
+    }
+    if (options?.limit) {
+      queryParams.append('limit', String(options.limit));
+    }
+    if (options?.offset) {
+      queryParams.append('offset', String(options.offset));
+    }
+    if (options?.unreadOnly) {
+      queryParams.append('unreadOnly', 'true');
+    }
 
-    // Keep only last 50 notifications
-    const trimmed = notifications.slice(0, 50);
-    localStorage.setItem(`notifications_${userId}`, JSON.stringify(trimmed));
+    const endpoint = `/notifications${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const res = await apiClient.get<NotificationResponse>(endpoint);
 
-    return notification;
+    if (res.error) {
+      throw new Error(res.error);
+    }
+
+    return res.data;
   },
 
-  async markAsRead(notificationId: string, userId: string): Promise<void> {
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    if (stored) {
-      const notifications = JSON.parse(stored);
-      const updated = notifications.map((n: Notification) =>
-        n.id === notificationId ? { ...n, read: true } : n
-      );
-      localStorage.setItem(`notifications_${userId}`, JSON.stringify(updated));
+  async markAsRead(notificationId: string): Promise<void> {
+    const res = await apiClient.patch(`/notifications/${notificationId}/read`);
+
+    if (res.error) {
+      throw new Error(res.error);
     }
   },
 
-  async markAllAsRead(userId: string): Promise<void> {
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    if (stored) {
-      const notifications = JSON.parse(stored);
-      const updated = notifications.map((n: Notification) => ({ ...n, read: true }));
-      localStorage.setItem(`notifications_${userId}`, JSON.stringify(updated));
-    }
-  },
+  async markAllAsRead(teamId?: string): Promise<void> {
+    const queryParams = new URLSearchParams();
 
-  async deleteNotification(notificationId: string, userId: string): Promise<void> {
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    if (stored) {
-      const notifications = JSON.parse(stored);
-      const updated = notifications.filter((n: Notification) => n.id !== notificationId);
-      localStorage.setItem(`notifications_${userId}`, JSON.stringify(updated));
+    if (teamId) {
+      queryParams.append('teamId', teamId);
     }
-  },
 
-  async clearAll(userId: string): Promise<void> {
-    localStorage.removeItem(`notifications_${userId}`);
-  },
+    const endpoint = `/notifications/read-all${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const res = await apiClient.post<{ success: boolean }>(endpoint);
 
-  getUnreadCount(userId: string): number {
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    if (stored) {
-      const notifications = JSON.parse(stored);
-      return notifications.filter((n: Notification) => !n.read).length;
+    if (res.error) {
+      throw new Error(res.error);
     }
-    return 0;
   },
 
   // Check for due date reminders
+  // Note: This is typically called by a backend job or timer
+  // Client-side implementation kept for backwards compatibility
   async checkDueDateReminders(userId: string, issues: Issue[]): Promise<Notification[]> {
     const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
     const notificationsToCreate: Notification[] = [];
-    const stored = localStorage.getItem(`notifications_${userId}`);
-    const existingNotifications: Notification[] = stored ? JSON.parse(stored) : [];
 
-    for (const issue of issues) {
-      if (!issue.due_date || issue.status === 'done' || issue.status === 'cancelled') {
-        continue;
-      }
+    // Fetch existing notifications to check if reminders were already sent
+    try {
+      const response = await this.getNotifications(userId, {
+        unreadOnly: false,
+        limit: 100,
+      });
+      const existingNotifications = response.notifications;
 
-      // Check if user is assignee
-      if (issue.assignee_id !== userId) {
-        continue;
-      }
+      for (const issue of issues) {
+        if (!issue.due_date || issue.status === 'done' || issue.status === 'cancelled') {
+          continue;
+        }
 
-      const dueDate = new Date(issue.due_date);
-      const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        // Check if user is assignee
+        if (issue.assignee_id !== userId) {
+          continue;
+        }
 
-      // Check if we already sent a reminder for this issue today
-      const alreadySent = existingNotifications.some(n =>
-        n.type === 'due_date_reminder' &&
-        n.data?.issue_id === issue.id &&
-        new Date(n.created_at).toDateString() === now.toDateString()
-      );
+        const dueDate = new Date(issue.due_date);
+        const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-      if (alreadySent) continue;
-
-      // Due today
-      if (diffDays === 0) {
-        const notification = await this.createNotification(
-          userId,
-          'due_date_reminder',
-          'Due today',
-          `"${issue.title}" is due today`,
-          { issue_id: issue.id, issue_identifier: issue.identifier, days_until_due: 0 }
+        // Check if we already sent a reminder for this issue today
+        const alreadySent = existingNotifications.some(n =>
+          n.type === 'due_date_reminder' &&
+          n.data?.issue_id === issue.id &&
+          new Date(n.created_at).toDateString() === now.toDateString()
         );
-        notificationsToCreate.push(notification);
+
+        if (alreadySent) continue;
+
+        // Due today
+        if (diffDays === 0) {
+          notificationsToCreate.push({
+            id: crypto.randomUUID(),
+            user_id: userId,
+            type: 'due_date_reminder',
+            title: 'Due today',
+            body: `"${issue.title}" is due today`,
+            data: { issue_id: issue.id, issue_identifier: issue.identifier, days_until_due: 0 },
+            read: false,
+            created_at: new Date().toISOString(),
+          });
+        }
+        // Due tomorrow
+        else if (diffDays === 1) {
+          notificationsToCreate.push({
+            id: crypto.randomUUID(),
+            user_id: userId,
+            type: 'due_date_reminder',
+            title: 'Due tomorrow',
+            body: `"${issue.title}" is due tomorrow`,
+            data: { issue_id: issue.id, issue_identifier: issue.identifier, days_until_due: 1 },
+            read: false,
+            created_at: new Date().toISOString(),
+          });
+        }
+        // Due in 3 days
+        else if (diffDays === 3) {
+          notificationsToCreate.push({
+            id: crypto.randomUUID(),
+            user_id: userId,
+            type: 'due_date_reminder',
+            title: 'Due soon',
+            body: `"${issue.title}" is due in 3 days`,
+            data: { issue_id: issue.id, issue_identifier: issue.identifier, days_until_due: 3 },
+            read: false,
+            created_at: new Date().toISOString(),
+          });
+        }
+        // Overdue
+        else if (diffDays < 0) {
+          const overdueDays = Math.abs(diffDays);
+          notificationsToCreate.push({
+            id: crypto.randomUUID(),
+            user_id: userId,
+            type: 'due_date_reminder',
+            title: 'Overdue',
+            body: `"${issue.title}" is ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue`,
+            data: { issue_id: issue.id, issue_identifier: issue.identifier, days_overdue: overdueDays },
+            read: false,
+            created_at: new Date().toISOString(),
+          });
+        }
       }
-      // Due tomorrow
-      else if (diffDays === 1) {
-        const notification = await this.createNotification(
-          userId,
-          'due_date_reminder',
-          'Due tomorrow',
-          `"${issue.title}" is due tomorrow`,
-          { issue_id: issue.id, issue_identifier: issue.identifier, days_until_due: 1 }
-        );
-        notificationsToCreate.push(notification);
-      }
-      // Due in 3 days
-      else if (diffDays === 3) {
-        const notification = await this.createNotification(
-          userId,
-          'due_date_reminder',
-          'Due soon',
-          `"${issue.title}" is due in 3 days`,
-          { issue_id: issue.id, issue_identifier: issue.identifier, days_until_due: 3 }
-        );
-        notificationsToCreate.push(notification);
-      }
-      // Overdue
-      else if (diffDays < 0) {
-        const overdueDays = Math.abs(diffDays);
-        const notification = await this.createNotification(
-          userId,
-          'due_date_reminder',
-          'Overdue',
-          `"${issue.title}" is ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue`,
-          { issue_id: issue.id, issue_identifier: issue.identifier, days_overdue: overdueDays }
-        );
-        notificationsToCreate.push(notification);
-      }
+    } catch (error) {
+      console.error('Failed to check due date reminders:', error);
     }
 
     return notificationsToCreate;
   },
 
   // Subscribe to real-time changes for notifications
+  // TODO: Migrate to WebSocket connection to collab-server
+  // This maintains backwards compatibility but should be replaced with WebSocket
   subscribeToIssueChanges(
     teamId: string,
     userId: string,
     onNotification: (notification: Notification) => void
   ) {
-    const channel = supabase
-      .channel(`notifications:${teamId}:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'issues',
-          filter: `assignee_id=eq.${userId}`,
-        },
-        async (payload) => {
-          const { old: oldRecord, new: newRecord } = payload;
-          const oldIssue = oldRecord as any;
-          const newIssue = newRecord as any;
-
-          // Check if this user was just assigned
-          if (oldIssue.assignee_id !== userId && newIssue.assignee_id === userId) {
-            const notification = await notificationService.createNotification(
-              userId,
-              'issue_assigned',
-              'Issue assigned to you',
-              `You have been assigned to "${newIssue.title}"`,
-              { issue_id: newIssue.id, issue_identifier: newIssue.identifier }
-            );
-            onNotification(notification);
-          }
-
-          // Check if status changed on assigned issue
-          if (oldIssue.status !== newIssue.status) {
-            const notification = await notificationService.createNotification(
-              userId,
-              'status_changed',
-              'Issue status changed',
-              `"${newIssue.title}" status changed to ${newIssue.status}`,
-              { issue_id: newIssue.id, issue_identifier: newIssue.identifier, status: newIssue.status }
-            );
-            onNotification(notification);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'comments',
-        },
-        async (payload) => {
-          const comment = payload.new as any;
-
-          // Get the issue to check if user is assignee or creator
-          const { data: issue } = await supabase
-            .from('issues')
-            .select('*')
-            .eq('id', comment.issue_id)
-            .single();
-
-          if (issue && (issue.assignee_id === userId || issue.creator_id === userId) && comment.user_id !== userId) {
-            const notification = await notificationService.createNotification(
-              userId,
-              'comment_added',
-              'New comment',
-              `New comment on "${(issue as any).title}"`,
-              { issue_id: comment.issue_id, comment_id: comment.id }
-            );
-            onNotification(notification);
-          }
-        }
-      )
-      .subscribe();
+    // TODO: Replace with WebSocket subscription to collab-server
+    // For now, return a no-op unsubscribe function
+    // Real-time notifications will be handled via server push or polling
 
     return () => {
-      supabase.removeChannel(channel);
+      // No-op cleanup
     };
   },
 };

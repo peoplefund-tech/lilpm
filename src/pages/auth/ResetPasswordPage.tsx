@@ -15,7 +15,7 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
 export function ResetPasswordPage() {
@@ -28,41 +28,20 @@ export function ResetPasswordPage() {
     const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
 
     useEffect(() => {
-        const checkSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            const hashParams = new URLSearchParams(window.location.hash.substring(1));
-            const error = hashParams.get('error');
-            const errorDescription = hashParams.get('error_description');
+        const checkToken = () => {
+            // Get reset token from URL query params (?token=xxx)
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetToken = urlParams.get('token');
 
-            if (error || errorDescription?.includes('expired')) {
+            if (!resetToken) {
                 navigate('/reset-password/expired');
                 return;
             }
 
-            if (session) {
-                setIsValidSession(true);
-            } else {
-                const accessToken = hashParams.get('access_token');
-                const refreshToken = hashParams.get('refresh_token');
-
-                if (accessToken && refreshToken) {
-                    const { error: sessionError } = await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: refreshToken,
-                    });
-
-                    if (sessionError) {
-                        navigate('/reset-password/expired');
-                        return;
-                    }
-                    setIsValidSession(true);
-                } else {
-                    navigate('/reset-password/expired');
-                }
-            }
+            setIsValidSession(true);
         };
 
-        checkSession();
+        checkToken();
     }, [navigate]);
 
     const schema = z.object({
@@ -91,8 +70,20 @@ export function ResetPasswordPage() {
     const onSubmit = async (data: FormData) => {
         setIsLoading(true);
         try {
-            const { error } = await supabase.auth.updateUser({ password: data.password });
-            if (error) throw error;
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetToken = urlParams.get('token');
+
+            if (!resetToken) {
+                navigate('/reset-password/expired');
+                return;
+            }
+
+            const res = await apiClient.post<{ message: string }>('/auth/reset-password', {
+                token: resetToken,
+                password: data.password,
+            });
+
+            if (res.error) throw new Error(res.error);
 
             setIsSuccess(true);
             toast.success(t('auth.passwordResetSuccess', 'Password reset successfully'));

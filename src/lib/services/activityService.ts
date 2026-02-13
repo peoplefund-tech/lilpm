@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 
 // Action types for activity logging
 export type ActivityActionType =
@@ -35,28 +35,27 @@ export interface ActivityLogEntry {
  */
 export async function logActivity(entry: ActivityLogEntry): Promise<void> {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        if (!entry.teamId) {
+            console.warn('Activity logging skipped: teamId is required');
+            return;
+        }
 
-        const { error } = await supabase
-            .from('activity_logs')
-            .insert({
-                user_id: user?.id,
-                team_id: entry.teamId,
-                action_type: entry.actionType,
-                target_type: entry.targetType,
-                target_id: entry.targetId,
-                description: `${entry.actionType} on ${entry.targetType}`,
-                metadata: {
-                    ...(entry.metadata || {}),
-                    ...(entry.targetEmail ? { target_email: entry.targetEmail } : {}),
-                    ...(entry.targetUserId ? { target_user_id: entry.targetUserId } : {}),
-                    ...(entry.oldValue ? { old_value: entry.oldValue } : {}),
-                    ...(entry.newValue ? { new_value: entry.newValue } : {}),
-                },
-            });
+        const res = await apiClient.post(`/${entry.teamId}/activities`, {
+            actionType: entry.actionType,
+            targetType: entry.targetType,
+            targetId: entry.targetId,
+            description: `${entry.actionType} on ${entry.targetType}`,
+            metadata: {
+                ...(entry.metadata || {}),
+                ...(entry.targetEmail ? { target_email: entry.targetEmail } : {}),
+                ...(entry.targetUserId ? { target_user_id: entry.targetUserId } : {}),
+                ...(entry.oldValue ? { old_value: entry.oldValue } : {}),
+                ...(entry.newValue ? { new_value: entry.newValue } : {}),
+            },
+        });
 
-        if (error) {
-            console.error('Failed to log activity:', error);
+        if (res.error) {
+            console.error('Failed to log activity:', res.error);
         }
     } catch (err) {
         // Don't throw - activity logging should not break the main flow

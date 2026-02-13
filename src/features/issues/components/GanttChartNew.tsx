@@ -77,7 +77,7 @@ interface DragState {
 // SortableIssueRow and SortableIssueBar are now imported from ./SortableGanttComponents
 
 
-export function GanttChart({ issues, cycles = [], onIssueClick, onIssueUpdate, onDependencyCreate, onCycleCreate }: GanttChartProps) {
+export function GanttChartNew({ issues, cycles = [], onIssueClick, onIssueUpdate, onDependencyCreate, onCycleCreate }: GanttChartProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const dateLocale = i18n.language === 'ko' ? ko : enUS;

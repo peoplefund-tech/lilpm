@@ -24,9 +24,8 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   loadNotifications: async (userId: string) => {
     set({ isLoading: true });
     try {
-      const notifications = await notificationService.getNotifications(userId);
-      const unreadCount = notifications.filter(n => !n.read).length;
-      set({ notifications, unreadCount, isLoading: false });
+      const response = await notificationService.getNotifications(userId, { limit: 50 });
+      set({ notifications: response.notifications, unreadCount: response.unreadCount, isLoading: false });
     } catch (error) {
       console.error('Failed to load notifications:', error);
       set({ isLoading: false });
@@ -41,7 +40,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   },
 
   markAsRead: async (notificationId: string, userId: string) => {
-    await notificationService.markAsRead(notificationId, userId);
+    await notificationService.markAsRead(notificationId);
     set((state) => ({
       notifications: state.notifications.map(n =>
         n.id === notificationId ? { ...n, read: true } : n
@@ -51,7 +50,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   },
 
   markAllAsRead: async (userId: string) => {
-    await notificationService.markAllAsRead(userId);
+    await notificationService.markAllAsRead();
     set((state) => ({
       notifications: state.notifications.map(n => ({ ...n, read: true })),
       unreadCount: 0,
@@ -59,23 +58,31 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   },
 
   deleteNotification: async (notificationId: string, userId: string) => {
+    // Note: Server API does not support deletion yet
+    // This removes from local state only for UX
     const notification = get().notifications.find(n => n.id === notificationId);
-    await notificationService.deleteNotification(notificationId, userId);
     set((state) => ({
       notifications: state.notifications.filter(n => n.id !== notificationId),
-      unreadCount: notification && !notification.read 
-        ? Math.max(0, state.unreadCount - 1) 
+      unreadCount: notification && !notification.read
+        ? Math.max(0, state.unreadCount - 1)
         : state.unreadCount,
     }));
   },
 
   clearAll: async (userId: string) => {
-    await notificationService.clearAll(userId);
+    // Note: Server API does not support clear all yet
+    // Use markAllAsRead instead to clear unread status
+    await notificationService.markAllAsRead();
     set({ notifications: [], unreadCount: 0 });
   },
 
-  updateUnreadCount: (userId: string) => {
-    const count = notificationService.getUnreadCount(userId);
-    set({ unreadCount: count });
+  updateUnreadCount: async (userId: string) => {
+    // Fetch fresh data to get accurate unread count
+    try {
+      const response = await notificationService.getNotifications(userId, { unreadOnly: true });
+      set({ unreadCount: response.unreadCount });
+    } catch (error) {
+      console.error('Failed to update unread count:', error);
+    }
   },
 }));

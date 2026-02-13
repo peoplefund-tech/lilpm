@@ -20,7 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 
 interface ShareConversationModalProps {
     open: boolean;
@@ -32,8 +32,7 @@ interface ShareConversationModalProps {
 interface ShareInfo {
     id: string;
     shareToken: string;
-    accessType: 'view' | 'edit';
-    isPublic: boolean;
+    accessLevel: 'view' | 'edit';
     expiresAt: string | null;
 }
 
@@ -47,8 +46,7 @@ export function ShareConversationModal({
     const [isLoading, setIsLoading] = useState(false);
     const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
     const [copied, setCopied] = useState(false);
-    const [accessType, setAccessType] = useState<'view' | 'edit'>('view');
-    const [isPublic, setIsPublic] = useState(false);
+    const [accessLevel, setAccessLevel] = useState<'view' | 'edit'>('view');
 
     const shareUrl = shareInfo
         ? `${window.location.origin}/lily/shared/${shareInfo.shareToken}`
@@ -57,28 +55,26 @@ export function ShareConversationModal({
     const createShare = async () => {
         setIsLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('Not authenticated');
+            const response = await apiClient.post<{
+                id: string;
+                shareToken: string;
+                accessLevel: 'view' | 'edit';
+                expiresAt: string | null;
+                createdAt: string;
+            }>(`/conversations/${conversationId}/share`, {
+                accessLevel,
+            });
 
-            const { data, error } = await supabase
-                .from('conversation_shares')
-                .insert({
-                    conversation_id: conversationId,
-                    shared_by: user.id,
-                    access_type: accessType,
-                    is_public: isPublic,
-                })
-                .select()
-                .single();
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to create share');
+            }
 
-            if (error) throw error;
-
+            const data = response.data;
             setShareInfo({
                 id: data.id,
-                shareToken: data.share_token,
-                accessType: data.access_type,
-                isPublic: data.is_public,
-                expiresAt: data.expires_at,
+                shareToken: data.shareToken,
+                accessLevel: data.accessLevel,
+                expiresAt: data.expiresAt,
             });
 
             toast.success(t('lily.shareLinkCreated', 'Share link created!'));
@@ -106,12 +102,13 @@ export function ShareConversationModal({
 
         setIsLoading(true);
         try {
-            const { error } = await supabase
-                .from('conversation_shares')
-                .delete()
-                .eq('id', shareInfo.id);
+            const response = await apiClient.delete<void>(
+                `/conversations/${conversationId}/share/${shareInfo.id}`
+            );
 
-            if (error) throw error;
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to revoke share');
+            }
 
             setShareInfo(null);
             toast.success(t('lily.shareRevoked', 'Share link revoked'));
@@ -143,8 +140,8 @@ export function ShareConversationModal({
                             <div className="space-y-2">
                                 <Label>{t('lily.accessType', 'Access Type')}</Label>
                                 <Select
-                                    value={accessType}
-                                    onValueChange={(v) => setAccessType(v as 'view' | 'edit')}
+                                    value={accessLevel}
+                                    onValueChange={(v) => setAccessLevel(v as 'view' | 'edit')}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />
@@ -164,17 +161,6 @@ export function ShareConversationModal({
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
-                            </div>
-
-                            {/* Public Access */}
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-0.5">
-                                    <Label>{t('lily.publicAccess', 'Public Access')}</Label>
-                                    <p className="text-xs text-slate-400">
-                                        {t('lily.publicAccessDescription', 'Anyone with the link can access')}
-                                    </p>
-                                </div>
-                                <Switch checked={isPublic} onCheckedChange={setIsPublic} />
                             </div>
 
                             {/* Create Button */}
@@ -219,17 +205,11 @@ export function ShareConversationModal({
                             {/* Share Info */}
                             <div className="flex items-center gap-4 text-sm text-slate-400">
                                 <div className="flex items-center gap-1">
-                                    {shareInfo.isPublic ? (
-                                        <Globe className="h-4 w-4" />
-                                    ) : (
-                                        <Lock className="h-4 w-4" />
-                                    )}
-                                    {shareInfo.isPublic
-                                        ? t('lily.publicLink', 'Public link')
-                                        : t('lily.privateLink', 'Private link')}
+                                    <Lock className="h-4 w-4" />
+                                    {t('lily.shareLink', 'Share Link')}
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    {shareInfo.accessType === 'view'
+                                    {shareInfo.accessLevel === 'view'
                                         ? t('lily.viewOnly', 'View only')
                                         : t('lily.canEdit', 'Can edit')}
                                 </div>

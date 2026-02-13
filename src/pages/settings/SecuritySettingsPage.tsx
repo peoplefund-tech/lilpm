@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/layout';
 import { useAuthStore } from '@/stores/authStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
 export function SecuritySettingsPage() {
@@ -66,11 +66,11 @@ export function SecuritySettingsPage() {
 
     setIsUpdating(true);
     try {
-      const { error } = await supabase.auth.updateUser({
+      const res = await apiClient.put('/auth/password', {
         password: newPassword,
       });
 
-      if (error) throw error;
+      if (!res.success) throw new Error(res.error);
 
       toast.success(t('profile.passwordUpdated'));
       setCurrentPassword('');
@@ -86,7 +86,12 @@ export function SecuritySettingsPage() {
 
   const handleLogoutAllDevices = async () => {
     try {
-      await supabase.auth.signOut({ scope: 'global' });
+      const res = await apiClient.post('/auth/logout', {
+        refreshToken: localStorage.getItem('auth_refresh_token'),
+      });
+
+      if (!res.success) throw new Error(res.error);
+
       toast.success(t('security.loggedOutAll'));
       await logout();
     } catch (error) {

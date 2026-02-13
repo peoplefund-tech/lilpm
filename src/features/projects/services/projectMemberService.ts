@@ -1,5 +1,15 @@
-import { supabase } from '@/lib/supabase';
-import type { ProjectMember, ProjectMemberWithProfile, ProjectMemberRole, Project } from '@/types/database';
+import { apiClient } from '@/lib/api/client';
+import type { ProjectMemberRole, Project } from '@/types/database';
+
+interface ProjectMemberData {
+    id: string;
+    userId: string;
+    role: ProjectMemberRole;
+    assignedAt: string;
+    name: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+}
 
 /**
  * Service for managing project-level member assignments
@@ -9,121 +19,83 @@ export const projectMemberService = {
     /**
      * Get all members assigned to a project
      */
-    async getProjectMembers(projectId: string): Promise<ProjectMemberWithProfile[]> {
-        const { data, error } = await supabase
-            .from('project_members')
-            .select(`
-        *,
-        profile:profiles!project_members_user_id_fkey(*)
-      `)
-            .eq('project_id', projectId)
-            .order('role', { ascending: true });
-
-        if (error) {
-            console.error('Failed to get project members:', error);
-            throw error;
+    async getProjectMembers(projectId: string): Promise<ProjectMemberData[]> {
+        const res = await apiClient.get<ProjectMemberData[]>(`/projects/${projectId}/members`);
+        if (res.error) {
+            console.error('Failed to get project members:', res.error);
+            throw new Error(res.error);
         }
-
-        return (data || []) as ProjectMemberWithProfile[];
+        return res.data || [];
     },
 
     /**
      * Get all projects a user is assigned to
      */
     async getUserProjects(userId: string, teamId?: string): Promise<{ project: Project; role: ProjectMemberRole }[]> {
-        let query = supabase
-            .from('project_members')
-            .select(`
-        role,
-        project:projects(*)
-      `)
-            .eq('user_id', userId);
+        const endpoint = teamId
+            ? `/${teamId}/projects/user/${userId}`
+            : `/projects/user/${userId}`;
 
-        if (teamId) {
-            query = query.eq('project.team_id', teamId);
+        const res = await apiClient.get<{ project: Project; role: ProjectMemberRole }[]>(endpoint);
+        if (res.error) {
+            console.error('Failed to get user projects:', res.error);
+            throw new Error(res.error);
         }
-
-        const { data, error } = await query;
-
-        if (error) {
-            console.error('Failed to get user projects:', error);
-            throw error;
-        }
-
-        return (data || []).filter(d => d.project).map(d => ({
-            project: d.project as unknown as Project,
-            role: d.role as ProjectMemberRole,
-        }));
+        return res.data || [];
     },
 
     /**
      * Assign a user to a project (admin only)
      */
     async assignMember(projectId: string, userId: string, role: ProjectMemberRole = 'member'): Promise<string> {
-        const { data, error } = await supabase
-            .rpc('assign_project_member', {
-                _project_id: projectId,
-                _user_id: userId,
-                _role: role,
-            });
-
-        if (error) {
-            console.error('Failed to assign project member:', error);
-            throw error;
+        const res = await apiClient.post<{ id: string }>(`/projects/${projectId}/members`, {
+            userId,
+            role,
+        });
+        if (res.error) {
+            console.error('Failed to assign project member:', res.error);
+            throw new Error(res.error);
         }
-
-        return data as string;
+        return res.data?.id || '';
     },
 
     /**
      * Remove a user from a project (admin only)
      */
     async unassignMember(projectId: string, userId: string): Promise<boolean> {
-        const { data, error } = await supabase
-            .rpc('unassign_project_member', {
-                _project_id: projectId,
-                _user_id: userId,
-            });
-
-        if (error) {
-            console.error('Failed to unassign project member:', error);
-            throw error;
+        const res = await apiClient.delete<{ success: boolean }>(`/projects/${projectId}/members/${userId}`);
+        if (res.error) {
+            console.error('Failed to unassign project member:', res.error);
+            throw new Error(res.error);
         }
-
-        return data as boolean;
+        return res.data?.success ?? false;
     },
 
     /**
      * Check if a user is assigned to a project
      */
     async isProjectMember(projectId: string, userId: string): Promise<boolean> {
-        const { data, error } = await supabase
-            .from('project_members')
-            .select('id')
-            .eq('project_id', projectId)
-            .eq('user_id', userId)
-            .single();
-
-        if (error && error.code !== 'PGRST116') {
-            console.error('Failed to check project membership:', error);
+        try {
+            const res = await apiClient.get<ProjectMemberData>(`/projects/${projectId}/members/${userId}`);
+            if (res.error) {
+                return false;
+            }
+            return !!res.data;
+        } catch {
+            return false;
         }
-
-        return !!data;
     },
 
     /**
      * Update a member's role in a project
      */
     async updateMemberRole(projectId: string, userId: string, role: ProjectMemberRole): Promise<void> {
-        const { error } = await supabase
-            .from('project_members')
-            .update({ role })
-            .eq('project_id', projectId)
-            .eq('user_id', userId);
-
-        if (error) {
-            console.error('Failed to update member role:', error);
-            throw error;
+        const res = await apiClient.put<void>(`/projects/${projectId}/members/${userId}`, {
+            role,
+        });
+        if (res.error) {
+            console.error('Failed to update member role:', res.error);
+            throw new Error(res.error);
         }
     },
 };

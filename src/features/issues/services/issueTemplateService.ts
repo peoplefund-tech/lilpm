@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Issue } from '@/types/database';
 
 export interface IssueTemplate {
@@ -28,78 +28,50 @@ export const issueTemplateService = {
      * Get all templates for a team
      */
     async getTemplates(teamId: string): Promise<IssueTemplate[]> {
-        const { data, error } = await supabase
-            .from('issue_templates')
-            .select('*')
-            .eq('team_id', teamId)
-            .eq('is_active', true)
-            .order('sort_order', { ascending: true });
-
-        if (error) throw error;
-        return data || [];
+        const res = await apiClient.get<IssueTemplate[]>(`/${teamId}/issue-templates`);
+        if (res.error) throw new Error(res.error);
+        return res.data || [];
     },
 
     /**
      * Get a single template by ID
      */
     async getTemplate(templateId: string): Promise<IssueTemplate | null> {
-        const { data, error } = await supabase
-            .from('issue_templates')
-            .select('*')
-            .eq('id', templateId)
-            .single();
-
-        if (error) throw error;
-        return data;
+        const res = await apiClient.get<IssueTemplate>(`/issue-templates/${templateId}`);
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 
     /**
      * Create a new template
      */
     async createTemplate(template: CreateTemplateInput): Promise<IssueTemplate> {
-        const { data: { user } } = await supabase.auth.getUser();
-
-        const { data, error } = await supabase
-            .from('issue_templates')
-            .insert({
-                ...template,
-                created_by: user?.id,
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+        const res = await apiClient.post<IssueTemplate>(
+            `/${template.team_id}/issue-templates`,
+            template
+        );
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 
     /**
      * Update a template
      */
     async updateTemplate(templateId: string, updates: UpdateTemplateInput): Promise<IssueTemplate> {
-        const { data, error } = await supabase
-            .from('issue_templates')
-            .update({
-                ...updates,
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', templateId)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+        const res = await apiClient.put<IssueTemplate>(
+            `/issue-templates/${templateId}`,
+            updates
+        );
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 
     /**
      * Delete a template (soft delete by deactivating)
      */
     async deleteTemplate(templateId: string): Promise<void> {
-        const { error } = await supabase
-            .from('issue_templates')
-            .update({ is_active: false })
-            .eq('id', templateId);
-
-        if (error) throw error;
+        const res = await apiClient.delete(`/issue-templates/${templateId}`);
+        if (res.error) throw new Error(res.error);
     },
 
     /**

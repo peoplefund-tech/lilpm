@@ -66,25 +66,36 @@ export function useInboxToast() {
         if (!user?.id) return;
 
         // Get initial unread count
-        setUnreadCount(notificationService.getUnreadCount(user.id));
+        (async () => {
+            try {
+                const response = await notificationService.getNotifications(user.id, { unreadOnly: false });
+                setUnreadCount(response.unreadCount);
+            } catch (error) {
+                console.error('Failed to fetch initial unread count:', error);
+            }
+        })();
 
         // Poll for new notifications every 30 seconds
         const interval = setInterval(async () => {
-            const notifications = await notificationService.getNotifications(user.id);
-            const newUnread = notifications.filter(n => !n.read).length;
+            try {
+                const response = await notificationService.getNotifications(user.id, { unreadOnly: false });
+                const newUnread = response.unreadCount;
 
-            // If there are new notifications, show toast
-            if (newUnread > unreadCount) {
-                const newNotifications = notifications
-                    .filter(n => !n.read)
-                    .slice(0, newUnread - unreadCount);
+                // If there are new notifications, show toast
+                if (newUnread > unreadCount) {
+                    const newNotifications = response.notifications
+                        .filter(n => !n.read)
+                        .slice(0, newUnread - unreadCount);
 
-                newNotifications.forEach((notification) => {
-                    showNotificationToast(notification);
-                });
+                    newNotifications.forEach((notification) => {
+                        showNotificationToast(notification);
+                    });
+                }
+
+                setUnreadCount(newUnread);
+            } catch (error) {
+                console.error('Failed to fetch notifications:', error);
             }
-
-            setUnreadCount(newUnread);
         }, 30000);
 
         return () => clearInterval(interval);

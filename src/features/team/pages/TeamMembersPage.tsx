@@ -5,7 +5,7 @@ import { useTeamStore } from '@/stores/teamStore';
 import { useAuthStore } from '@/stores/authStore';
 import { teamMemberService, teamInviteService, type TeamMemberWithProfile } from '@/lib/services/teamService';
 import { projectService, projectMemberService } from '@/lib/services';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -170,27 +170,6 @@ export function TeamMembersPage() {
         projectService.getProjects(currentTeam.id),
       ]);
 
-      // Check if team has an owner - if not, auto-fix by making current user the owner
-      const hasOwner = membersData.some(m => m.role === 'owner');
-      if (!hasOwner && membersData.length === 0) {
-        // No members at all - call RPC to add current user as owner
-        try {
-          const { error } = await supabase.rpc('ensure_current_user_is_owner_if_no_owner', {
-            _team_id: currentTeam.id
-          });
-          if (!error) {
-            // Reload members after fix
-            const updatedMembers = await teamMemberService.getMembers(currentTeam.id);
-            setMembers(updatedMembers);
-            setInvites(invitesData);
-            setTeamProjects(projectsData);
-            return;
-          }
-        } catch (rpcError) {
-          console.error('Failed to auto-fix team owner:', rpcError);
-        }
-      }
-
       setMembers(membersData);
       setInvites(invitesData);
       setTeamProjects(projectsData);
@@ -243,59 +222,12 @@ export function TeamMembersPage() {
     }
   }, [inviteOpen, currentTeam?.id]);
 
-  // Set up realtime subscription for team members and invites
+  // Load data when team changes
   useEffect(() => {
     if (!currentTeam) return;
 
     loadData();
-
-    // Subscribe to team_members changes
-    const memberSubscription = supabase
-      .channel(`team_members_page:${currentTeam.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'team_members',
-          filter: `team_id=eq.${currentTeam.id}`,
-        },
-        (payload) => {
-          console.log('Team member change:', payload);
-          // Only reload if dialog is not open to prevent closing it
-          if (!inviteOpenRef.current) {
-            loadData();
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to team_invites changes
-    const inviteSubscription = supabase
-      .channel(`team_invites_page:${currentTeam.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'team_invites',
-          filter: `team_id=eq.${currentTeam.id}`,
-        },
-        (payload) => {
-          console.log('Team invite change:', payload);
-          // Only reload if dialog is not open to prevent closing it
-          if (!inviteOpenRef.current) {
-            loadData();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      memberSubscription.unsubscribe();
-      inviteSubscription.unsubscribe();
-    };
-  }, [currentTeam?.id]); // Only depend on team ID, not inviteOpen
+  }, [currentTeam?.id]);
 
   const handleInvite = async () => {
     if (!currentTeam || !inviteEmail) return;

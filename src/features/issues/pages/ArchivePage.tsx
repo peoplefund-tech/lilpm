@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppLayout } from '@/components/layout';
 import { useTeamStore } from '@/stores/teamStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -70,12 +70,55 @@ export function ArchivePage() {
 
         setLoading(true);
         try {
-            const { data, error } = await supabase.rpc('get_archived_items', {
-                p_team_id: currentTeam.id,
-            });
+            // Fetch archived issues and PRDs in parallel
+            const [issuesRes, prdsRes] = await Promise.all([
+                apiClient.get<any>(`/teams/${currentTeam.id}/issues?archived=true`),
+                apiClient.get<any>(`/${currentTeam.id}/prd?includeArchived=true`),
+            ]);
 
-            if (error) throw error;
-            setItems(data || []);
+            const items: ArchivedItem[] = [];
+
+            // Process archived issues
+            if (issuesRes.success && issuesRes.data?.data) {
+                const issues = Array.isArray(issuesRes.data.data) ? issuesRes.data.data : [];
+                issues.forEach((issue: any) => {
+                    if (issue.archivedAt) {
+                        const archivedDate = new Date(issue.archivedAt);
+                        const now = new Date();
+                        const daysUntilDeletion = Math.max(0, 30 - Math.floor((now.getTime() - archivedDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+                        items.push({
+                            item_type: 'issue',
+                            id: issue.id,
+                            title: issue.title || issue.identifier,
+                            archived_at: issue.archivedAt,
+                            days_until_deletion: daysUntilDeletion,
+                        });
+                    }
+                });
+            }
+
+            // Process archived PRDs
+            if (prdsRes.success && prdsRes.data) {
+                const prds = Array.isArray(prdsRes.data) ? prdsRes.data : [];
+                prds.forEach((prd: any) => {
+                    if (prd.archivedAt) {
+                        const archivedDate = new Date(prd.archivedAt);
+                        const now = new Date();
+                        const daysUntilDeletion = Math.max(0, 30 - Math.floor((now.getTime() - archivedDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+                        items.push({
+                            item_type: 'prd',
+                            id: prd.id,
+                            title: prd.title || 'Untitled PRD',
+                            archived_at: prd.archivedAt,
+                            days_until_deletion: daysUntilDeletion,
+                        });
+                    }
+                });
+            }
+
+            setItems(items);
         } catch (error) {
             console.error('Failed to load archived items:', error);
             toast.error(t('archive.loadError', 'Failed to load archived items'));
@@ -115,11 +158,19 @@ export function ArchivePage() {
             const selectedItems = items.filter((item) => selectedIds.has(item.id));
 
             for (const item of selectedItems) {
-                const { error } = await supabase.rpc('restore_item', {
-                    p_item_type: item.item_type,
-                    p_item_id: item.id,
-                });
-                if (error) throw error;
+                if (item.item_type === 'issue') {
+                    // For issues, update with archivedAt: null
+                    const res = await apiClient.put(`/teams/${currentTeam?.id}/issues/${item.id}`, {
+                        archivedAt: null,
+                    });
+                    if (!res.success) throw new Error(res.error || 'Failed to restore issue');
+                } else if (item.item_type === 'prd') {
+                    // For PRDs, update with archivedAt: null
+                    const res = await apiClient.put(`/prd/${item.id}`, {
+                        archivedAt: null,
+                    });
+                    if (!res.success) throw new Error(res.error || 'Failed to restore PRD');
+                }
             }
 
             toast.success(
@@ -145,9 +196,15 @@ export function ArchivePage() {
             const selectedItems = items.filter((item) => selectedIds.has(item.id));
 
             for (const item of selectedItems) {
-                const table = item.item_type === 'issue' ? 'issues' : 'prd_documents';
-                const { error } = await supabase.from(table).delete().eq('id', item.id);
-                if (error) throw error;
+                if (item.item_type === 'issue') {
+                    // Permanently delete issue
+                    const res = await apiClient.delete(`/teams/${currentTeam?.id}/issues/${item.id}`);
+                    if (!res.success) throw new Error(res.error || 'Failed to delete issue');
+                } else if (item.item_type === 'prd') {
+                    // Permanently delete PRD
+                    const res = await apiClient.delete(`/prd/${item.id}`);
+                    if (!res.success) throw new Error(res.error || 'Failed to delete PRD');
+                }
             }
 
             toast.success(

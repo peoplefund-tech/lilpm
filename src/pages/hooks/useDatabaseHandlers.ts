@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTeamStore } from '@/stores/teamStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 import type { Database, DatabaseProperty, DatabaseRow, DatabaseView, PropertyType, FilterGroup, SortCondition } from './databaseTypes';
 import { evaluateFilterGroup } from './DatabaseFilterBuilder';
@@ -17,7 +17,10 @@ function debouncedRowUpdate(rowId: string, properties: Record<string, unknown>, 
     const timer = setTimeout(async () => {
         pendingUpdates.delete(rowId);
         try {
-            await supabase.from('database_rows').update({ properties }).eq('id', rowId);
+            const res = await apiClient.put(`/databases/rows/${rowId}`, { properties });
+            if (res.error) {
+                console.error('Debounced update failed:', res.error);
+            }
         } catch (err) {
             console.error('Debounced update failed:', err);
         }
@@ -46,50 +49,50 @@ export function useDatabaseHandlers() {
         setIsLoading(true);
 
         try {
-            const { data: dbData, error: dbError } = await supabase
-                .from('databases')
-                .select('*')
-                .eq('team_id', currentTeam.id)
-                .order('created_at', { ascending: false });
+            const dbRes = await apiClient.get<any[]>(`/${currentTeam.id}/databases`);
+            if (dbRes.error) throw new Error(dbRes.error);
 
-            if (dbError) throw dbError;
+            const dbData = dbRes.data || [];
 
-            if (!dbData || dbData.length === 0) {
-                const { data: newDb, error: createError } = await supabase
-                    .from('databases')
-                    .insert({
-                        team_id: currentTeam.id,
-                        name: t('database.sampleTasks'),
-                        description: t('database.sampleTasksDesc'),
-                        icon: '📋',
-                    })
-                    .select()
-                    .single();
+            if (dbData.length === 0) {
+                const createRes = await apiClient.post<any>(`/${currentTeam.id}/databases`, {
+                    name: t('database.sampleTasks'),
+                    description: t('database.sampleTasksDesc'),
+                    icon: '📋',
+                });
 
-                if (createError) throw createError;
+                if (createRes.error) throw new Error(createRes.error);
+                const newDb = createRes.data;
 
                 const defaultProperties = [
-                    { database_id: newDb.id, name: 'Title', type: 'text', position: 0 },
+                    { name: 'Title', type: 'text', position: 0 },
                     {
-                        database_id: newDb.id, name: 'Status', type: 'select', position: 1, options: [
-                            { id: '1', name: 'To Do', color: '#ef4444' },
-                            { id: '2', name: 'In Progress', color: '#f97316' },
-                            { id: '3', name: 'Done', color: '#22c55e' },
-                        ]
+                        name: 'Status', type: 'select', position: 1, config: {
+                            options: [
+                                { id: '1', name: 'To Do', color: '#ef4444' },
+                                { id: '2', name: 'In Progress', color: '#f97316' },
+                                { id: '3', name: 'Done', color: '#22c55e' },
+                            ]
+                        }
                     },
                     {
-                        database_id: newDb.id, name: 'Priority', type: 'select', position: 2, options: [
-                            { id: '1', name: 'High', color: '#ef4444' },
-                            { id: '2', name: 'Medium', color: '#f97316' },
-                            { id: '3', name: 'Low', color: '#22c55e' },
-                        ]
+                        name: 'Priority', type: 'select', position: 2, config: {
+                            options: [
+                                { id: '1', name: 'High', color: '#ef4444' },
+                                { id: '2', name: 'Medium', color: '#f97316' },
+                                { id: '3', name: 'Low', color: '#22c55e' },
+                            ]
+                        }
                     },
-                    { database_id: newDb.id, name: 'Due Date', type: 'date', position: 3 },
+                    { name: 'Due Date', type: 'date', position: 3 },
                 ];
 
-                await supabase.from('database_properties').insert(defaultProperties);
-                await supabase.from('database_views').insert({
-                    database_id: newDb.id, name: 'All Tasks', type: 'table', position: 0,
+                for (const prop of defaultProperties) {
+                    await apiClient.post(`/databases/${newDb.id}/properties`, prop);
+                }
+
+                await apiClient.post(`/databases/${newDb.id}/views`, {
+                    name: 'All Tasks', type: 'table', position: 0,
                 });
 
                 return loadDatabases();
@@ -98,47 +101,51 @@ export function useDatabaseHandlers() {
             const loadedDatabases: Database[] = await Promise.all(
                 dbData.map(async (db) => {
                     const [propsRes, rowsRes, viewsRes] = await Promise.all([
-                        supabase.from('database_properties').select('*').eq('database_id', db.id).order('position'),
-                        supabase.from('database_rows').select('*').eq('database_id', db.id).order('created_at'),
-                        supabase.from('database_views').select('*').eq('database_id', db.id).order('position'),
+                        apiClient.get<any[]>(`/databases/${db.id}/properties`),
+                        apiClient.get<any[]>(`/databases/${db.id}/rows`),
+                        apiClient.get<any[]>(`/databases/${db.id}/views`),
                     ]);
+
+                    if (propsRes.error || rowsRes.error || viewsRes.error) {
+                        throw new Error('Failed to load database components');
+                    }
 
                     return {
                         id: db.id,
                         name: db.name,
                         description: db.description,
                         icon: db.icon,
-                        teamId: db.team_id,
-                        createdAt: db.created_at,
-                        properties: (propsRes.data || []).map(p => ({
+                        teamId: db.teamId,
+                        createdAt: db.createdAt,
+                        properties: (propsRes.data || []).map((p: any) => ({
                             id: p.id,
                             name: p.name,
                             type: p.type as PropertyType,
-                            options: p.options,
-                            formula: p.formula,
-                            relationDatabaseId: p.relation_database_id,
-                            rollupProperty: p.rollup_property,
-                            rollupRelationId: p.rollup_relation_id,
-                            rollupAggregation: p.rollup_aggregation,
+                            options: p.config?.options || p.options,
+                            formula: p.config?.formula || p.formula,
+                            relationDatabaseId: p.config?.relationDatabaseId || p.relationDatabaseId,
+                            rollupProperty: p.config?.rollupProperty || p.rollupProperty,
+                            rollupRelationId: p.config?.rollupRelationId || p.rollupRelationId,
+                            rollupAggregation: p.config?.rollupAggregation || p.rollupAggregation,
                         })),
-                        rows: (rowsRes.data || []).map(r => ({
+                        rows: (rowsRes.data || []).map((r: any) => ({
                             id: r.id,
-                            properties: r.properties,
-                            createdAt: r.created_at,
-                            createdBy: r.created_by,
-                            updatedAt: r.updated_at,
-                            updatedBy: r.updated_by,
-                            parentId: r.parent_id || null,
+                            properties: r.properties || {},
+                            createdAt: r.createdAt,
+                            createdBy: r.createdBy,
+                            updatedAt: r.updatedAt,
+                            updatedBy: r.updatedBy,
+                            parentId: r.parentId || null,
                             position: r.position || 0,
                         })),
-                        views: (viewsRes.data || []).map(v => ({
+                        views: (viewsRes.data || []).map((v: any) => ({
                             id: v.id,
                             name: v.name,
                             type: v.type as DatabaseView['type'],
-                            filters: v.filters,
-                            sorts: v.sorts,
-                            groupBy: v.group_by,
-                            visibleProperties: v.visible_properties,
+                            filters: v.config?.filters || v.filters,
+                            sorts: v.config?.sorts || v.sorts,
+                            groupBy: v.config?.groupBy || v.groupBy,
+                            visibleProperties: v.config?.visibleProperties || v.visibleProperties,
                         })),
                     };
                 })
@@ -171,21 +178,25 @@ export function useDatabaseHandlers() {
         if (!newDatabaseName.trim() || !currentTeam) return;
 
         try {
-            const { data: newDb, error: dbError } = await supabase
-                .from('databases')
-                .insert({ team_id: currentTeam.id, name: newDatabaseName, icon: '📊' })
-                .select()
-                .single();
+            const dbRes = await apiClient.post<any>(`/${currentTeam.id}/databases`, {
+                name: newDatabaseName,
+                icon: '📊'
+            });
 
-            if (dbError) throw dbError;
+            if (dbRes.error) throw new Error(dbRes.error);
+            const newDb = dbRes.data;
 
             const defaultProps = [
-                { database_id: newDb.id, name: 'Name', type: 'text', position: 0 },
-                { database_id: newDb.id, name: 'Tags', type: 'multi_select', position: 1, options: [] },
+                { name: 'Name', type: 'text', position: 0 },
+                { name: 'Tags', type: 'multi_select', position: 1, config: { options: [] } },
             ];
-            await supabase.from('database_properties').insert(defaultProps);
-            await supabase.from('database_views').insert({
-                database_id: newDb.id, name: 'All', type: 'table', position: 0,
+
+            for (const prop of defaultProps) {
+                await apiClient.post(`/databases/${newDb.id}/properties`, prop);
+            }
+
+            await apiClient.post(`/databases/${newDb.id}/views`, {
+                name: 'All', type: 'table', position: 0,
             });
 
             setShowNewDatabaseDialog(false);
@@ -202,21 +213,22 @@ export function useDatabaseHandlers() {
         if (!selectedDatabase) return;
 
         try {
-            const { data: newRow, error } = await supabase
-                .from('database_rows')
-                .insert({ database_id: selectedDatabase.id, properties: {} })
-                .select()
-                .single();
+            const res = await apiClient.post<any>(`/databases/${selectedDatabase.id}/rows`, {
+                properties: {}
+            });
 
-            if (error) throw error;
+            if (res.error) throw new Error(res.error);
+            const newRow = res.data;
 
             const updatedRow: DatabaseRow = {
                 id: newRow.id,
-                properties: newRow.properties,
-                createdAt: newRow.created_at,
-                createdBy: newRow.created_by,
-                updatedAt: newRow.updated_at,
-                updatedBy: newRow.updated_by,
+                properties: newRow.properties || {},
+                createdAt: newRow.createdAt,
+                createdBy: newRow.createdBy,
+                updatedAt: newRow.updatedAt,
+                updatedBy: newRow.updatedBy,
+                parentId: newRow.parentId || null,
+                position: newRow.position || 0,
             };
 
             const updatedDatabase = {
@@ -239,25 +251,26 @@ export function useDatabaseHandlers() {
 
         try {
             const position = selectedDatabase.properties.length;
-            const { data: newProp, error } = await supabase
-                .from('database_properties')
-                .insert({
-                    database_id: selectedDatabase.id,
-                    name: `New ${type}`,
-                    type,
-                    position,
-                    options: type === 'select' || type === 'multi_select' || type === 'status' ? [] : undefined,
-                })
-                .select()
-                .single();
+            const config: any = {};
+            if (type === 'select' || type === 'multi_select' || type === 'status') {
+                config.options = [];
+            }
 
-            if (error) throw error;
+            const res = await apiClient.post<any>(`/databases/${selectedDatabase.id}/properties`, {
+                name: `New ${type}`,
+                type,
+                position,
+                config,
+            });
+
+            if (res.error) throw new Error(res.error);
+            const newProp = res.data;
 
             const newProperty: DatabaseProperty = {
                 id: newProp.id,
                 name: newProp.name,
                 type: newProp.type as PropertyType,
-                options: newProp.options,
+                options: newProp.config?.options || newProp.options,
             };
 
             const updatedDatabase = {
@@ -308,12 +321,8 @@ export function useDatabaseHandlers() {
         ));
 
         try {
-            const { error } = await supabase
-                .from('database_rows')
-                .delete()
-                .eq('id', rowId);
-
-            if (error) throw error;
+            const res = await apiClient.delete(`/databases/rows/${rowId}`);
+            if (res.error) throw new Error(res.error);
         } catch (error) {
             console.error('Failed to delete row:', error);
             toast.error(t('database.loadError'));
@@ -328,21 +337,22 @@ export function useDatabaseHandlers() {
         if (!row) return;
 
         try {
-            const { data: newRow, error } = await supabase
-                .from('database_rows')
-                .insert({ database_id: selectedDatabase.id, properties: { ...row.properties } })
-                .select()
-                .single();
+            const res = await apiClient.post<any>(`/databases/${selectedDatabase.id}/rows`, {
+                properties: { ...row.properties }
+            });
 
-            if (error) throw error;
+            if (res.error) throw new Error(res.error);
+            const newRow = res.data;
 
             const duplicatedRow: DatabaseRow = {
                 id: newRow.id,
-                properties: newRow.properties,
-                createdAt: newRow.created_at,
-                createdBy: newRow.created_by,
-                updatedAt: newRow.updated_at,
-                updatedBy: newRow.updated_by,
+                properties: newRow.properties || {},
+                createdAt: newRow.createdAt,
+                createdBy: newRow.createdBy,
+                updatedAt: newRow.updatedAt,
+                updatedBy: newRow.updatedBy,
+                parentId: newRow.parentId || null,
+                position: newRow.position || 0,
             };
 
             const updatedDatabase = {
@@ -386,12 +396,11 @@ export function useDatabaseHandlers() {
         ));
 
         try {
-            const { error } = await supabase
-                .from('database_properties')
-                .update({ options: updatedOptions })
-                .eq('id', propertyId);
+            const res = await apiClient.put(`/databases/properties/${propertyId}`, {
+                config: { options: updatedOptions }
+            });
 
-            if (error) throw error;
+            if (res.error) throw new Error(res.error);
         } catch (error) {
             console.error('Failed to add option:', error);
             toast.error(t('database.loadError'));
@@ -406,27 +415,23 @@ export function useDatabaseHandlers() {
 
         try {
             const position = selectedDatabase.views.length;
-            const { data: newView, error } = await supabase
-                .from('database_views')
-                .insert({
-                    database_id: selectedDatabase.id,
-                    name,
-                    type,
-                    position,
-                })
-                .select()
-                .single();
+            const res = await apiClient.post<any>(`/databases/${selectedDatabase.id}/views`, {
+                name,
+                type,
+                position,
+            });
 
-            if (error) throw error;
+            if (res.error) throw new Error(res.error);
+            const newView = res.data;
 
             const view: DatabaseView = {
                 id: newView.id,
                 name: newView.name,
                 type: newView.type as DatabaseView['type'],
-                filters: newView.filters,
-                sorts: newView.sorts,
-                groupBy: newView.group_by,
-                visibleProperties: newView.visible_properties,
+                filters: newView.config?.filters || newView.filters,
+                sorts: newView.config?.sorts || newView.sorts,
+                groupBy: newView.config?.groupBy || newView.groupBy,
+                visibleProperties: newView.config?.visibleProperties || newView.visibleProperties,
             };
 
             const updatedDatabase = {
@@ -460,12 +465,8 @@ export function useDatabaseHandlers() {
         }
 
         try {
-            const { error } = await supabase
-                .from('database_views')
-                .delete()
-                .eq('id', viewId);
-
-            if (error) throw error;
+            const res = await apiClient.delete(`/databases/views/${viewId}`);
+            if (res.error) throw new Error(res.error);
         } catch (error) {
             console.error('Failed to delete view:', error);
             toast.error(t('database.loadError'));
@@ -485,12 +486,8 @@ export function useDatabaseHandlers() {
         ));
 
         try {
-            const { error } = await supabase
-                .from('database_views')
-                .update({ name })
-                .eq('id', viewId);
-
-            if (error) throw error;
+            const res = await apiClient.put(`/databases/views/${viewId}`, { name });
+            if (res.error) throw new Error(res.error);
         } catch (error) {
             console.error('Failed to rename view:', error);
             toast.error(t('database.loadError'));
@@ -502,26 +499,23 @@ export function useDatabaseHandlers() {
         if (!selectedDatabase) return;
 
         try {
-            const { data: newRow, error } = await supabase
-                .from('database_rows')
-                .insert({
-                    database_id: selectedDatabase.id,
-                    properties: {},
-                    parent_id: parentId,
-                })
-                .select()
-                .single();
+            const res = await apiClient.post<any>(`/databases/${selectedDatabase.id}/rows`, {
+                properties: {},
+                parentId,
+            });
 
-            if (error) throw error;
+            if (res.error) throw new Error(res.error);
+            const newRow = res.data;
 
             const subItem: DatabaseRow = {
                 id: newRow.id,
-                properties: newRow.properties,
-                createdAt: newRow.created_at,
-                createdBy: newRow.created_by,
-                updatedAt: newRow.updated_at,
-                updatedBy: newRow.updated_by,
-                parentId: newRow.parent_id,
+                properties: newRow.properties || {},
+                createdAt: newRow.createdAt,
+                createdBy: newRow.createdBy,
+                updatedAt: newRow.updatedAt,
+                updatedBy: newRow.updatedBy,
+                parentId: newRow.parentId || null,
+                position: newRow.position || 0,
             };
 
             const updatedDatabase = {
@@ -543,26 +537,27 @@ export function useDatabaseHandlers() {
         if (!selectedDatabase) return;
 
         try {
-            const inserts = rowsData.map(properties => ({
-                database_id: selectedDatabase.id,
-                properties,
-            }));
+            // Import rows one by one (server doesn't support bulk insert)
+            const importedRows: DatabaseRow[] = [];
 
-            const { data: newRows, error } = await supabase
-                .from('database_rows')
-                .insert(inserts)
-                .select();
+            for (const properties of rowsData) {
+                const res = await apiClient.post<any>(`/databases/${selectedDatabase.id}/rows`, {
+                    properties,
+                });
 
-            if (error) throw error;
+                if (res.error) throw new Error(res.error);
 
-            const importedRows: DatabaseRow[] = (newRows || []).map(r => ({
-                id: r.id,
-                properties: r.properties,
-                createdAt: r.created_at,
-                createdBy: r.created_by,
-                updatedAt: r.updated_at,
-                updatedBy: r.updated_by,
-            }));
+                importedRows.push({
+                    id: res.data.id,
+                    properties: res.data.properties || {},
+                    createdAt: res.data.createdAt,
+                    createdBy: res.data.createdBy,
+                    updatedAt: res.data.updatedAt,
+                    updatedBy: res.data.updatedBy,
+                    parentId: res.data.parentId || null,
+                    position: res.data.position || 0,
+                });
+            }
 
             const updatedDatabase = {
                 ...selectedDatabase,
@@ -595,7 +590,7 @@ export function useDatabaseHandlers() {
         // Persist positions to DB
         try {
             const updates = newRows.map((r, i) =>
-                supabase.from('database_rows').update({ position: i }).eq('id', r.id)
+                apiClient.put(`/databases/rows/${r.id}`, { position: i })
             );
             await Promise.all(updates);
         } catch (error) {
@@ -620,7 +615,7 @@ export function useDatabaseHandlers() {
         // Persist new positions
         try {
             const updates = newProps.map((p, i) =>
-                supabase.from('database_properties').update({ position: i }).eq('id', p.id)
+                apiClient.put(`/databases/properties/${p.id}`, { position: i })
             );
             await Promise.all(updates);
         } catch (error) {

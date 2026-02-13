@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { conversationService, messageService } from '@/lib/services/conversationService';
 import type { LilyMessage, PRDDocument, Issue, AIProvider } from '@/types';
 import type { MCPConnector } from '@/types/mcp';
 import { parseMCPToolCalls, extractMCPConfig, callMCPServer, parseIssueSuggestions } from './utils/mcpUtils';
-import { streamChat, CHAT_URL } from './utils/chatStream';
+import { streamChat, CHAT_ENDPOINT, API_BASE_URL } from './utils/chatStream';
 
 
 // Artifact types for real-time preview
@@ -108,8 +108,6 @@ export const useLilyStore = create<LilyStore>((set, get) => ({
     if (messagesToSummarize.length === 0) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
       // Create summary prompt
       const summaryMessages = [
         {
@@ -127,11 +125,11 @@ Provide a summary in 2-3 paragraphs.`
         }
       ];
 
-      const resp = await fetch(CHAT_URL, {
+      // Use apiClient.fetchRaw for the API call with automatic auth handling
+      const resp = await apiClient.fetchRaw(CHAT_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
           messages: summaryMessages,

@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import type { Issue, ViewPreferences, ViewFilters } from '@/types';
 import { issueService, dependencyService } from '@/lib/services';
-import { supabase } from '@/lib/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface IssueStore {
   issues: Issue[];
@@ -10,7 +8,6 @@ interface IssueStore {
   isLoading: boolean;
   error: string | null;
   viewPreferences: ViewPreferences;
-  realtimeChannel: RealtimeChannel | null;
 
   // Actions
   loadIssues: (teamId: string, filters?: ViewFilters) => Promise<void>;
@@ -26,7 +23,7 @@ interface IssueStore {
   setViewPreferences: (prefs: Partial<ViewPreferences>) => void;
   setFilters: (filters: Partial<ViewFilters>) => void;
 
-  // Real-time
+  // Real-time (TODO: Migrate from Supabase realtime to WebSocket)
   subscribeToChanges: (teamId: string) => void;
   unsubscribe: () => void;
   handleRemoteUpdate: (issueId: string, changes: Partial<Issue>) => void;
@@ -62,7 +59,6 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
   isLoading: false,
   error: null,
   viewPreferences: loadPersistedPreferences(),
-  realtimeChannel: null,
 
   loadIssues: async (teamId: string, filters?: ViewFilters) => {
     set({ isLoading: true, error: null });
@@ -86,7 +82,7 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
 
 
       // Map to frontend Issue type
-      const mappedIssues: Issue[] = issues.map(issue => ({
+      const mappedIssues: Issue[] = (Array.isArray(issues) ? issues : []).map(issue => ({
         id: issue.id,
         identifier: issue.identifier,
         title: issue.title,
@@ -372,95 +368,17 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
     }));
   },
 
+  // TODO: Migrate to WebSocket for real-time updates via collab-server
+  // Currently these methods are kept for compatibility but subscriptions are disabled
   subscribeToChanges: (teamId: string) => {
-    const { realtimeChannel } = get();
-
-    // Cleanup existing subscription
-    if (realtimeChannel) {
-      supabase.removeChannel(realtimeChannel);
-    }
-
-    // Subscribe to issue changes for this team
-    const channel = supabase
-      .channel(`issues:team_${teamId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'issues',
-          filter: `team_id=eq.${teamId}`,
-        },
-        (payload) => {
-          const { eventType, new: newRecord, old: oldRecord } = payload;
-
-          if (eventType === 'INSERT' && newRecord) {
-            const issue = newRecord as any;
-            const newIssue: Issue = {
-              id: issue.id,
-              identifier: issue.identifier,
-              title: issue.title,
-              description: issue.description,
-              type: issue.type || 'task',
-              status: issue.status,
-              priority: issue.priority,
-              teamId: issue.team_id,
-              projectId: issue.project_id,
-              cycleId: issue.cycle_id,
-              assigneeId: issue.assignee_id,
-              creatorId: issue.creator_id,
-              parentId: issue.parent_id,
-              estimate: issue.estimate,
-              dueDate: issue.due_date,
-              sortOrder: issue.sort_order,
-              createdAt: issue.created_at,
-              updatedAt: issue.updated_at,
-              labels: [],
-              acceptanceCriteria: issue.acceptance_criteria || undefined,
-            };
-
-            set((state) => {
-              // Avoid duplicates
-              if (state.issues.some(i => i.id === newIssue.id)) return state;
-              return { issues: [newIssue, ...state.issues] };
-            });
-          } else if (eventType === 'UPDATE' && newRecord) {
-            const issue = newRecord as any;
-            set((state) => ({
-              issues: state.issues.map(i =>
-                i.id === issue.id
-                  ? {
-                    ...i,
-                    title: issue.title,
-                    description: issue.description,
-                    status: issue.status,
-                    priority: issue.priority,
-                    assigneeId: issue.assignee_id,
-                    sortOrder: issue.sort_order,
-                    dueDate: issue.due_date,
-                    updatedAt: issue.updated_at,
-                  }
-                  : i
-              ),
-            }));
-          } else if (eventType === 'DELETE' && oldRecord) {
-            set((state) => ({
-              issues: state.issues.filter(i => i.id !== (oldRecord as any).id),
-            }));
-          }
-        }
-      )
-      .subscribe();
-
-    set({ realtimeChannel: channel });
+    // TODO: Implement WebSocket subscription to collab-server for real-time issue updates
+    // Pattern: Connect to ws://collab-server/issues/${teamId} and listen for events
+    console.warn('Real-time subscriptions not yet implemented. Use WebSocket via collab-server.');
   },
 
   unsubscribe: () => {
-    const { realtimeChannel } = get();
-    if (realtimeChannel) {
-      supabase.removeChannel(realtimeChannel);
-      set({ realtimeChannel: null });
-    }
+    // TODO: Implement WebSocket unsubscribe when realtime is ready
+    console.warn('Real-time unsubscribe not yet implemented.');
   },
 
   handleRemoteUpdate: (issueId: string, changes: Partial<Issue>) => {

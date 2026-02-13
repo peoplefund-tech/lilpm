@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Mail, Loader2, RefreshCw, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
 export function EmailVerificationPage() {
@@ -28,9 +28,10 @@ export function EmailVerificationPage() {
     useEffect(() => {
         const checkEmailVerification = async () => {
             try {
-                const { data: { user: currentUser } } = await supabase.auth.getUser();
-                if (currentUser?.email_confirmed_at) {
-                    await supabase.auth.refreshSession();
+                const res = await apiClient.get<{ user: { emailVerified: boolean } }>('/auth/me');
+                if (res.data?.user?.emailVerified) {
+                    // Trigger auth store reload to pick up verified status
+                    useAuthStore.getState().loadUser();
                 }
             } catch (error) {
                 console.error('Error checking email verification:', error);

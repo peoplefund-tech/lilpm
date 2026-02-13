@@ -23,13 +23,13 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { StatusIcon, PriorityIcon } from '@/components/issues';
 import { IssueTypeIcon } from '@/components/issues';
 import type { Issue, IssueStatus, IssueType, Team, Project, Profile } from '@/types/database';
 
 interface IssueWithDetails extends Issue {
-  team?: Team;
+  team?: any; // Use any to avoid type mismatch between App Team and DB Team
   project?: Project | null;
   assigner?: Profile | null;
 }
@@ -40,63 +40,60 @@ export function MyIssuesPage() {
   const locale = i18n.language === 'ko' ? ko : enUS;
   const { user } = useAuthStore();
   const { teams } = useTeamStore();
-  
+
   const [issues, setIssues] = useState<IssueWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'active' | 'all' | 'done'>('active');
 
   const loadMyIssues = useCallback(async () => {
     if (!user?.id) return;
-    
+
     setIsLoading(true);
     try {
-      // Fetch all issues assigned to me across all teams
-      const { data: issuesData, error } = await supabase
-        .from('issues')
-        .select(`
-          *,
-          project:projects(*)
-        `)
-        .eq('assignee_id', user.id)
-        .order('updated_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      // Get unique team IDs
-      const teamIds = [...new Set((issuesData || []).map(i => i.team_id))];
-      
-      // Fetch teams info
-      const { data: teamsData } = await supabase
-        .from('teams')
-        .select('*')
-        .in('id', teamIds);
-      
-      const teamsMap = new Map((teamsData || []).map(t => [t.id, t]));
-      
-      // Get unique creator IDs for assigner info
-      const creatorIds = [...new Set((issuesData || []).map(i => i.creator_id).filter(Boolean))];
-      
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', creatorIds);
-      
-      const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
-      
-      // Combine data
-      const enrichedIssues: IssueWithDetails[] = (issuesData || []).map(issue => ({
-        ...issue,
-        team: teamsMap.get(issue.team_id),
-        assigner: profilesMap.get(issue.creator_id) || null,
-      }));
-      
-      setIssues(enrichedIssues);
+      // Fetch issues assigned to me from each team
+      const allIssues: IssueWithDetails[] = [];
+      const teamsMap = new Map<string, Team>();
+      const profilesMap = new Map<string, Profile>();
+
+      // Iterate through each team to fetch issues
+      for (const team of teams) {
+        const response = await apiClient.get<{
+          data: any[];
+          total: number;
+          limit: number;
+          offset: number;
+        }>(`/teams/${team.id}/issues?assigneeId=${user.id}&sort=updatedAt&order=desc&limit=200`);
+
+        if (!response.success) {
+          console.error(`Failed to fetch issues for team ${team.id}:`, response.error);
+          continue;
+        }
+
+        // Process issues for this team
+        const teamIssues = response.data.data || [];
+        for (const issue of teamIssues) {
+          teamsMap.set(team.id, team);
+
+          // Extract creator profile if available
+          if (issue.creator) {
+            profilesMap.set(issue.creator.id, issue.creator);
+          }
+
+          allIssues.push({
+            ...issue,
+            team: team as unknown as Team,
+            assigner: issue.creator || null,
+          });
+        }
+      }
+
+      setIssues(allIssues);
     } catch (error) {
       console.error('Failed to load my issues:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, teams]);
 
   useEffect(() => {
     loadMyIssues();
@@ -207,7 +204,7 @@ export function MyIssuesPage() {
                         onClick={() => navigate(`/issue/${issue.id}`)}
                       >
                         <IssueTypeIcon type={(issue.type as IssueType) || 'task'} size="sm" />
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-mono text-slate-400">
@@ -215,9 +212,9 @@ export function MyIssuesPage() {
                             </span>
                             <div className={cn("h-2 w-2 rounded-full", getStatusColor(issue.status))} />
                           </div>
-                          
+
                           <p className="font-medium text-sm truncate">{issue.title}</p>
-                          
+
                           <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
                             {issue.project && (
                               <span className="flex items-center gap-1">
@@ -225,7 +222,7 @@ export function MyIssuesPage() {
                                 {issue.project.name}
                               </span>
                             )}
-                            
+
                             {issue.assigner && (
                               <span className="flex items-center gap-1">
                                 <Avatar className="h-4 w-4">
@@ -237,7 +234,7 @@ export function MyIssuesPage() {
                                 {t('myIssues.assignedBy', { name: issue.assigner.name })}
                               </span>
                             )}
-                            
+
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true, locale })}

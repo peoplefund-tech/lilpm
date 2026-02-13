@@ -5,7 +5,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './useQueryKeys';
-import { supabase } from '@/lib/supabase';
+import { teamMemberService } from '@/lib/services/team/teamMemberService';
 
 export interface TeamMemberWithProfile {
   id: string;
@@ -25,21 +25,8 @@ export interface TeamMemberWithProfile {
 
 /** Fetch team members with profiles */
 async function fetchTeamMembers(teamId: string): Promise<TeamMemberWithProfile[]> {
-  const { data, error } = await supabase
-    .from('team_members')
-    .select(`
-      id,
-      team_id,
-      user_id,
-      role,
-      created_at,
-      profile:profiles!team_members_user_id_fkey(id, name, email, avatar_url, created_at, updated_at)
-    `)
-    .eq('team_id', teamId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as unknown as TeamMemberWithProfile[];
+  const members = await teamMemberService.getMembers(teamId);
+  return members as TeamMemberWithProfile[];
 }
 
 /**

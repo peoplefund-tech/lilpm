@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Profile } from '@/types/database';
 
 // ============================================
@@ -7,25 +7,22 @@ import type { Profile } from '@/types/database';
 
 export const profileService = {
     async getProfile(userId: string): Promise<Profile | null> {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-
-        if (error) throw error;
-        return data as Profile | null;
+        const res = await apiClient.get<Profile>(`/users/${userId}`);
+        if (res.error) throw new Error(res.error);
+        return res.data || null;
     },
 
     async updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile> {
-        const { data, error } = await supabase
-            .from('profiles')
-            .update(updates as any)
-            .eq('id', userId)
-            .select()
-            .single();
+        // Map camelCase to snake_case for API
+        const apiUpdates: Record<string, any> = {};
+        if (updates.name !== undefined) apiUpdates.name = updates.name;
+        if (updates.avatar_url !== undefined) apiUpdates.avatarUrl = updates.avatar_url;
+        if (updates.timezone !== undefined) apiUpdates.timezone = updates.timezone;
+        if (updates.preferred_ai_provider !== undefined) apiUpdates.preferredAiProvider = updates.preferred_ai_provider;
+        if (updates.onboarding_completed !== undefined) apiUpdates.onboardingCompleted = updates.onboarding_completed;
 
-        if (error) throw error;
-        return data as Profile;
+        const res = await apiClient.put<Profile>(`/users/${userId}`, apiUpdates);
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 };

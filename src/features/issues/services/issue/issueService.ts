@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type {
     Issue,
     IssueStatus,
@@ -30,51 +30,26 @@ export const issueService = {
             search?: string;
         }
     ): Promise<IssueWithRelations[]> {
-        let query = supabase
-            .from('issues')
-            .select(`
-        *,
-        project:projects(*)
-      `)
-            .eq('team_id', teamId)
-            .order('sort_order', { ascending: true })
-            .order('created_at', { ascending: false });
+        const params = new URLSearchParams();
+        if (filters?.status?.length) params.set('status', filters.status.join(','));
+        if (filters?.priority?.length) params.set('priority', filters.priority.join(','));
+        if (filters?.assignee_id?.length) params.set('assigneeId', filters.assignee_id.join(','));
+        if (filters?.project_id?.length) params.set('projectId', filters.project_id.join(','));
+        if (filters?.search) params.set('search', filters.search);
 
-        if (filters?.status?.length) {
-            query = query.in('status', filters.status);
-        }
-        if (filters?.priority?.length) {
-            query = query.in('priority', filters.priority);
-        }
-        if (filters?.assignee_id?.length) {
-            query = query.in('assignee_id', filters.assignee_id);
-        }
-        if (filters?.project_id?.length) {
-            query = query.in('project_id', filters.project_id);
-        }
-        if (filters?.search) {
-            const escapedSearch = filters.search.replace(/[%_\\]/g, '\\$&');
-            query = query.or(`title.ilike.%${escapedSearch}%,identifier.ilike.%${escapedSearch}%,description.ilike.%${escapedSearch}%`);
-        }
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-        return (data || []) as unknown as IssueWithRelations[];
+        const qs = params.toString();
+        const res = await apiClient.get<IssueWithRelations[]>(
+            `/${teamId}/issues${qs ? `?${qs}` : ''}`
+        );
+        if (res.error) throw new Error(res.error);
+        return res.data || [];
     },
 
     async getIssue(issueId: string): Promise<IssueWithRelations | null> {
-        const { data, error } = await supabase
-            .from('issues')
-            .select(`
-        *,
-        project:projects(*)
-      `)
-            .eq('id', issueId)
-            .single();
-
-        if (error) throw error;
-        return data as unknown as IssueWithRelations;
+        // We need teamId context — use a generic lookup endpoint
+        const res = await apiClient.get<IssueWithRelations>(`/issues/${issueId}`);
+        if (res.error) throw new Error(res.error);
+        return res.data || null;
     },
 
     async createIssue(
@@ -92,120 +67,32 @@ export const issueService = {
             parent_id?: string;
         }
     ): Promise<Issue> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { data: identifier, error: idError } = await supabase
-            .rpc('generate_issue_identifier', { _team_id: teamId } as any);
-
-        if (idError) throw idError;
-
-        const { data: issue, error } = await supabase
-            .from('issues')
-            .insert({
-                team_id: teamId,
-                identifier: identifier as string,
-                title: issueData.title,
-                description: issueData.description,
-                status: issueData.status || 'backlog',
-                priority: issueData.priority || 'none',
-                project_id: issueData.project_id,
-                cycle_id: issueData.cycle_id,
-                assignee_id: issueData.assignee_id,
-                creator_id: user.id,
-                estimate: issueData.estimate,
-                due_date: issueData.due_date,
-                parent_id: issueData.parent_id,
-            } as any)
-            .select()
-            .single();
-
-        if (error) throw error;
-        if (!issue) throw new Error('Failed to create issue');
-
-        await issueActivityService.createActivity((issue as Issue).id, 'issue_created', {
-            title: (issue as Issue).title,
-        });
-
-        return issue as Issue;
+        const res = await apiClient.post<Issue>(`/${teamId}/issues`, issueData);
+        if (res.error) throw new Error(res.error);
+        if (!res.data) throw new Error('Failed to create issue');
+        return res.data;
     },
 
     async updateIssue(issueId: string, updates: Partial<Issue>): Promise<Issue> {
-        const { data: current } = await supabase
-            .from('issues')
-            .select('*')
-            .eq('id', issueId)
-            .single();
-
-        const dbUpdates: Record<string, any> = { ...updates };
-
-        const { data, error } = await supabase
-            .from('issues')
-            .update(dbUpdates)
-            .eq('id', issueId)
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        if (current) {
-            const curr = current as Issue;
-            if (updates.status && updates.status !== curr.status) {
-                await issueActivityService.createActivity(issueId, 'status_changed', {
-                    from: curr.status,
-                    to: updates.status,
-                });
-            }
-            if (updates.priority && updates.priority !== curr.priority) {
-                await issueActivityService.createActivity(issueId, 'priority_changed', {
-                    from: curr.priority,
-                    to: updates.priority,
-                });
-            }
-            if (updates.assignee_id !== undefined && updates.assignee_id !== curr.assignee_id) {
-                await issueActivityService.createActivity(issueId, 'assignee_changed', {
-                    from: curr.assignee_id,
-                    to: updates.assignee_id,
-                });
-            }
-            if ((updates as any).type && (updates as any).type !== (curr as any).type) {
-                await issueActivityService.createActivity(issueId, 'type_changed' as any, {
-                    from: (curr as any).type,
-                    to: (updates as any).type,
-                });
-            }
-        }
-
-        return data as Issue;
+        const res = await apiClient.put<Issue>(`/issues/${issueId}`, updates);
+        if (res.error) throw new Error(res.error);
+        return res.data as Issue;
     },
 
     async deleteIssue(issueId: string): Promise<void> {
-        const { error } = await supabase
-            .from('issues')
-            .delete()
-            .eq('id', issueId);
-
-        if (error) throw error;
+        const res = await apiClient.delete(`/issues/${issueId}`);
+        if (res.error) throw new Error(res.error);
     },
 
     async batchUpdateIssues(issueIds: string[], updates: Partial<Issue>): Promise<void> {
-        const { error } = await supabase
-            .from('issues')
-            .update(updates as any)
-            .in('id', issueIds);
-
-        if (error) throw error;
+        const res = await apiClient.put('/issues/batch', { issueIds, updates });
+        if (res.error) throw new Error(res.error);
     },
 
     async getSubIssues(parentId: string): Promise<Issue[]> {
-        const { data, error } = await supabase
-            .from('issues')
-            .select('*')
-            .eq('parent_id', parentId)
-            .order('sort_order', { ascending: true });
-
-        if (error) throw error;
-        return (data || []) as Issue[];
+        const res = await apiClient.get<Issue[]>(`/issues/${parentId}/sub-issues`);
+        if (res.error) throw new Error(res.error);
+        return res.data || [];
     },
 
     async batchCreateIssues(
@@ -219,78 +106,34 @@ export const issueService = {
             estimate?: number;
         }>
     ): Promise<Issue[]> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const identifiers = await Promise.all(
-            issues.map(() =>
-                supabase.rpc('generate_issue_identifier', { _team_id: teamId } as any)
-                    .then(({ data }) => data as string)
-            )
-        );
-
-        const issueRecords = issues.map((issue, index) => ({
-            team_id: teamId,
-            identifier: identifiers[index],
-            title: issue.title,
-            description: issue.description,
-            status: issue.status || 'backlog',
-            priority: issue.priority || 'none',
-            type: issue.type || 'task',
-            estimate: issue.estimate,
-            creator_id: user.id,
-        }));
-
-        const { data, error } = await supabase
-            .from('issues')
-            .insert(issueRecords as any)
-            .select();
-
-        if (error) throw error;
-        return (data || []) as Issue[];
+        const res = await apiClient.post<Issue[]>(`/${teamId}/issues/batch`, { issues });
+        if (res.error) throw new Error(res.error);
+        return res.data || [];
     },
 
     /** Archive a single issue by setting archived_at timestamp */
     async archiveIssue(issueId: string): Promise<void> {
-        const { error } = await supabase
-            .from('issues')
-            .update({ archived_at: new Date().toISOString() })
-            .eq('id', issueId);
-
-        if (error) throw error;
+        const res = await apiClient.post(`/issues/${issueId}/archive`);
+        if (res.error) throw new Error(res.error);
     },
 
     /** Archive multiple issues at once */
     async archiveIssues(issueIds: string[]): Promise<void> {
         if (issueIds.length === 0) return;
-
-        const { error } = await supabase
-            .from('issues')
-            .update({ archived_at: new Date().toISOString() })
-            .in('id', issueIds);
-
-        if (error) throw error;
+        const res = await apiClient.post('/issues/batch/archive', { issueIds });
+        if (res.error) throw new Error(res.error);
     },
 
     /** Restore a single archived issue */
     async restoreIssue(issueId: string): Promise<void> {
-        const { error } = await supabase
-            .from('issues')
-            .update({ archived_at: null })
-            .eq('id', issueId);
-
-        if (error) throw error;
+        const res = await apiClient.post(`/issues/${issueId}/restore`);
+        if (res.error) throw new Error(res.error);
     },
 
     /** Restore multiple archived issues */
     async restoreIssues(issueIds: string[]): Promise<void> {
         if (issueIds.length === 0) return;
-
-        const { error } = await supabase
-            .from('issues')
-            .update({ archived_at: null })
-            .in('id', issueIds);
-
-        if (error) throw error;
+        const res = await apiClient.post('/issues/batch/restore', { issueIds });
+        if (res.error) throw new Error(res.error);
     },
 };

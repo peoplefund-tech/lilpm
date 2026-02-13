@@ -15,7 +15,7 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
 export function ForgotPasswordPage() {
@@ -40,12 +40,12 @@ export function ForgotPasswordPage() {
     const onSubmit = async (data: FormData) => {
         setIsLoading(true);
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-                redirectTo: `${window.location.origin}/reset-password`,
+            const res = await apiClient.post<{ message: string }>('/auth/forgot-password', {
+                email: data.email,
             });
 
-            if (error) {
-                throw error;
+            if (res.error) {
+                throw new Error(res.error);
             }
 
             setSentEmail(data.email);

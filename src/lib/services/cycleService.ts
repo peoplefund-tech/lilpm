@@ -1,39 +1,24 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Cycle, CycleStatus, Issue } from '@/types/database';
 
 export const cycleService = {
   async getCycles(teamId: string): Promise<Cycle[]> {
-    const { data, error } = await supabase
-      .from('cycles')
-      .select('*')
-      .eq('team_id', teamId)
-      .order('start_date', { ascending: false });
-    
-    if (error) throw error;
-    return (data || []) as Cycle[];
+    const res = await apiClient.get<Cycle[]>(`/${teamId}/cycles`);
+    if (res.error) throw new Error(res.error);
+    return res.data || [];
   },
 
   async getCycle(cycleId: string): Promise<Cycle | null> {
-    const { data, error } = await supabase
-      .from('cycles')
-      .select('*')
-      .eq('id', cycleId)
-      .single();
-    
-    if (error) throw error;
-    return data as Cycle | null;
+    const res = await apiClient.get<Cycle>(`/cycles/${cycleId}`);
+    if (res.error) throw new Error(res.error);
+    return res.data || null;
   },
 
   async getActiveCycle(teamId: string): Promise<Cycle | null> {
-    const { data, error } = await supabase
-      .from('cycles')
-      .select('*')
-      .eq('team_id', teamId)
-      .eq('status', 'active')
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data as Cycle | null;
+    const res = await apiClient.get<Cycle[]>(`/${teamId}/cycles`);
+    if (res.error) throw new Error(res.error);
+    const cycles = res.data || [];
+    return cycles.find((c) => c.status === 'active') || null;
   },
 
   async createCycle(
@@ -46,43 +31,27 @@ export const cycleService = {
       end_date: string;
     }
   ): Promise<Cycle> {
-    const { data, error } = await supabase
-      .from('cycles')
-      .insert({
-        team_id: teamId,
-        name: cycleData.name,
-        number: cycleData.number,
-        description: cycleData.description,
-        start_date: cycleData.start_date,
-        end_date: cycleData.end_date,
-        status: 'upcoming' as CycleStatus,
-      } as any)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Cycle;
+    const res = await apiClient.post<Cycle>(`/${teamId}/cycles`, {
+      name: cycleData.name,
+      number: cycleData.number,
+      description: cycleData.description,
+      startDate: cycleData.start_date,
+      endDate: cycleData.end_date,
+      status: 'upcoming' as CycleStatus,
+    });
+    if (res.error) throw new Error(res.error);
+    return res.data;
   },
 
   async updateCycle(cycleId: string, updates: Partial<Cycle>): Promise<Cycle> {
-    const { data, error } = await supabase
-      .from('cycles')
-      .update(updates as any)
-      .eq('id', cycleId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Cycle;
+    const res = await apiClient.put<Cycle>(`/cycles/${cycleId}`, updates);
+    if (res.error) throw new Error(res.error);
+    return res.data;
   },
 
   async deleteCycle(cycleId: string): Promise<void> {
-    const { error } = await supabase
-      .from('cycles')
-      .delete()
-      .eq('id', cycleId);
-    
-    if (error) throw error;
+    const res = await apiClient.delete<void>(`/cycles/${cycleId}`);
+    if (res.error) throw new Error(res.error);
   },
 
   async startCycle(cycleId: string): Promise<Cycle> {
@@ -94,43 +63,26 @@ export const cycleService = {
   },
 
   async getCycleIssues(cycleId: string): Promise<Issue[]> {
-    const { data, error } = await supabase
-      .from('issues')
-      .select('*')
-      .eq('cycle_id', cycleId)
-      .order('sort_order', { ascending: true });
-    
-    if (error) throw error;
-    return (data || []) as Issue[];
+    const res = await apiClient.get<Issue[]>(`/cycles/${cycleId}/issues`);
+    if (res.error) throw new Error(res.error);
+    return res.data || [];
   },
 
   async addIssueToCycle(issueId: string, cycleId: string): Promise<void> {
-    const { error } = await supabase
-      .from('issues')
-      .update({ cycle_id: cycleId } as any)
-      .eq('id', issueId);
-    
-    if (error) throw error;
+    const res = await apiClient.put<void>(`/issues/${issueId}`, { cycleId });
+    if (res.error) throw new Error(res.error);
   },
 
   async removeIssueFromCycle(issueId: string): Promise<void> {
-    const { error } = await supabase
-      .from('issues')
-      .update({ cycle_id: null } as any)
-      .eq('id', issueId);
-    
-    if (error) throw error;
+    const res = await apiClient.put<void>(`/issues/${issueId}`, { cycleId: null });
+    if (res.error) throw new Error(res.error);
   },
 
   async getNextCycleNumber(teamId: string): Promise<number> {
-    const { data, error } = await supabase
-      .from('cycles')
-      .select('number')
-      .eq('team_id', teamId)
-      .order('number', { ascending: false })
-      .limit(1);
-    
-    if (error) throw error;
-    return ((data?.[0] as Cycle | undefined)?.number || 0) + 1;
+    const res = await apiClient.get<Cycle[]>(`/${teamId}/cycles`);
+    if (res.error) throw new Error(res.error);
+    const cycles = res.data || [];
+    const maxNumber = Math.max(...cycles.map((c) => c.number || 0), 0);
+    return maxNumber + 1;
   },
 };

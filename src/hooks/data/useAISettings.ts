@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { userAISettingsService } from '@/lib/services/conversationService';
 import { useAuthStore } from '@/stores/authStore';
+import type { UserAISettings } from '@/types/database';
 
 interface AISettings {
     anthropic_api_key?: string;
@@ -32,20 +33,10 @@ export function useAISettings(): UseAISettingsReturn {
 
         try {
             setIsLoading(true);
-            const { data, error } = await supabase
-                .from('user_ai_settings')
-                .select('*')
-                .eq('user_id', user.id)
-                .single();
-
-            // PGRST116 = single row not found, 406 = schema mismatch (API issue)
-            // Both are non-critical errors - app works without settings
-            if (error && error.code !== 'PGRST116' && !String(error.message || '').includes('406')) {
-                console.error('Error loading AI settings:', error);
-            }
+            const data = await userAISettingsService.getSettings();
 
             if (data) {
-                console.log('[useAISettings] Loaded settings from user_ai_settings:', {
+                console.log('[useAISettings] Loaded settings from API:', {
                     hasAnthropicKey: !!data.anthropic_api_key,
                     hasOpenAIKey: !!data.openai_api_key,
                     hasGeminiKey: !!data.gemini_api_key,
@@ -80,37 +71,30 @@ export function useAISettings(): UseAISettingsReturn {
     ) => {
         if (!user) return;
 
-        const keyField = `${provider}_api_key`;
-        const updateData: Record<string, unknown> = {
-            [keyField]: key || null,
-            updated_at: new Date().toISOString(),
-        };
+        try {
+            // Build update object based on provider
+            const updateData: {
+                anthropic_api_key?: string;
+                openai_api_key?: string;
+                gemini_api_key?: string;
+            } = {};
 
-        // Check if settings exist
-        const { data: existing } = await supabase
-            .from('user_ai_settings')
-            .select('id')
-            .eq('user_id', user.id)
-            .single();
+            if (provider === 'anthropic') {
+                updateData.anthropic_api_key = key || undefined;
+            } else if (provider === 'openai') {
+                updateData.openai_api_key = key || undefined;
+            } else if (provider === 'gemini') {
+                updateData.gemini_api_key = key || undefined;
+            }
 
-        if (existing) {
-            await supabase
-                .from('user_ai_settings')
-                .update(updateData)
-                .eq('user_id', user.id);
-        } else {
-            await supabase
-                .from('user_ai_settings')
-                .insert({
-                    user_id: user.id,
-                    ...updateData,
-                    default_provider: 'auto',
-                    auto_mode_enabled: true,
-                });
+            await userAISettingsService.upsertSettings(updateData);
+
+            // Reload settings
+            await loadSettings();
+        } catch (err) {
+            console.error('Failed to save API key:', err);
+            throw err;
         }
-
-        // Reload settings
-        await loadSettings();
     }, [user, loadSettings]);
 
     useEffect(() => {

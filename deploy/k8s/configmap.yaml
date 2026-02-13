@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lilpm-config
+  namespace: lilpm
+  labels:
+    app.kubernetes.io/name: lilpm-config
+    app.kubernetes.io/part-of: lilpm
+data:
+  SITE_URL: "https://lilpm.example.com"
+  API_BASE_URL: "https://lilpm.example.com/api"
+  COLLAB_WS_URL: "wss://lilpm.example.com/collab"
+  NODE_ENV: "production"

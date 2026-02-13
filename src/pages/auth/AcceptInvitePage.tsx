@@ -7,7 +7,7 @@ import { teamInviteService } from '@/lib/services/teamService';
 import { useTeamStore } from '@/stores/teamStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useMCPStore } from '@/stores/mcpStore';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { Loader2, CheckCircle2, XCircle, Users, Mail, LogIn, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { notificationService } from '@/lib/services/notificationService';
@@ -48,8 +48,6 @@ export function AcceptInvitePage() {
   const [invitePreview, setInvitePreview] = useState<InvitePreview>({});
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lbzjnhlribtfwnoydpdv.supabase.co';
 
   // Load invite preview on mount
   useEffect(() => {
@@ -102,7 +100,7 @@ export function AcceptInvitePage() {
     }
   }, [autoAccept, isAuthenticated, user?.id, status, token]);
 
-  // Main accept handler - calls Edge Function
+  // Main accept handler - calls API server
   const handleAcceptInvite = useCallback(async () => {
     if (!token || isProcessing) return;
 
@@ -110,21 +108,19 @@ export function AcceptInvitePage() {
     setStatus('processing');
 
     try {
-      // Get current user ID if authenticated
-      let userId: string | undefined;
-      if (isAuthenticated) {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        userId = currentUser?.id;
-      }
-
-      // Call Edge Function
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/accept-invite-v2`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, userId }),
+      // Call API server
+      const res = await apiClient.post<AcceptInviteResponse>('/invites/accept', {
+        token,
+        userId: user?.id,
       });
 
-      const result: AcceptInviteResponse = await response.json();
+      if (res.error) {
+        setError(res.error);
+        setStatus('error');
+        return;
+      }
+
+      const result = res.data!;
 
       if (!result.success && result.action === 'error') {
         setError(result.error || t('team.inviteError', 'Failed to accept invitation'));
@@ -219,7 +215,7 @@ export function AcceptInvitePage() {
     } finally {
       setIsProcessing(false);
     }
-  }, [token, isProcessing, isAuthenticated, navigate, loadTeams, selectTeam, setOnboardingCompleted, t, SUPABASE_URL]);
+  }, [token, isProcessing, isAuthenticated, navigate, loadTeams, selectTeam, setOnboardingCompleted, t, user?.id]);
 
   const handleLoginRedirect = () => {
     const returnUrl = `/invite/accept?token=${token}&auto=true`;

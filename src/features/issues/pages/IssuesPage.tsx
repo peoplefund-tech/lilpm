@@ -29,7 +29,7 @@ import {
   CheckSquare,
   X,
   Calendar as CalendarIcon,
-  GanttChart,
+  GanttChart as GanttChartIcon,
   LayoutGrid,
   BarChart3,
 } from 'lucide-react';
@@ -220,7 +220,7 @@ export function IssuesPage() {
                   <CalendarIcon className="h-3.5 w-3.5" />
                 </TabsTrigger>
                 <TabsTrigger value="timeline" className="h-6 px-2" title="Timeline View" onClick={() => { setDbView('timeline'); setViewPreferences({ layout: 'timeline' as any }); }}>
-                  <GanttChart className="h-3.5 w-3.5" />
+                  <GanttChartIcon className="h-3.5 w-3.5" />
                 </TabsTrigger>
                 <TabsTrigger value="chart" className="h-6 px-2" title="Chart View" onClick={() => { setDbView('chart'); setViewPreferences({ layout: 'chart' as any }); }}>
                   <BarChart3 className="h-3.5 w-3.5" />

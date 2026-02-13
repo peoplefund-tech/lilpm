@@ -1,80 +1,52 @@
-import { useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useTeamStore } from '@/stores/teamStore';
-import { useAuthStore } from '@/stores/authStore';
+// TODO: Migrate to polling or WebSocket-based realtime updates
+// Team realtime subscriptions are currently disabled during EKS migration
 
 /**
  * Hook to subscribe to realtime team member changes.
  * When a member is added or removed from the current team,
  * the members list is automatically refreshed.
- * 
- * NOTE: We only reload members, NOT teams, to prevent redirect issues.
+ *
+ * TEMPORARILY DISABLED during EKS migration - use manual refresh instead
+ *
+ * TODO: Implement one of the following approaches:
+ * 1. Polling: setInterval to fetch team members every 30-60s
+ * 2. WebSocket: Connect to collab-server for real-time updates
+ * 3. Server-Sent Events (SSE): Subscribe to /api/teams/:id/events
  */
 export function useTeamMemberRealtime() {
-    const { currentTeam, loadMembers } = useTeamStore();
-
-    useEffect(() => {
-        if (!currentTeam?.id) return;
-
-        // Subscribe to team_members changes for the current team
-        const channel = supabase
-            .channel(`team_members:${currentTeam.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*', // Listen to INSERT, UPDATE, DELETE
-                    schema: 'public',
-                    table: 'team_members',
-                    filter: `team_id=eq.${currentTeam.id}`,
-                },
-                (payload) => {
-                    console.log('[Realtime] Team member change:', payload);
-                    // Only reload members, not teams (to prevent redirect)
-                    loadMembers(currentTeam.id);
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [currentTeam?.id, loadMembers]);
+    // No-op during migration
+    // TODO: Implement polling or WebSocket subscription
+    // Example polling approach:
+    // useEffect(() => {
+    //     if (!currentTeam?.id) return;
+    //
+    //     const interval = setInterval(() => {
+    //         loadMembers(currentTeam.id);
+    //     }, 30000); // Poll every 30 seconds
+    //
+    //     return () => clearInterval(interval);
+    // }, [currentTeam?.id, loadMembers]);
 }
 
 /**
  * Hook to subscribe to user's team membership changes.
  * Only triggers when the current user is REMOVED from a team.
- * 
- * NOTE: Disabled aggressive reload to prevent UI flickering.
- * Users will need to refresh to see new team invites.
+ *
+ * TEMPORARILY DISABLED during EKS migration - users need to refresh manually
+ *
+ * TODO: Implement polling or WebSocket subscription for team membership changes
  */
 export function useUserTeamsRealtime() {
-    const { loadTeams } = useTeamStore();
-    const { user } = useAuthStore();
-
-    useEffect(() => {
-        if (!user?.id) return;
-
-        // Subscribe to DELETE events only for this user
-        const channel = supabase
-            .channel(`user_teams:${user.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'DELETE', // Only listen for removals
-                    schema: 'public',
-                    table: 'team_members',
-                    filter: `user_id=eq.${user.id}`,
-                },
-                (payload) => {
-                    console.log('[Realtime] User removed from team:', payload);
-                    loadTeams();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [user?.id, loadTeams]);
+    // No-op during migration
+    // TODO: Implement polling or WebSocket subscription
+    // Example polling approach:
+    // useEffect(() => {
+    //     if (!user?.id) return;
+    //
+    //     const interval = setInterval(() => {
+    //         loadTeams();
+    //     }, 60000); // Poll every 60 seconds
+    //
+    //     return () => clearInterval(interval);
+    // }, [user?.id, loadTeams]);
 }

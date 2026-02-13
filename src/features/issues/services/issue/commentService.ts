@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Comment, Profile } from '@/types/database';
 import { issueActivityService } from './issueActivityService';
 
@@ -12,70 +12,29 @@ export interface CommentWithUser extends Comment {
 
 export const commentService = {
     async getComments(issueId: string): Promise<CommentWithUser[]> {
-        const { data: commentsData, error: commentsError } = await supabase
-            .from('comments')
-            .select('*')
-            .eq('issue_id', issueId)
-            .order('created_at', { ascending: true });
-
-        if (commentsError) throw commentsError;
-        if (!commentsData || commentsData.length === 0) return [];
-
-        const userIds = [...new Set(commentsData.map(c => c.user_id).filter(Boolean))];
-
-        const { data: profilesData } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('id', userIds);
-
-        const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
-
-        return commentsData.map(comment => ({
-            ...comment,
-            user: profilesMap.get(comment.user_id) || null,
-        })) as unknown as CommentWithUser[];
+        const res = await apiClient.get<CommentWithUser[]>(`/issues/${issueId}/comments`);
+        if (res.error) throw new Error(res.error);
+        return res.data || [];
     },
 
     async createComment(issueId: string, body: string): Promise<Comment> {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        const res = await apiClient.post<Comment>(`/issues/${issueId}/comments`, { body });
+        if (res.error) throw new Error(res.error);
+        if (!res.data) throw new Error('Failed to create comment');
 
-        const { data, error } = await supabase
-            .from('comments')
-            .insert({
-                issue_id: issueId,
-                user_id: user.id,
-                body,
-            } as any)
-            .select()
-            .single();
+        await issueActivityService.createActivity(issueId, 'comment_added', { comment_id: res.data.id });
 
-        if (error) throw error;
-        if (!data) throw new Error('Failed to create comment');
-
-        await issueActivityService.createActivity(issueId, 'comment_added', { comment_id: (data as Comment).id });
-
-        return data as Comment;
+        return res.data;
     },
 
     async updateComment(commentId: string, body: string): Promise<Comment> {
-        const { data, error } = await supabase
-            .from('comments')
-            .update({ body } as any)
-            .eq('id', commentId)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data as Comment;
+        const res = await apiClient.put<Comment>(`/comments/${commentId}`, { body });
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 
     async deleteComment(commentId: string): Promise<void> {
-        const { error } = await supabase
-            .from('comments')
-            .delete()
-            .eq('id', commentId);
-
-        if (error) throw error;
+        const res = await apiClient.delete(`/comments/${commentId}`);
+        if (res.error) throw new Error(res.error);
     },
 };

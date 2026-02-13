@@ -1,15 +1,14 @@
 /**
- * Supabase Realtime Collaboration Hook
- * 
- * Uses Supabase Realtime Broadcast for cursor sync and Presence for user tracking.
- * Guarantees DB persistence while providing real-time collaboration features.
- * 
- * This is a reliable fallback/replacement for WebSocket-based Yjs sync.
+ * Collaboration Hook (formerly Supabase Realtime)
+ *
+ * TODO: Migrate to collab-server WebSocket at ws://localhost:3001
+ * Real-time collaboration features are currently disabled during EKS migration
+ *
+ * This hook maintains the same interface but all operations are no-ops
+ * Components using this hook will continue to work without real-time features
  */
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { useState, useCallback, useRef, useMemo } from 'react';
 
 export interface PresenceUser {
     id: string;
@@ -55,190 +54,73 @@ export function useSupabaseCollaboration(
         entityType,
         entityId,
         userId,
-        userName,
-        avatarUrl,
-        enabled = true,
     } = options;
 
-    // Stabilize userColor: use provided color, or generate a stable random color once per hook instance
+    // Stabilize userColor
     const stableColorRef = useRef<string | null>(null);
     if (!stableColorRef.current) {
         stableColorRef.current = options.userColor || getRandomColor();
     }
-    // Update if caller provides a new explicit color
     if (options.userColor && options.userColor !== stableColorRef.current) {
         stableColorRef.current = options.userColor;
     }
-    const userColor = stableColorRef.current;
 
-    const [isConnected, setIsConnected] = useState(false);
-    const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
-    const channelRef = useRef<RealtimeChannel | null>(null);
+    const [isConnected] = useState(false);
+    const [presenceUsers] = useState<PresenceUser[]>([]);
     const contentChangeCallbackRef = useRef<((content: string, userId: string) => void) | null>(null);
 
     const roomName = useMemo(() => `collab:${entityType}:${entityId}`, [entityType, entityId]);
 
-    // Use refs for values that change but shouldn't trigger channel recreation
-    const userNameRef = useRef(userName);
-    const userColorRef = useRef(userColor);
-    const avatarUrlRef = useRef(avatarUrl);
+    // TODO: Implement WebSocket connection to collab-server
+    // useEffect(() => {
+    //     if (!enabled || !entityId || !userId) return;
+    //
+    //     const ws = new WebSocket(`ws://localhost:3001/collab/${roomName}`);
+    //
+    //     ws.onopen = () => {
+    //         // Send initial presence
+    //         ws.send(JSON.stringify({
+    //             type: 'presence',
+    //             data: {
+    //                 id: userId,
+    //                 name: userName,
+    //                 color: userColor,
+    //                 avatar: avatarUrl,
+    //                 lastSeen: Date.now(),
+    //             }
+    //         }));
+    //     };
+    //
+    //     ws.onmessage = (event) => {
+    //         const message = JSON.parse(event.data);
+    //         if (message.type === 'presence_sync') {
+    //             setPresenceUsers(message.users);
+    //         } else if (message.type === 'content_change') {
+    //             if (contentChangeCallbackRef.current) {
+    //                 contentChangeCallbackRef.current(message.content, message.userId);
+    //             }
+    //         }
+    //     };
+    //
+    //     return () => ws.close();
+    // }, [enabled, entityId, userId, roomName]);
 
-    useEffect(() => {
-        userNameRef.current = userName;
-        userColorRef.current = userColor;
-        avatarUrlRef.current = avatarUrl;
-
-        // Update presence with new user info (without recreating channel)
-        if (channelRef.current) {
-            channelRef.current.track({
-                id: userId,
-                name: userName,
-                color: userColor,
-                avatar: avatarUrl,
-                lastSeen: Date.now(),
-            });
-        }
-    }, [userId, userName, userColor, avatarUrl]);
-
-    // Update cursor position
+    // No-op during migration
     const updateCursorPosition = useCallback((position: number, blockId?: string) => {
-        if (!channelRef.current) return;
+        // TODO: Send cursor update via WebSocket
+        console.log('[Collaboration] updateCursorPosition (disabled):', { position, blockId });
+    }, []);
 
-        // Update presence with cursor info
-        channelRef.current.track({
-            id: userId,
-            name: userNameRef.current,
-            color: userColorRef.current,
-            avatar: avatarUrlRef.current,
-            cursorPosition: position,
-            blockId,
-            lastSeen: Date.now(),
-        });
-    }, [userId]);
-
-    // Broadcast content change to other users
+    // No-op during migration
     const broadcastContentChange = useCallback((content: string) => {
-        if (!channelRef.current) return;
-
-        channelRef.current.send({
-            type: 'broadcast',
-            event: 'content_change',
-            payload: {
-                content,
-                userId,
-                timestamp: Date.now(),
-            },
-        });
-    }, [userId]);
+        // TODO: Broadcast content change via WebSocket
+        console.log('[Collaboration] broadcastContentChange (disabled):', { contentLength: content.length });
+    }, []);
 
     // Register callback for remote content changes
     const onRemoteContentChange = useCallback((callback: (content: string, userId: string) => void) => {
         contentChangeCallbackRef.current = callback;
     }, []);
-
-    // Setup channel
-    useEffect(() => {
-        if (!enabled || !entityId || !userId) {
-            return;
-        }
-
-        console.log('[SupabaseCollaboration] Setting up channel:', roomName);
-
-        const channel = supabase.channel(roomName, {
-            config: {
-                presence: {
-                    key: userId,
-                },
-            },
-        });
-
-        // Handle presence sync
-        channel.on('presence', { event: 'sync' }, () => {
-            const state = channel.presenceState();
-            const users: PresenceUser[] = [];
-
-            Object.values(state).forEach((presences: any[]) => {
-                presences.forEach((presence) => {
-                    if (presence.id !== userId) {
-                        users.push({
-                            id: presence.id,
-                            name: presence.name,
-                            color: presence.color,
-                            avatar: presence.avatar,
-                            cursorPosition: presence.cursorPosition,
-                            blockId: presence.blockId,
-                            lastSeen: presence.lastSeen || Date.now(),
-                        });
-                    }
-                });
-            });
-
-            console.log('[SupabaseCollaboration] Presence sync, users:', users.length);
-            setPresenceUsers(users);
-        });
-
-        // Handle presence join
-        channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-            console.log('[SupabaseCollaboration] User joined:', key);
-        });
-
-        // Handle presence leave
-        channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-            console.log('[SupabaseCollaboration] User left:', key);
-            setPresenceUsers((prev) => prev.filter((u) => u.id !== key));
-        });
-
-        // Handle content change broadcasts from other users
-        channel.on('broadcast', { event: 'content_change' }, ({ payload }) => {
-            console.log('[SupabaseCollaboration] Received content_change broadcast:', {
-                fromUserId: payload.userId,
-                currentUserId: userId,
-                isSelf: payload.userId === userId,
-                hasCallback: !!contentChangeCallbackRef.current,
-                contentLength: payload.content?.length,
-            });
-            if (payload.userId !== userId && contentChangeCallbackRef.current) {
-                console.log('[SupabaseCollaboration] Applying remote content change from:', payload.userId);
-                contentChangeCallbackRef.current(payload.content, payload.userId);
-            } else if (payload.userId !== userId && !contentChangeCallbackRef.current) {
-                console.warn('[SupabaseCollaboration] No callback registered for content change!');
-            }
-        });
-
-        // Subscribe to channel
-        channel.subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log('[SupabaseCollaboration] Connected to:', roomName);
-                setIsConnected(true);
-
-                // Track initial presence (use refs for user info to avoid stale closures)
-                await channel.track({
-                    id: userId,
-                    name: userNameRef.current,
-                    color: userColorRef.current,
-                    avatar: avatarUrlRef.current,
-                    lastSeen: Date.now(),
-                });
-            } else if (status === 'CHANNEL_ERROR') {
-                console.error('[SupabaseCollaboration] Channel error');
-                setIsConnected(false);
-            } else if (status === 'TIMED_OUT') {
-                console.warn('[SupabaseCollaboration] Channel timed out');
-                setIsConnected(false);
-            }
-        });
-
-        channelRef.current = channel;
-
-        return () => {
-            console.log('[SupabaseCollaboration] Cleanup:', roomName);
-            channel.unsubscribe();
-            channelRef.current = null;
-            setIsConnected(false);
-            setPresenceUsers([]);
-        };
-    // Only recreate channel when core identifiers change (not user display info)
-    }, [enabled, entityId, userId, roomName]);
 
     return {
         isConnected,

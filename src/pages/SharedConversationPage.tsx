@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/stores/authStore';
+import { conversationService, messageService } from '@/lib/services/conversationService';
+import type { Message as DBMessage } from '@/types/database';
 
 interface SharedConversation {
     conversationId: string;
@@ -48,29 +50,24 @@ export function SharedConversationPage() {
 
     const loadSharedConversation = async () => {
         try {
-            // Get share info using RPC function
-            const { data, error: rpcError } = await supabase
-                .rpc('get_shared_conversation', { p_token: token });
+            // Get share info using API endpoint
+            const res = await apiClient.get<SharedConversation>(`/conversations/share/${token}`);
 
-            if (rpcError) throw rpcError;
-            if (!data || data.length === 0) {
+            if (res.error) {
                 setError('Link expired or not found');
                 return;
             }
 
-            const shareData = data[0];
-            setSharedConv({
-                conversationId: shareData.conversation_id,
-                title: shareData.title,
-                accessType: shareData.access_type,
-                isPublic: shareData.is_public,
-                sharedByName: shareData.shared_by_name,
-                expiresAt: shareData.expires_at,
-            });
+            if (!res.data) {
+                setError('Link expired or not found');
+                return;
+            }
+
+            setSharedConv(res.data);
 
             // If public or user has access, load messages
-            if (shareData.is_public || isAuthenticated) {
-                await loadMessages(shareData.conversation_id);
+            if (res.data.isPublic || isAuthenticated) {
+                await loadMessages(res.data.conversationId);
             }
         } catch (err) {
             console.error('Failed to load shared conversation:', err);
@@ -82,14 +79,15 @@ export function SharedConversationPage() {
 
     const loadMessages = async (conversationId: string) => {
         try {
-            const { data, error } = await supabase
-                .from('lily_messages')
-                .select('*')
-                .eq('conversation_id', conversationId)
-                .order('created_at', { ascending: true });
-
-            if (error) throw error;
-            setMessages(data || []);
+            const messages = await messageService.getMessages(conversationId);
+            // Transform DBMessage to Message format
+            const formattedMessages: Message[] = messages.map((msg: DBMessage) => ({
+                id: msg.id,
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content,
+                createdAt: msg.created_at,
+            }));
+            setMessages(formattedMessages);
         } catch (err) {
             console.error('Failed to load messages:', err);
         }
@@ -103,26 +101,15 @@ export function SharedConversationPage() {
 
         setRequestLoading(true);
         try {
-            // Get share ID first
-            const { data: shareData } = await supabase
-                .from('conversation_shares')
-                .select('id, conversation_id')
-                .eq('share_token', token)
-                .single();
+            // Create access request via API endpoint
+            const res = await apiClient.post(`/conversations/share/${token}/request-access`, {
+                message: requestMessage,
+            });
 
-            if (!shareData) throw new Error('Share not found');
+            if (res.error) {
+                throw new Error(res.error);
+            }
 
-            // Create access request
-            const { error } = await supabase
-                .from('conversation_access_requests')
-                .insert({
-                    conversation_id: shareData.conversation_id,
-                    share_id: shareData.id,
-                    requested_by: user?.id,
-                    message: requestMessage,
-                });
-
-            if (error) throw error;
             setAccessRequested(true);
         } catch (err) {
             console.error('Failed to request access:', err);

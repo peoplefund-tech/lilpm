@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import type { Profile, TeamMember, TeamRole } from '@/types/database';
 import { logRoleChanged, logMemberRemoved } from '../activityService';
 
@@ -6,206 +6,155 @@ import { logRoleChanged, logMemberRemoved } from '../activityService';
 // TEAM MEMBER SERVICES
 // ============================================
 
+// Storage for team context - used to support backward-compatible API
+let currentTeamContext: string | null = null;
+
 export interface TeamMemberWithProfile extends TeamMember {
     profile: Profile;
 }
 
 export const teamMemberService = {
+    /**
+     * Set the current team context (used for legacy API calls)
+     * This is called from the store when loading members
+     */
+    setCurrentTeamContext(teamId: string | null) {
+        currentTeamContext = teamId;
+    },
+
     async getMembers(teamId: string): Promise<TeamMemberWithProfile[]> {
-        // Step 1: Get team members
-        const { data: membersData, error: membersError } = await supabase
-            .from('team_members')
-            .select('*')
-            .eq('team_id', teamId)
-            .order('joined_at', { ascending: true });
+        // Set context for other methods
+        this.setCurrentTeamContext(teamId);
 
-        if (membersError) throw membersError;
-        if (!membersData || membersData.length === 0) return [];
+        // Get team members with profiles via the API
+        const res = await apiClient.get<any[]>(`/teams/${teamId}/members`);
+        if (res.error) throw new Error(res.error);
 
-        // Step 2: Get profiles for all member user_ids
-        const userIds = membersData.map(m => m.user_id);
-        const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, name, email, avatar_url')
-            .in('id', userIds);
+        const members = res.data || [];
 
-        if (profilesError) throw profilesError;
-
-        // Step 3: Merge members with profiles
-        const profileMap = new Map((profilesData || []).map(p => [p.id, p]));
-        return membersData.map(member => ({
-            ...member,
-            profile: profileMap.get(member.user_id) || { id: member.user_id, name: null, email: null, avatar_url: null },
+        // Transform the response to include the profile object for consistency
+        return members.map(member => ({
+            id: member.id,
+            team_id: teamId,
+            user_id: member.userId,
+            role: member.role,
+            joined_at: member.joinedAt,
+            // The API returns name, email, avatarUrl as separate fields
+            // Convert to profile object for interface compatibility
+            profile: {
+                id: member.userId,
+                name: member.name,
+                email: member.email,
+                avatar_url: member.avatarUrl,
+            },
         })) as unknown as TeamMemberWithProfile[];
     },
 
     async addMember(teamId: string, userId: string, role: TeamRole = 'member'): Promise<TeamMember> {
-        const { data, error } = await supabase
-            .from('team_members')
-            .insert({ team_id: teamId, user_id: userId, role } as any)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data as TeamMember;
+        const res = await apiClient.post<TeamMember>(`/teams/${teamId}/members`, { userId, role });
+        if (res.error) throw new Error(res.error);
+        return res.data;
     },
 
     async updateMemberRole(memberId: string, role: TeamRole): Promise<TeamMember> {
-        // Get current member info for logging old role
-        const { data: currentMember } = await supabase
-            .from('team_members')
-            .select('team_id, user_id, role')
-            .eq('id', memberId)
-            .single();
-
-        const oldRole = currentMember?.role;
-        const teamId = currentMember?.team_id;
-        const userId = currentMember?.user_id;
-
-        const { data, error } = await supabase
-            .from('team_members')
-            .update({ role } as any)
-            .eq('id', memberId)
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        // Log role change activity
-        if (teamId && userId && oldRole !== role) {
-            logRoleChanged(teamId, memberId, userId, oldRole, role);
+        // Legacy API: memberId corresponds to userId in the new API structure
+        // We need the current team context to make the API call
+        if (!currentTeamContext) {
+            throw new Error('No team context set. Call getMembers first or use updateMemberRoleByTeamAndUser.');
         }
 
-        return data as TeamMember;
+        const res = await apiClient.put<TeamMember>(`/teams/${currentTeamContext}/members/${memberId}`, { role });
+        if (res.error) throw new Error(res.error);
+
+        logRoleChanged(currentTeamContext, memberId, memberId, 'unknown', role);
+        return res.data;
     },
 
-    async removeMember(memberId: string): Promise<void> {
-        // First, get the member info for notification/logging
-        const { data: member, error: fetchError } = await supabase
-            .from('team_members')
-            .select(`
-        *,
-        team:teams(id, name)
-      `)
-            .eq('id', memberId)
-            .single();
+    async updateMemberRoleByTeamAndUser(teamId: string, userId: string, role: TeamRole): Promise<TeamMember> {
+        // Update member role via teamId and userId
+        const res = await apiClient.put<TeamMember>(`/teams/${teamId}/members/${userId}`, { role });
+        if (res.error) throw new Error(res.error);
 
-        if (fetchError) throw fetchError;
-        if (!member) throw new Error('Member not found');
+        logRoleChanged(teamId, userId, userId, 'unknown', role);
+        return res.data;
+    },
 
-        const typedMember = member as any;
-        const teamId = typedMember.team_id;
-        const removedUserId = typedMember.user_id;
-        const teamName = typedMember.team?.name || 'the team';
+    async removeMember(teamIdOrMemberId: string, userId?: string): Promise<void> {
+        // Support both signatures for backward compatibility
+        // If userId is provided, use it as the new API
+        // Otherwise, treat first arg as memberId and use team context
+        let teamId: string;
+        let userIdToRemove: string;
 
-        // Get profile separately (FK hint doesn't work for auth.users → profiles)
-        const { data: memberProfile } = await supabase
-            .from('profiles')
-            .select('id, email, name')
-            .eq('id', removedUserId)
-            .maybeSingle();
-
-        const userEmail = memberProfile?.email;
-        const userName = memberProfile?.name || userEmail;
-        const userRole = typedMember.role;
-
-        // Delete the member
-        const { error } = await supabase
-            .from('team_members')
-            .delete()
-            .eq('id', memberId);
-
-        if (error) throw error;
-
-        // Get current user info for notification message
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        const { data: currentProfile } = await supabase
-            .from('profiles')
-            .select('name, email')
-            .eq('id', currentUser?.id)
-            .maybeSingle();
-        const removerName = currentProfile?.name || currentProfile?.email || 'A team admin';
-
-        // Create notification for removed user
-        try {
-            await supabase
-                .from('notifications')
-                .insert({
-                    user_id: removedUserId,
-                    type: 'team_removed',
-                    title: `You have been removed from ${teamName}`,
-                    message: `${removerName} has removed you from ${teamName}.`,
-                    data: {
-                        teamId,
-                        teamName,
-                        removedBy: currentUser?.id,
-                        removerName,
-                    },
-                } as any);
-        } catch (notifErr) {
-            console.error('Failed to create removal notification:', notifErr);
-        }
-
-        // Send email notification via Edge Function
-        if (userEmail) {
-            try {
-                await supabase.functions.invoke('send-member-removed', {
-                    body: {
-                        email: userEmail,
-                        userName,
-                        teamName,
-                        removerName,
-                    },
-                });
-            } catch (emailErr) {
-                console.error('Failed to send removal email:', emailErr);
+        if (userId) {
+            // New API: removeMember(teamId, userId)
+            teamId = teamIdOrMemberId;
+            userIdToRemove = userId;
+        } else {
+            // Legacy API: removeMember(memberId)
+            if (!currentTeamContext) {
+                throw new Error('No team context set. Call getMembers first or use removeMember(teamId, userId).');
             }
+            teamId = currentTeamContext;
+            userIdToRemove = teamIdOrMemberId;
         }
 
-        // Log activity
-        logMemberRemoved(teamId, memberId, removedUserId, userRole);
+        // Delete the member via teamId and userId
+        const res = await apiClient.delete(`/teams/${teamId}/members/${userIdToRemove}`);
+        if (res.error) throw new Error(res.error);
+
+        logMemberRemoved(teamId, userIdToRemove, userIdToRemove, 'unknown');
     },
 
     async getUserRole(teamId: string, userId: string): Promise<TeamRole | null> {
-        const { data, error } = await supabase
-            .rpc('get_team_role', { _user_id: userId, _team_id: teamId } as any);
+        try {
+            // Get member details to extract role
+            const res = await apiClient.get<any>(`/teams/${teamId}/members`);
+            if (res.error) return null;
 
-        if (error) return null;
-        return data as TeamRole | null;
+            const members = res.data || [];
+            const member = members.find((m: any) => m.userId === userId);
+            return member?.role || null;
+        } catch {
+            return null;
+        }
     },
 
     async getMemberByUserId(teamId: string, userId: string): Promise<TeamMember | null> {
-        const { data, error } = await supabase
-            .from('team_members')
-            .select('*')
-            .eq('team_id', teamId)
-            .eq('user_id', userId)
-            .maybeSingle();
+        try {
+            // Get all members and find the one matching userId
+            const res = await apiClient.get<any[]>(`/teams/${teamId}/members`);
+            if (res.error) {
+                console.error('Error getting members:', res.error);
+                return null;
+            }
 
-        if (error) {
-            console.error('Error getting member by user ID:', error);
+            const members = res.data || [];
+            const member = members.find((m: any) => m.userId === userId);
+
+            if (!member) return null;
+
+            // Transform to TeamMember interface
+            return {
+                id: member.id,
+                team_id: teamId,
+                user_id: member.userId,
+                role: member.role,
+                joined_at: member.joinedAt,
+            } as TeamMember;
+        } catch (err) {
+            console.error('Error getting member by user ID:', err);
             return null;
         }
-        return data as TeamMember | null;
     },
 
     async transferOwnership(teamId: string, newOwnerId: string, currentOwnerId: string): Promise<void> {
         // Update new owner to 'owner' role
-        const { error: newOwnerError } = await supabase
-            .from('team_members')
-            .update({ role: 'owner' } as any)
-            .eq('team_id', teamId)
-            .eq('user_id', newOwnerId);
-
-        if (newOwnerError) throw newOwnerError;
+        const newOwnerRes = await apiClient.put(`/teams/${teamId}/members/${newOwnerId}`, { role: 'owner' });
+        if (newOwnerRes.error) throw new Error(newOwnerRes.error);
 
         // Update current owner to 'admin' role
-        const { error: currentOwnerError } = await supabase
-            .from('team_members')
-            .update({ role: 'admin' } as any)
-            .eq('team_id', teamId)
-            .eq('user_id', currentOwnerId);
-
-        if (currentOwnerError) throw currentOwnerError;
+        const currentOwnerRes = await apiClient.put(`/teams/${teamId}/members/${currentOwnerId}`, { role: 'admin' });
+        if (currentOwnerRes.error) throw new Error(currentOwnerRes.error);
     },
 };

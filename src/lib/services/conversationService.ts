@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase';
-import type { 
-  Conversation, 
-  Message, 
+import { apiClient } from '@/lib/api/client';
+import type {
+  Conversation,
+  Message,
   AIProvider,
-  UserAISettings 
+  UserAISettings
 } from '@/types/database';
 
 // Extended type
@@ -22,67 +22,57 @@ export const conversationService = {
    * @param personalOnly - If true, only get user's own conversations
    */
   async getConversations(teamId?: string, personalOnly = false): Promise<Conversation[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    let query = supabase
-      .from('conversations')
-      .select('*')
-      .order('updated_at', { ascending: false });
-
     if (teamId) {
-      query = query.eq('team_id', teamId);
-      // If not personal only, show all team conversations (shared)
+      // Get team conversations
+      const res = await apiClient.get<Conversation[]>(`/${teamId}/conversations`);
+      if (res.error) throw new Error(res.error);
+
       if (personalOnly) {
-        query = query.eq('user_id', user.id);
+        // Filter to personal conversations only (handled on server side, but filter here for safety)
+        const currentUserId = await this._getCurrentUserId();
+        return (res.data || []).filter(c => c.user_id === currentUserId);
       }
+
+      return res.data || [];
     } else {
       // No team = personal conversations only
-      query = query.eq('user_id', user.id);
+      // Use a generic personal endpoint
+      const res = await apiClient.get<Conversation[]>('/conversations');
+      if (res.error) throw new Error(res.error);
+      return res.data || [];
     }
-
-    const { data, error } = await query;
-    
-    if (error) throw error;
-    return (data || []) as Conversation[];
   },
 
   /**
    * Get all team conversations for collaboration
    */
   async getTeamConversations(teamId: string): Promise<Conversation[]> {
-    const { data, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .eq('team_id', teamId)
-      .order('updated_at', { ascending: false });
-    
-    if (error) throw error;
-    return (data || []) as Conversation[];
+    const res = await apiClient.get<Conversation[]>(`/${teamId}/conversations`);
+    if (res.error) throw new Error(res.error);
+    return res.data || [];
   },
 
   async getConversation(conversationId: string): Promise<ConversationWithMessages | null> {
-    const { data, error } = await supabase
-      .from('conversations')
-      .select(`
-        *,
-        messages(*)
-      `)
-      .eq('id', conversationId)
-      .single();
-    
-    if (error) throw error;
-    if (!data) return null;
-    
+    const res = await apiClient.get<Conversation>(`/conversations/${conversationId}`);
+    if (res.error) throw new Error(res.error);
+
+    if (!res.data) return null;
+
+    // Get messages for this conversation
+    const messagesRes = await apiClient.get<Message[]>(`/conversations/${conversationId}/messages`);
+    if (messagesRes.error) throw new Error(messagesRes.error);
+
+    const messages = messagesRes.data || [];
+
     // Sort messages by created_at
-    const typedData = data as unknown as ConversationWithMessages;
-    if (typedData.messages) {
-      typedData.messages.sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-    }
-    
-    return typedData;
+    messages.sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    return {
+      ...res.data,
+      messages,
+    } as ConversationWithMessages;
   },
 
   async createConversation(
@@ -91,44 +81,50 @@ export const conversationService = {
     title?: string,
     aiProvider: AIProvider = 'anthropic'
   ): Promise<Conversation> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const endpoint = teamId ? `/${teamId}/conversations` : '/conversations';
 
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({
-        user_id: user.id,
-        team_id: teamId,
-        project_id: projectId,
-        title,
-        ai_provider: aiProvider,
-      } as any)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Conversation;
+    const res = await apiClient.post<Conversation>(endpoint, {
+      projectId,
+      title,
+      aiProvider,
+    });
+
+    if (res.error) throw new Error(res.error);
+    if (!res.data) throw new Error('Failed to create conversation');
+
+    return res.data;
   },
 
   async updateConversation(conversationId: string, updates: Partial<Conversation>): Promise<Conversation> {
-    const { data, error } = await supabase
-      .from('conversations')
-      .update(updates as any)
-      .eq('id', conversationId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Conversation;
+    const res = await apiClient.put<Conversation>(`/conversations/${conversationId}`, updates);
+
+    if (res.error) throw new Error(res.error);
+    if (!res.data) throw new Error('Failed to update conversation');
+
+    return res.data;
   },
 
   async deleteConversation(conversationId: string): Promise<void> {
-    const { error } = await supabase
-      .from('conversations')
-      .delete()
-      .eq('id', conversationId);
-    
-    if (error) throw error;
+    const res = await apiClient.delete<void>(`/conversations/${conversationId}`);
+
+    if (res.error) throw new Error(res.error);
+  },
+
+  // Helper to get current user ID from token
+  async _getCurrentUserId(): Promise<string> {
+    // Get from API or token - this is handled by the server via JWT
+    // For now, we'll need to fetch the current user from a profile endpoint
+    // This is a workaround - ideally the server would provide this
+    const token = apiClient.getAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    // Decode JWT to get user ID
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.userId || payload.sub;
+    } catch {
+      throw new Error('Invalid token');
+    }
   },
 };
 
@@ -138,14 +134,9 @@ export const conversationService = {
 
 export const messageService = {
   async getMessages(conversationId: string): Promise<Message[]> {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
-    
-    if (error) throw error;
-    return (data || []) as Message[];
+    const res = await apiClient.get<Message[]>(`/conversations/${conversationId}/messages`);
+    if (res.error) throw new Error(res.error);
+    return res.data || [];
   },
 
   async createMessage(
@@ -156,40 +147,26 @@ export const messageService = {
     aiProvider?: AIProvider,
     tokensUsed?: number
   ): Promise<Message> {
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        role,
-        content,
-        metadata: metadata || {},
-        ai_provider: aiProvider,
-        tokens_used: tokensUsed,
-      } as any)
-      .select()
-      .single();
-    
-    if (error) throw error;
+    const res = await apiClient.post<Message>(`/conversations/${conversationId}/messages`, {
+      role,
+      content,
+      metadata: metadata || {},
+      aiProvider,
+      tokensUsed,
+    });
 
-    // Update conversation's updated_at
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() } as any)
-      .eq('id', conversationId);
+    if (res.error) throw new Error(res.error);
+    if (!res.data) throw new Error('Failed to create message');
 
-    return data as Message;
+    return res.data;
   },
 
   async getConversationContext(conversationId: string, limit = 20): Promise<Message[]> {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    if (error) throw error;
-    return ((data || []) as Message[]).reverse(); // Reverse to get chronological order
+    const res = await apiClient.get<Message[]>(`/conversations/${conversationId}/messages?limit=${limit}&context=true`);
+    if (res.error) throw new Error(res.error);
+
+    const messages = res.data || [];
+    return messages.reverse(); // Reverse to get chronological order
   },
 };
 
@@ -199,17 +176,9 @@ export const messageService = {
 
 export const userAISettingsService = {
   async getSettings(): Promise<UserAISettings | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const { data, error } = await supabase
-      .from('user_ai_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data as UserAISettings | null;
+    const res = await apiClient.get<UserAISettings>('/users/ai-settings/me');
+    if (res.error) throw new Error(res.error);
+    return res.data || null;
   },
 
   async upsertSettings(settings: {
@@ -219,20 +188,19 @@ export const userAISettingsService = {
     default_provider?: AIProvider;
     auto_mode_enabled?: boolean;
   }): Promise<UserAISettings> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    // Convert snake_case to camelCase for API
+    const res = await apiClient.put<UserAISettings>('/users/ai-settings/me', {
+      anthropicApiKey: settings.anthropic_api_key,
+      openaiApiKey: settings.openai_api_key,
+      geminiApiKey: settings.gemini_api_key,
+      defaultProvider: settings.default_provider,
+      autoModeEnabled: settings.auto_mode_enabled,
+    });
 
-    const { data, error } = await supabase
-      .from('user_ai_settings')
-      .upsert({
-        user_id: user.id,
-        ...settings,
-      } as any)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as UserAISettings;
+    if (res.error) throw new Error(res.error);
+    if (!res.data) throw new Error('Failed to update AI settings');
+
+    return res.data;
   },
 
   async getAvailableProviders(): Promise<AIProvider[]> {
@@ -243,7 +211,7 @@ export const userAISettingsService = {
     if (settings.anthropic_api_key) providers.push('anthropic');
     if (settings.openai_api_key) providers.push('openai');
     if (settings.gemini_api_key) providers.push('gemini');
-    
+
     if (providers.length > 1 && settings.auto_mode_enabled) {
       providers.push('auto');
     }

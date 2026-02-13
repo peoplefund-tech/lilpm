@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useIssueStore } from '@/stores';
 import { activityService } from '@/lib/services';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api/client';
 import { ProfileStats, ProfileActivityChart, ProfileActivityHistory } from '@/components/profile';
 import type { Issue } from '@/types';
 import type { ActivityWithUser } from '@/types/database';
@@ -141,27 +141,28 @@ export function ProfilePage() {
     setIsUploadingAvatar(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrl },
+      // Use fetchRaw to bypass JSON stringification for FormData
+      const response = await apiClient.fetchRaw('/upload/avatar', {
+        method: 'POST',
+        body: formData,
       });
 
-      if (updateError) throw updateError;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
 
-      updateUser({ avatarUrl: publicUrl });
+      const { avatarUrl } = await response.json();
+
+      // Update user profile with new avatar URL
+      const res = await apiClient.put('/auth/me', { avatarUrl });
+      if (res.error) throw new Error(res.error);
+
+      updateUser({ avatarUrl });
 
       toast({
         title: t('profile.avatarUpdated'),
@@ -183,12 +184,12 @@ export function ProfilePage() {
     setIsUpdatingProfile(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      const res = await apiClient.put('/auth/me', {
+        name: data.name,
         email: data.email,
-        data: { name: data.name },
       });
 
-      if (error) throw error;
+      if (res.error) throw new Error(res.error);
 
       updateUser({ name: data.name, email: data.email });
 
@@ -211,11 +212,12 @@ export function ProfilePage() {
     setIsUpdatingPassword(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: data.newPassword,
+      const res = await apiClient.post('/auth/change-password', {
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
       });
 
-      if (error) throw error;
+      if (res.error) throw new Error(res.error);
 
       passwordForm.reset();
 
