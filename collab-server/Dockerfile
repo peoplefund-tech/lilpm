@@ -14,6 +14,8 @@ RUN npm run build
 # ── Production stage ──────────────────────────────────────────────────────────
 FROM node:20-alpine
 
+RUN apk add --no-cache wget
+
 WORKDIR /app
 
 ENV NODE_ENV=production
